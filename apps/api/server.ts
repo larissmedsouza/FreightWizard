@@ -189,17 +189,6 @@ app.get('/auth/google', (req, res) => {
   res.redirect(url);
 });
 
-app.get('/debug', (req, res) => {
-  res.json({
-    API_URL: API_URL,
-    MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID ? '✅ set' : '❌ missing',
-    MICROSOFT_CONFIG_clientId: MICROSOFT_CONFIG.clientId ? '✅ set' : '❌ EMPTY',
-    RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN || 'not set',
-    API_URL_ENV: process.env.API_URL || 'not set',
-  });
-});
-
-
 // OAuth callback
 app.get('/auth/google/callback', async (req, res) => {
   const { code } = req.query;
@@ -947,6 +936,191 @@ app.get('/api/analytics', async (req, res) => {
   } catch (error) {
     console.error('Analytics error:', error);
     res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
+
+// ============================================
+// TEAM / LEADERBOARD ENDPOINTS
+// ============================================
+
+// Create a team (manager)
+app.post('/api/team/create', async (req, res) => {
+  const { sessionId, teamName } = req.body;
+  const session = sessions.get(sessionId);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    // Update user role to manager
+    await supabase.from('profiles').update({ role: 'manager' }).eq('id', session.userId);
+
+    // Create team
+    const { data: team, error } = await supabase
+      .from('teams')
+      .insert({ name: teamName, manager_id: session.userId })
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    // Link manager to team
+    await supabase.from('profiles').update({ team_id: team.id }).eq('id', session.userId);
+
+    res.json({ team });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to create team' });
+  }
+});
+
+// Join a team (employee)
+app.post('/api/team/join', async (req, res) => {
+  const { sessionId, inviteCode } = req.body;
+  const session = sessions.get(sessionId);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    // Find team by invite code
+    const { data: team, error } = await supabase
+      .from('teams')
+      .select('*')
+      .eq('invite_code', inviteCode.toUpperCase())
+      .single();
+
+    if (error || !team) return res.status(404).json({ error: 'Team not found' });
+
+    // Link employee to team
+    await supabase.from('profiles').update({ team_id: team.id }).eq('id', session.userId);
+
+    res.json({ team });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to join team' });
+  }
+});
+
+// Get team info
+app.get('/api/team', async (req, res) => {
+  const sessionId = req.query.session as string;
+  const session = sessions.get(sessionId);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    // Get user profile with team
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*, teams(*)')
+      .eq('id', session.userId)
+      .single();
+
+    res.json({ profile });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to get team' });
+  }
+});
+
+// Get leaderboard
+app.get('/api/team/leaderboard', async (req, res) => {
+  const sessionId = req.query.session as string;
+  const session = sessions.get(sessionId);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    // Get user's team
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('team_id, role')
+      .eq('id', session.userId)
+      .single();
+
+    if (!profile?.team_id) return res.status(404).json({ error: 'Not in a team' });
+
+    // Get all team members
+    const { data: members } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, role')
+      .eq('team_id', profile.team_id);
+
+    if (!members) return res.status(404).json({ error: 'No members found' });
+
+    // Get stats for each member
+    const leaderboard = await Promise.all(members.map(async (member) => {
+      // Emails analyzed
+      const { data: analyzed } = await supabase
+        .from('email_analysis')
+        .select('id, mode, pol, pod, intent')
+        .eq('user_id', member.id);
+
+      // Replies sent
+      const { data: replied } = await supabase
+        .from('email_activity')
+        .select('id')
+        .eq('user_id', member.id)
+        .eq('action', 'replied');
+
+      // Response times
+      const { data: responseTimes } = await supabase
+        .from('email_analysis')
+        .select('response_time_minutes')
+        .eq('user_id', member.id)
+        .not('response_time_minutes', 'is', null);
+
+      const avgResponseTime = responseTimes?.length
+        ? Math.round(responseTimes.reduce((sum, r) => sum + r.response_time_minutes, 0) / responseTimes.length)
+        : 0;
+
+      // Transport mode breakdown
+      const modeBreakdown = { ocean: 0, air: 0, road: 0, rail: 0, other: 0 };
+      analyzed?.forEach(e => {
+        const mode = e.mode?.toLowerCase() || 'other';
+        if (mode in modeBreakdown) modeBreakdown[mode as keyof typeof modeBreakdown]++;
+        else modeBreakdown.other++;
+      });
+
+      // Import vs Export (based on POL/POD - if POD contains local country = import)
+      const importCount = analyzed?.filter(e => e.intent?.includes('import') || e.pod?.toLowerCase().includes('rotterdam') || e.pod?.toLowerCase().includes('amsterdam')).length || 0;
+      const exportCount = (analyzed?.length || 0) - importCount;
+
+      // Unique customers
+      const { data: customers } = await supabase
+        .from('email_analysis')
+        .select('from_email')
+        .eq('user_id', member.id);
+      const uniqueCustomers = new Set(customers?.map(c => c.from_email)).size;
+
+      // Intent breakdown
+      const intentCounts: Record<string, number> = {};
+      analyzed?.forEach(e => {
+        const intent = e.intent || 'general';
+        intentCounts[intent] = (intentCounts[intent] || 0) + 1;
+      });
+
+      return {
+        id: member.id,
+        name: member.full_name || member.email,
+        email: member.email,
+        role: member.role,
+        stats: {
+          analyzed: analyzed?.length || 0,
+          replied: replied?.length || 0,
+          avgResponseTime,
+          replyRate: analyzed?.length ? Math.round(((replied?.length || 0) / analyzed.length) * 100) : 0,
+          uniqueCustomers,
+          modeBreakdown,
+          importExport: { import: importCount, export: exportCount },
+          intentBreakdown: intentCounts,
+        },
+      };
+    }));
+
+    // Sort by emails analyzed
+    leaderboard.sort((a, b) => b.stats.analyzed - a.stats.analyzed);
+
+    res.json({ 
+      leaderboard,
+      currentUserId: session.userId,
+      isManager: profile.role === 'manager',
+    });
+  } catch (e) {
+    console.error('Leaderboard error:', e);
+    res.status(500).json({ error: 'Failed to get leaderboard' });
   }
 });
 
