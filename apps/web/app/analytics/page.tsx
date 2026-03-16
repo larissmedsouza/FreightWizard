@@ -127,6 +127,15 @@ const priorityColors: Record<string, string> = {
   low: '#22C55E',
 };
 
+// Format minutes to human readable time
+const formatTime = (minutes: number): string => {
+  if (!minutes) return '0m';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+};
+
 export default function AnalyticsPage() {
   const searchParams = useSearchParams();
   
@@ -382,17 +391,17 @@ export default function AnalyticsPage() {
                 <div className="flex items-center gap-8 mb-6">
                   <div className="text-center">
                     <p className="text-4xl font-bold bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] bg-clip-text text-transparent">
-                      {data.responseTimes.average || 0}
+                      {formatTime(data.responseTimes.average)}
                     </p>
                     <p className={`text-xs ${theme.textMuted}`}>{t.avgResponseTime} ({t.minutes})</p>
                   </div>
                   <div className="flex-1 grid grid-cols-2 gap-4">
                     <div className={`${darkMode ? 'bg-green-500/10' : 'bg-green-50'} rounded-xl p-3 text-center`}>
-                      <p className="text-xl font-bold text-green-500">{data.responseTimes.fastest || 0} {t.minutes}</p>
+                      <p className="text-xl font-bold text-green-500">{formatTime(data.responseTimes.fastest)}</p>
                       <p className={`text-xs ${theme.textMuted}`}>{t.fastest}</p>
                     </div>
                     <div className={`${darkMode ? 'bg-red-500/10' : 'bg-red-50'} rounded-xl p-3 text-center`}>
-                      <p className="text-xl font-bold text-red-500">{data.responseTimes.slowest || 0} {t.minutes}</p>
+                      <p className="text-xl font-bold text-red-500">{formatTime(data.responseTimes.slowest)}</p>
                       <p className={`text-xs ${theme.textMuted}`}>{t.slowest}</p>
                     </div>
                   </div>
