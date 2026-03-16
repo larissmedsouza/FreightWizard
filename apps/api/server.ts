@@ -189,6 +189,15 @@ app.get('/auth/google', (req, res) => {
   res.redirect(url);
 });
 
+app.get('/debug', (req, res) => {
+  res.json({
+    API_URL: API_URL,
+    MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID ? '✅ set' : '❌ missing',
+    RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN || 'not set',
+    API_URL_ENV: process.env.API_URL || 'not set',
+  });
+});
+
 // OAuth callback
 app.get('/auth/google/callback', async (req, res) => {
   const { code } = req.query;
