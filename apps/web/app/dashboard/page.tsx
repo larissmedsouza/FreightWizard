@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-const API_URL = 'http://localhost:3001';
+const API_URL = 'https://freightwizard-production.up.railway.app';
 
 // Icon component for easy SVG usage
 const Icon = ({ name, className = "w-6 h-6", style }: { name: string; className?: string; style?: React.CSSProperties }) => (
