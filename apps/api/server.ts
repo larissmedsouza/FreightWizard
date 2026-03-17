@@ -1129,6 +1129,148 @@ Respond in JSON format:
 }
 
 // ============================================
+// DOCUMENT INTELLIGENCE ENDPOINTS
+// ============================================
+
+app.post('/api/analyze-document', async (req, res) => {
+  const { text, fileName, sessionId } = req.body;
+  const session = await getSession(sessionId);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2048,
+      messages: [{
+        role: 'user',
+        content: `You are an expert freight forwarding document analyst. You specialize in interpreting international shipping documents including Master Bill of Lading (MBL), House Bill of Lading (HBL), Air Waybill (AWB), Commercial Invoice, and Packing List.
+
+You have deep knowledge of INCOTERMS, container types, port codes (UN/LOCODE), shipping line formats, and freight forwarding workflows.
+
+You are highly precise and conservative:
+- Only extract data when confident
+- If uncertain, mark fields with "uncertain": true
+- Never hallucinate missing data
+
+Analyze this document and respond ONLY with a JSON object in this exact format:
+
+{
+  "document_type": "HBL|MBL|AWB|Invoice|Packing List|Other",
+  "confidence": 0-100,
+  "shipment_summary": {
+    "mode": "ocean|air|road|rail",
+    "route": "POLCODE → PODCODE",
+    "incoterm": "",
+    "description": "",
+    "status": ""
+  },
+  "parties": {
+    "shipper": "",
+    "consignee": "",
+    "notify_party": ""
+  },
+  "references": {
+    "bl_number": "",
+    "booking_number": "",
+    "container_numbers": [{"value": "", "uncertain": false}]
+  },
+  "transport": {
+    "vessel": "",
+    "voyage": "",
+    "pol": {"name": "", "code": ""},
+    "pod": {"name": "", "code": ""},
+    "eta": "",
+    "etd": "",
+    "final_destination": ""
+  },
+  "cargo": {
+    "description": "",
+    "packages": null,
+    "gross_weight": {"value": null, "unit": "kg"},
+    "volume_cbm": null,
+    "container_type": "",
+    "seal_numbers": []
+  },
+  "freight": {
+    "terms": "prepaid|collect"
+  },
+  "risks": [],
+  "missing_information": []
+}
+
+Document filename: ${fileName || 'unknown'}
+
+Document content:
+${text?.substring(0, 8000)}`
+      }]
+    });
+
+    const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) return res.status(500).json({ error: 'Failed to parse document' });
+
+    const analysis = JSON.parse(jsonMatch[0]);
+
+    // Save to Supabase
+    const { data: saved, error } = await supabase.from('document_analysis').insert({
+      user_id: session.userId,
+      document_type: analysis.document_type,
+      file_name: fileName || 'unknown',
+      confidence: analysis.confidence,
+      raw_text: text?.substring(0, 5000),
+      analysis,
+    }).select('id').single();
+
+    if (error) console.error('Save document error:', error);
+
+    res.json({ analysis, id: saved?.id });
+  } catch (error) {
+    console.error('Document analysis error:', error);
+    res.status(500).json({ error: 'Analysis failed' });
+  }
+});
+
+app.get('/api/documents', async (req, res) => {
+  const sessionId = req.query.session as string;
+  const session = await getSession(sessionId);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const { data } = await supabase
+      .from('document_analysis')
+      .select('id, document_type, file_name, confidence, created_at, analysis')
+      .eq('user_id', session.userId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    res.json({ documents: data || [] });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+app.get('/api/documents/:id', async (req, res) => {
+  const sessionId = req.query.session as string;
+  const session = await getSession(sessionId);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const { data } = await supabase
+      .from('document_analysis')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', session.userId)
+      .single();
+
+    if (!data) return res.status(404).json({ error: 'Document not found' });
+    res.json({ document: data });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch document' });
+  }
+});
+
+// ============================================
 // START SERVER
 // ============================================
 const PORT = 3001;
