@@ -98,12 +98,12 @@ export default function TeamPage() {
     }
   }, [searchParams]);
 
-  const loadAll = async (sid: string) => {
-    setLoading(true);
-    await loadProfile(sid);
-    await loadLeaderboard(sid);
-    setLoading(false);
-  };
+ const loadAll = async (sid: string, skipProfile = false) => {
+  setLoading(true);
+  if (!skipProfile) await loadProfile(sid);
+  await loadLeaderboard(sid);
+  setLoading(false);
+};
 
   const loadProfile = async (sid: string) => {
   try {
@@ -139,13 +139,11 @@ export default function TeamPage() {
       body: JSON.stringify({ sessionId: currentSession, teamName }),
     });
     const result = await res.json();
-    if (result.team) {
+ if (result.team) {
   notify('success', 'Team created!');
   setShowSetup(false);
   setProfile((prev: any) => ({ ...prev, team_id: result.team.id, teams: result.team }));
-  await loadAll(currentSession);
-} else {
-  notify('error', result.error || 'Failed to create team');
+  await loadAll(currentSession, true); // skip profile reload
 }
   } catch (e) { notify('error', 'Error creating team'); }
   setSetupLoading(false);
@@ -163,9 +161,13 @@ export default function TeamPage() {
     });
     const result = await res.json();
     if (result.team) {
-      notify('success', `Joined ${result.team.name}!`);
-      setShowSetup(false);
-      await loadAll(currentSession);
+  notify('success', `Joined ${result.team.name}!`);
+  setShowSetup(false);
+  setProfile((prev: any) => ({ ...prev, team_id: result.team.id, teams: result.team }));
+  await loadAll(currentSession, true); // skip profile reload
+} else {
+  notify('error', result.error || 'Invalid invite code');
+}
     } else {
       notify('error', result.error || 'Invalid invite code');
     }
