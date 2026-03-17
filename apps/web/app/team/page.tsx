@@ -168,9 +168,8 @@ export default function TeamPage() {
 } else {
   notify('error', result.error || 'Invalid invite code');
 }
-    } else {
-      notify('error', result.error || 'Invalid invite code');
-    }
+ 
+  
   } catch (e) { notify('error', 'Error joining team'); }
   setSetupLoading(false);
 };
