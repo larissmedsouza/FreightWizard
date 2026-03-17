@@ -932,6 +932,203 @@ app.get('/api/team/leaderboard', async (req, res) => {
 });
 
 // ============================================
+// QUEUE ENDPOINTS (for Gmail Extension)
+// ============================================
+
+// Queue email for analysis (instant response)
+app.post('/api/queue-analysis', async (req, res) => {
+  const { emailId, userEmail, subject, from, body, threadId } = req.body;
+
+  try {
+    // Check if already analyzed in email_analysis
+    const { data: existing } = await supabase
+      .from('email_analysis')
+      .select('*')
+      .eq('email_id', emailId)
+      .single();
+
+    if (existing) {
+      return res.json({ 
+        status: 'ready',
+        analysis: {
+          intent: existing.intent,
+          priority: existing.priority,
+          mode: existing.mode,
+          pol: existing.pol,
+          pod: existing.pod,
+          incoterm: existing.incoterm,
+          cargo_type: existing.cargo_type,
+          container_type: existing.container_type,
+          container_count: existing.container_count,
+          missing_info: existing.missing_info,
+          summary: existing.summary,
+          suggested_reply: existing.suggested_reply,
+        }
+      });
+    }
+
+    // Check if already in queue
+    const { data: queued } = await supabase
+      .from('analysis_queue')
+      .select('id, status, result')
+      .eq('email_id', emailId)
+      .single();
+
+    if (queued) {
+      if (queued.status === 'done') {
+        return res.json({ status: 'ready', analysis: queued.result });
+      }
+      return res.json({ status: 'processing' });
+    }
+
+    // Add to queue
+    await supabase.from('analysis_queue').insert({
+      email_id: emailId,
+      user_email: userEmail,
+      subject,
+      from_email: from,
+      body: body?.substring(0, 4000),
+      thread_id: threadId,
+      status: 'pending',
+    });
+
+    // Process immediately in background (don't await)
+    processQueueItem(emailId, userEmail, subject, from, body, threadId);
+
+    res.json({ status: 'processing' });
+  } catch (e) {
+    console.error('Queue error:', e);
+    res.status(500).json({ error: 'Failed to queue' });
+  }
+});
+
+// Check analysis result
+app.get('/api/analysis-result', async (req, res) => {
+  const { emailId, userEmail } = req.query as { emailId: string; userEmail: string };
+
+  try {
+    // Check email_analysis first
+    const { data: existing } = await supabase
+      .from('email_analysis')
+      .select('*')
+      .eq('email_id', emailId)
+      .single();
+
+    if (existing) {
+      return res.json({
+        status: 'ready',
+        analysis: {
+          intent: existing.intent,
+          priority: existing.priority,
+          mode: existing.mode,
+          pol: existing.pol,
+          pod: existing.pod,
+          incoterm: existing.incoterm,
+          cargo_type: existing.cargo_type,
+          container_type: existing.container_type,
+          container_count: existing.container_count,
+          missing_info: existing.missing_info,
+          summary: existing.summary,
+          suggested_reply: existing.suggested_reply,
+        }
+      });
+    }
+
+    // Check queue
+    const { data: queued } = await supabase
+      .from('analysis_queue')
+      .select('status, result')
+      .eq('email_id', emailId)
+      .single();
+
+    if (!queued) return res.json({ status: 'not_found' });
+    if (queued.status === 'done') return res.json({ status: 'ready', analysis: queued.result });
+
+    res.json({ status: 'processing' });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to get result' });
+  }
+});
+
+// Background processor
+async function processQueueItem(
+  emailId: string,
+  userEmail: string,
+  subject: string,
+  from: string,
+  body: string,
+  threadId: string
+) {
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: `You are FreightWizard AI, an expert freight forwarding email analyst.
+        
+Analyze this freight email and extract:
+1. Intent: quote_request, booking_confirmation, tracking_inquiry, documentation_request, rate_inquiry, status_update, complaint, general_inquiry
+2. Priority: urgent, high, medium, low
+3. Transport mode: ocean, air, road, rail, multimodal
+4. POL (Port of Loading) and POD (Port of Discharge)
+5. Incoterm if mentioned
+6. Cargo type, container type, container count
+7. Missing information needed to proceed
+8. Brief summary
+9. Professional reply draft
+
+Email Subject: ${subject}
+From: ${from}
+Body: ${body}
+
+Respond in JSON format:
+{
+  "intent": "",
+  "priority": "",
+  "mode": "",
+  "pol": "",
+  "pod": "",
+  "incoterm": "",
+  "cargo_type": "",
+  "container_type": "",
+  "container_count": null,
+  "missing_info": [],
+  "summary": "",
+  "suggested_reply": ""
+}`
+      }]
+    });
+
+    const text = message.content[0].type === 'text' ? message.content[0].text : '';
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+    if (jsonMatch) {
+      const analysis = JSON.parse(jsonMatch[0]);
+
+      // Save to queue as done
+      await supabase.from('analysis_queue')
+        .update({ status: 'done', result: analysis, processed_at: new Date().toISOString() })
+        .eq('email_id', emailId);
+
+      // Save to email_analysis
+      const userId = await getOrCreateUser(userEmail);
+      if (userId) {
+        await saveAnalysis(userId, 'gmail_addon', emailId, subject, from, analysis);
+        await trackActivity(userId, emailId, 'analyzed', analysis.intent, analysis.priority);
+      }
+
+      console.log(`✅ Queue processed: ${emailId}`);
+    }
+  } catch (e) {
+    console.error('Process queue error:', e);
+    await supabase.from('analysis_queue')
+      .update({ status: 'error' })
+      .eq('email_id', emailId);
+  }
+}
+
+// ============================================
 // START SERVER
 // ============================================
 const PORT = 3001;
