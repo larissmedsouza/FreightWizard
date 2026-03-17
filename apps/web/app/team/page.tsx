@@ -125,47 +125,50 @@ export default function TeamPage() {
     } catch (e) { console.error(e); }
   };
 
-  const createTeam = async () => {
-    if (!teamName.trim() || !session) return;
-    setSetupLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/api/team/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: session, teamName }),
-      });
-      const result = await res.json();
-      if (result.team) {
-        notify('success', 'Team created!');
-        setShowSetup(false);
-        await loadAll(session);
-      } else {
-        notify('error', result.error || 'Failed to create team');
-      }
-    } catch (e) { notify('error', 'Error creating team'); }
-    setSetupLoading(false);
-  };
+ const createTeam = async () => {
+  console.log('Session:', session);
+  const currentSession = session || localStorage.getItem('fw_session');
+  if (!teamName.trim() || !currentSession) return;
+  setSetupLoading(true);
+  try {
+    const res = await fetch(`${API_URL}/api/team/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: currentSession, teamName }),
+    });
+    const result = await res.json();
+    if (result.team) {
+      notify('success', 'Team created!');
+      setShowSetup(false);
+      await loadAll(currentSession);
+    } else {
+      notify('error', result.error || 'Failed to create team');
+    }
+  } catch (e) { notify('error', 'Error creating team'); }
+  setSetupLoading(false);
+};
 
   const joinTeam = async () => {
-    if (!inviteCode.trim() || !session) return;
-    setSetupLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/api/team/join`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: session, inviteCode }),
-      });
-      const result = await res.json();
-      if (result.team) {
-        notify('success', `Joined ${result.team.name}!`);
-        setShowSetup(false);
-        await loadAll(session);
-      } else {
-        notify('error', result.error || 'Invalid invite code');
-      }
-    } catch (e) { notify('error', 'Error joining team'); }
-    setSetupLoading(false);
-  };
+  const currentSession = session || localStorage.getItem('fw_session');
+  if (!inviteCode.trim() || !currentSession) return;
+  setSetupLoading(true);
+  try {
+    const res = await fetch(`${API_URL}/api/team/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: currentSession, inviteCode }),
+    });
+    const result = await res.json();
+    if (result.team) {
+      notify('success', `Joined ${result.team.name}!`);
+      setShowSetup(false);
+      await loadAll(currentSession);
+    } else {
+      notify('error', result.error || 'Invalid invite code');
+    }
+  } catch (e) { notify('error', 'Error joining team'); }
+  setSetupLoading(false);
+};
 
   const copyInviteCode = () => {
     if (profile?.teams?.invite_code) {
