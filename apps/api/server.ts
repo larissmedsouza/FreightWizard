@@ -419,11 +419,8 @@ app.get('/api/emails', async (req, res) => {
       if (session.userId) {
         for (const email of emails) {
           const { data: existing } = await supabase
-            .from('email_activity')
-            .select('id')
-            .eq('email_id', email.id)
-            .eq('action', 'received')
-            .single();
+            .from('email_activity').select('id')
+            .eq('email_id', email.id).eq('action', 'received').single();
           if (!existing) await trackActivity(session.userId, email.id, 'received');
         }
       }
@@ -935,64 +932,39 @@ app.get('/api/team/leaderboard', async (req, res) => {
 // QUEUE ENDPOINTS (for Gmail Extension)
 // ============================================
 
-// Queue email for analysis (instant response)
 app.post('/api/queue-analysis', async (req, res) => {
   const { emailId, userEmail, subject, from, body, threadId } = req.body;
 
   try {
-    // Check if already analyzed in email_analysis
     const { data: existing } = await supabase
-      .from('email_analysis')
-      .select('*')
-      .eq('email_id', emailId)
-      .single();
+      .from('email_analysis').select('*').eq('email_id', emailId).single();
 
     if (existing) {
-      return res.json({ 
+      return res.json({
         status: 'ready',
         analysis: {
-          intent: existing.intent,
-          priority: existing.priority,
-          mode: existing.mode,
-          pol: existing.pol,
-          pod: existing.pod,
-          incoterm: existing.incoterm,
-          cargo_type: existing.cargo_type,
-          container_type: existing.container_type,
-          container_count: existing.container_count,
-          missing_info: existing.missing_info,
-          summary: existing.summary,
-          suggested_reply: existing.suggested_reply,
+          intent: existing.intent, priority: existing.priority, mode: existing.mode,
+          pol: existing.pol, pod: existing.pod, incoterm: existing.incoterm,
+          cargo_type: existing.cargo_type, container_type: existing.container_type,
+          container_count: existing.container_count, missing_info: existing.missing_info,
+          summary: existing.summary, suggested_reply: existing.suggested_reply,
         }
       });
     }
 
-    // Check if already in queue
     const { data: queued } = await supabase
-      .from('analysis_queue')
-      .select('id, status, result')
-      .eq('email_id', emailId)
-      .single();
+      .from('analysis_queue').select('id, status, result').eq('email_id', emailId).single();
 
     if (queued) {
-      if (queued.status === 'done') {
-        return res.json({ status: 'ready', analysis: queued.result });
-      }
+      if (queued.status === 'done') return res.json({ status: 'ready', analysis: queued.result });
       return res.json({ status: 'processing' });
     }
 
-    // Add to queue
     await supabase.from('analysis_queue').insert({
-      email_id: emailId,
-      user_email: userEmail,
-      subject,
-      from_email: from,
-      body: body?.substring(0, 4000),
-      thread_id: threadId,
-      status: 'pending',
+      email_id: emailId, user_email: userEmail, subject,
+      from_email: from, body: body?.substring(0, 4000), thread_id: threadId, status: 'pending',
     });
 
-    // Process immediately in background (don't await)
     processQueueItem(emailId, userEmail, subject, from, body, threadId);
 
     res.json({ status: 'processing' });
@@ -1002,44 +974,28 @@ app.post('/api/queue-analysis', async (req, res) => {
   }
 });
 
-// Check analysis result
 app.get('/api/analysis-result', async (req, res) => {
-  const { emailId, userEmail } = req.query as { emailId: string; userEmail: string };
+  const { emailId } = req.query as { emailId: string };
 
   try {
-    // Check email_analysis first
     const { data: existing } = await supabase
-      .from('email_analysis')
-      .select('*')
-      .eq('email_id', emailId)
-      .single();
+      .from('email_analysis').select('*').eq('email_id', emailId).single();
 
     if (existing) {
       return res.json({
         status: 'ready',
         analysis: {
-          intent: existing.intent,
-          priority: existing.priority,
-          mode: existing.mode,
-          pol: existing.pol,
-          pod: existing.pod,
-          incoterm: existing.incoterm,
-          cargo_type: existing.cargo_type,
-          container_type: existing.container_type,
-          container_count: existing.container_count,
-          missing_info: existing.missing_info,
-          summary: existing.summary,
-          suggested_reply: existing.suggested_reply,
+          intent: existing.intent, priority: existing.priority, mode: existing.mode,
+          pol: existing.pol, pod: existing.pod, incoterm: existing.incoterm,
+          cargo_type: existing.cargo_type, container_type: existing.container_type,
+          container_count: existing.container_count, missing_info: existing.missing_info,
+          summary: existing.summary, suggested_reply: existing.suggested_reply,
         }
       });
     }
 
-    // Check queue
     const { data: queued } = await supabase
-      .from('analysis_queue')
-      .select('status, result')
-      .eq('email_id', emailId)
-      .single();
+      .from('analysis_queue').select('status, result').eq('email_id', emailId).single();
 
     if (!queued) return res.json({ status: 'not_found' });
     if (queued.status === 'done') return res.json({ status: 'ready', analysis: queued.result });
@@ -1050,14 +1006,9 @@ app.get('/api/analysis-result', async (req, res) => {
   }
 });
 
-// Background processor
 async function processQueueItem(
-  emailId: string,
-  userEmail: string,
-  subject: string,
-  from: string,
-  body: string,
-  threadId: string
+  emailId: string, userEmail: string, subject: string,
+  from: string, body: string, threadId: string
 ) {
   try {
     const message = await anthropic.messages.create({
@@ -1066,12 +1017,12 @@ async function processQueueItem(
       messages: [{
         role: 'user',
         content: `You are FreightWizard AI, an expert freight forwarding email analyst.
-        
+
 Analyze this freight email and extract:
 1. Intent: quote_request, booking_confirmation, tracking_inquiry, documentation_request, rate_inquiry, status_update, complaint, general_inquiry
 2. Priority: urgent, high, medium, low
 3. Transport mode: ocean, air, road, rail, multimodal
-4. POL (Port of Loading) and POD (Port of Discharge)
+4. POL and POD
 5. Incoterm if mentioned
 6. Cargo type, container type, container count
 7. Missing information needed to proceed
@@ -1084,18 +1035,9 @@ Body: ${body}
 
 Respond in JSON format:
 {
-  "intent": "",
-  "priority": "",
-  "mode": "",
-  "pol": "",
-  "pod": "",
-  "incoterm": "",
-  "cargo_type": "",
-  "container_type": "",
-  "container_count": null,
-  "missing_info": [],
-  "summary": "",
-  "suggested_reply": ""
+  "intent": "", "priority": "", "mode": "", "pol": "", "pod": "",
+  "incoterm": "", "cargo_type": "", "container_type": "", "container_count": null,
+  "missing_info": [], "summary": "", "suggested_reply": ""
 }`
       }]
     });
@@ -1106,12 +1048,10 @@ Respond in JSON format:
     if (jsonMatch) {
       const analysis = JSON.parse(jsonMatch[0]);
 
-      // Save to queue as done
       await supabase.from('analysis_queue')
         .update({ status: 'done', result: analysis, processed_at: new Date().toISOString() })
         .eq('email_id', emailId);
 
-      // Save to email_analysis
       const userId = await getOrCreateUser(userEmail);
       if (userId) {
         await saveAnalysis(userId, 'gmail_addon', emailId, subject, from, analysis);
@@ -1122,9 +1062,7 @@ Respond in JSON format:
     }
   } catch (e) {
     console.error('Process queue error:', e);
-    await supabase.from('analysis_queue')
-      .update({ status: 'error' })
-      .eq('email_id', emailId);
+    await supabase.from('analysis_queue').update({ status: 'error' }).eq('email_id', emailId);
   }
 }
 
@@ -1185,14 +1123,31 @@ Analyze this document and respond ONLY with a JSON object in this exact format:
   },
   "cargo": {
     "description": "",
+    "hs_code": "",
     "packages": null,
     "gross_weight": {"value": null, "unit": "kg"},
+    "net_weight": {"value": null, "unit": "kg"},
+    "tare_weight": {"value": null, "unit": "kg"},
     "volume_cbm": null,
     "container_type": "",
-    "seal_numbers": []
+    "seal_numbers": [],
+    "dangerous_goods": {
+      "is_dangerous": false,
+      "un_number": "",
+      "class": "",
+      "packing_group": "",
+      "proper_shipping_name": ""
+    }
   },
   "freight": {
-    "terms": "prepaid|collect"
+    "terms": "prepaid|collect",
+    "charges": ""
+  },
+  "compliance": {
+    "customs_value": "",
+    "currency": "",
+    "country_of_origin": "",
+    "export_license": ""
   },
   "risks": [],
   "missing_information": []
@@ -1212,7 +1167,6 @@ ${text?.substring(0, 8000)}`
 
     const analysis = JSON.parse(jsonMatch[0]);
 
-    // Save to Supabase
     const { data: saved, error } = await supabase.from('document_analysis').insert({
       user_id: session.userId,
       document_type: analysis.document_type,
