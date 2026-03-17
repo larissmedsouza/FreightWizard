@@ -106,13 +106,15 @@ export default function TeamPage() {
   };
 
   const loadProfile = async (sid: string) => {
-    try {
-      const res = await fetch(`${API_URL}/api/team?session=${sid}`);
-      const data = await res.json();
-      setProfile(data.profile);
-      if (!data.profile?.team_id) setShowSetup(true);
-    } catch (e) { console.error(e); }
-  };
+  try {
+    const res = await fetch(`${API_URL}/api/team?session=${sid}`);
+    const data = await res.json();
+    setProfile(data.profile);
+    // Only show setup if profile has no team_id
+    if (!data.profile?.team_id) setShowSetup(true);
+    else setShowSetup(false);  // ← ADD THIS LINE
+  } catch (e) { console.error(e); }
+};
 
   const loadLeaderboard = async (sid: string) => {
     try {
@@ -138,12 +140,13 @@ export default function TeamPage() {
     });
     const result = await res.json();
     if (result.team) {
-      notify('success', 'Team created!');
-      setShowSetup(false);
-      await loadAll(currentSession);
-    } else {
-      notify('error', result.error || 'Failed to create team');
-    }
+  notify('success', 'Team created!');
+  setShowSetup(false);
+  setProfile((prev: any) => ({ ...prev, team_id: result.team.id, teams: result.team }));
+  await loadAll(currentSession);
+} else {
+  notify('error', result.error || 'Failed to create team');
+}
   } catch (e) { notify('error', 'Error creating team'); }
   setSetupLoading(false);
 };
