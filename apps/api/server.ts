@@ -57,26 +57,19 @@ const MICROSOFT_CONFIG = {
 console.log('🌐 API URL:', API_URL);
 console.log('🖥️ Frontend URL:', FRONTEND_URL);
 
-// In-memory session store (in production, use Redis or database)
-const sessions: Map<string, { tokens: any; email: string; name: string; userId?: string; provider: 'google' | 'outlook' }> = new Map();
-
 // ============================================
 // HELPER: Get or create user profile
 // ============================================
 async function getOrCreateUser(email: string, name?: string): Promise<string | null> {
   try {
-    // Check if user exists
     const { data: existing } = await supabase
       .from('profiles')
       .select('id')
       .eq('email', email)
       .single();
 
-    if (existing) {
-      return existing.id;
-    }
+    if (existing) return existing.id;
 
-    // Create new user
     const { data: newUser, error } = await supabase
       .from('profiles')
       .insert({ email, full_name: name || email.split('@')[0] })
@@ -92,6 +85,57 @@ async function getOrCreateUser(email: string, name?: string): Promise<string | n
     return newUser?.id || null;
   } catch (e) {
     console.error('Error in getOrCreateUser:', e);
+    return null;
+  }
+}
+
+// ============================================
+// HELPER: Save session to Supabase
+// ============================================
+async function saveSession(sessionId: string, userId: string, email: string, name: string, provider: 'google' | 'outlook', tokens: any) {
+  try {
+    await supabase.from('gmail_sessions').upsert({
+      session_id: sessionId,
+      user_id: userId,
+      gmail_email: email,
+      user_name: name,
+      provider,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      token_expiry: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
+      last_active: new Date().toISOString(),
+    }, { onConflict: 'session_id' });
+  } catch (e) {
+    console.error('Error saving session:', e);
+  }
+}
+
+// ============================================
+// HELPER: Get session from Supabase
+// ============================================
+async function getSession(sessionId: string) {
+  try {
+    const { data } = await supabase
+      .from('gmail_sessions')
+      .select('*')
+      .eq('session_id', sessionId)
+      .single();
+
+    if (!data) return null;
+
+    return {
+      tokens: {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        expiry_date: data.token_expiry ? new Date(data.token_expiry).getTime() : null,
+      },
+      email: data.gmail_email,
+      name: data.user_name || data.gmail_email,
+      userId: data.user_id,
+      provider: (data.provider || 'google') as 'google' | 'outlook',
+    };
+  } catch (e) {
+    console.error('Error getting session:', e);
     return null;
   }
 }
@@ -189,7 +233,7 @@ app.get('/auth/google', (req, res) => {
   res.redirect(url);
 });
 
-// OAuth callback
+// Google OAuth callback
 app.get('/auth/google/callback', async (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).send('No code provided');
@@ -202,35 +246,15 @@ app.get('/auth/google/callback', async (req, res) => {
     const { data } = await oauth2.userinfo.get();
 
     const sessionId = Math.random().toString(36).substring(2, 15);
-    
-    // Get or create user in Supabase
     const userId = await getOrCreateUser(data.email!, data.name || undefined);
-    
-    sessions.set(sessionId, {
-      tokens,
-      email: data.email!,
-      name: data.name || data.email!,
-      userId: userId || undefined,
-      provider: 'google',
-    });
 
-    // Save Gmail session to Supabase
-    if (userId) {
-      await supabase.from('gmail_sessions').upsert({
-        session_id: sessionId,
-        user_id: userId,
-        gmail_email: data.email,
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        token_expiry: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
-      }, { onConflict: 'session_id' });
-    }
+    await saveSession(sessionId, userId!, data.email!, data.name || data.email!, 'google', tokens);
 
     console.log(`✅ Google OAuth success: ${data.email} (User ID: ${userId})`);
     res.redirect(`${FRONTEND_URL}/dashboard?session=${sessionId}`);
   } catch (error) {
     console.error('OAuth error:', error);
-    res.status(500).send('Authentication failed');
+    res.status(500).send('Authentication failed: ' + (error as any).message);
   }
 });
 
@@ -238,7 +262,6 @@ app.get('/auth/google/callback', async (req, res) => {
 // MICROSOFT/OUTLOOK OAUTH
 // ============================================
 
-// Start Outlook OAuth
 app.get('/auth/outlook', (req, res) => {
   const params = new URLSearchParams({
     client_id: MICROSOFT_CONFIG.clientId,
@@ -248,23 +271,16 @@ app.get('/auth/outlook', (req, res) => {
     scope: MICROSOFT_CONFIG.scopes.join(' '),
     prompt: 'consent',
   });
-  
   res.redirect(`${MICROSOFT_CONFIG.authorizeUrl}?${params.toString()}`);
 });
 
-// Outlook OAuth callback
 app.get('/auth/outlook/callback', async (req, res) => {
   const { code, error } = req.query;
-  
-  if (error) {
-    console.error('Outlook OAuth error:', error);
-    return res.status(400).send('Authentication failed: ' + error);
-  }
-  
+
+  if (error) return res.status(400).send('Authentication failed: ' + error);
   if (!code) return res.status(400).send('No code provided');
 
   try {
-    // Exchange code for tokens
     const tokenResponse = await fetch(MICROSOFT_CONFIG.tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -278,49 +294,23 @@ app.get('/auth/outlook/callback', async (req, res) => {
     });
 
     const tokens = await tokenResponse.json();
-    
-    if (tokens.error) {
-      console.error('Token error:', tokens);
-      return res.status(400).send('Token exchange failed: ' + tokens.error_description);
-    }
+    if (tokens.error) return res.status(400).send('Token exchange failed: ' + tokens.error_description);
 
-    // Get user info from Microsoft Graph
     const userResponse = await fetch(`${MICROSOFT_CONFIG.graphUrl}/me`, {
       headers: { Authorization: `Bearer ${tokens.access_token}` },
     });
-    
     const userData = await userResponse.json();
-    
+
     const sessionId = Math.random().toString(36).substring(2, 15);
     const userEmail = userData.mail || userData.userPrincipalName;
     const userName = userData.displayName || userEmail;
-    
-    // Get or create user in Supabase
     const userId = await getOrCreateUser(userEmail, userName);
-    
-    sessions.set(sessionId, {
-      tokens: {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expiry_date: Date.now() + (tokens.expires_in * 1000),
-      },
-      email: userEmail,
-      name: userName,
-      userId: userId || undefined,
-      provider: 'outlook',
-    });
 
-    // Save Outlook session to Supabase
-    if (userId) {
-      await supabase.from('gmail_sessions').upsert({
-        session_id: sessionId,
-        user_id: userId,
-        gmail_email: userEmail,
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        token_expiry: new Date(Date.now() + (tokens.expires_in * 1000)).toISOString(),
-      }, { onConflict: 'session_id' });
-    }
+    await saveSession(sessionId, userId!, userEmail, userName, 'outlook', {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expiry_date: Date.now() + (tokens.expires_in * 1000),
+    });
 
     console.log(`✅ Outlook OAuth success: ${userEmail} (User ID: ${userId})`);
     res.redirect(`${FRONTEND_URL}/dashboard?session=${sessionId}`);
@@ -334,25 +324,19 @@ app.get('/auth/outlook/callback', async (req, res) => {
 // OUTLOOK EMAIL FUNCTIONS
 // ============================================
 
-// Fetch Outlook emails
 async function fetchOutlookEmails(accessToken: string) {
   const response = await fetch(
     `${MICROSOFT_CONFIG.graphUrl}/me/mailFolders/inbox/messages?$top=20&$orderby=receivedDateTime desc`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
-  
   const data = await response.json();
   return data.value || [];
 }
 
-// Send Outlook email
 async function sendOutlookEmail(accessToken: string, to: string, subject: string, body: string) {
   const response = await fetch(`${MICROSOFT_CONFIG.graphUrl}/me/sendMail`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       message: {
         subject,
@@ -361,18 +345,13 @@ async function sendOutlookEmail(accessToken: string, to: string, subject: string
       },
     }),
   });
-  
   return response.ok;
 }
 
-// Save Outlook draft
 async function saveOutlookDraft(accessToken: string, to: string, subject: string, body: string) {
   const response = await fetch(`${MICROSOFT_CONFIG.graphUrl}/me/messages`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       subject,
       body: { contentType: 'Text', content: body },
@@ -380,19 +359,22 @@ async function saveOutlookDraft(accessToken: string, to: string, subject: string
       isDraft: true,
     }),
   });
-  
   return response.ok;
 }
 
+// ============================================
+// API ROUTES
+// ============================================
+
 // Check auth status
-app.get('/api/auth/status', (req, res) => {
+app.get('/api/auth/status', async (req, res) => {
   const sessionId = req.query.session as string;
-  const session = sessions.get(sessionId);
-  
+  const session = await getSession(sessionId);
+
   if (session) {
-    res.json({ 
-      authenticated: true, 
-      email: session.email, 
+    res.json({
+      authenticated: true,
+      email: session.email,
       name: session.name,
       userId: session.userId,
       provider: session.provider || 'google',
@@ -405,30 +387,23 @@ app.get('/api/auth/status', (req, res) => {
 // Fetch emails
 app.get('/api/emails', async (req, res) => {
   const sessionId = req.query.session as string;
-  const session = sessions.get(sessionId);
+  const session = await getSession(sessionId);
 
   if (!session) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
     let emails: any[] = [];
-    
-    // Check provider and fetch emails accordingly
+
     if (session.provider === 'outlook') {
-      // Fetch Outlook emails
       const outlookEmails = await fetchOutlookEmails(session.tokens.access_token);
-      
+
       emails = outlookEmails.map((msg: any) => {
-        // Extract body text
         let body = '';
         if (msg.body?.content) {
-          // Remove HTML tags if contentType is HTML
-          if (msg.body.contentType === 'html') {
-            body = msg.body.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-          } else {
-            body = msg.body.content;
-          }
+          body = msg.body.contentType === 'html'
+            ? msg.body.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+            : msg.body.content;
         }
-        
         return {
           id: msg.id,
           threadId: msg.conversationId,
@@ -437,11 +412,10 @@ app.get('/api/emails', async (req, res) => {
           fromName: msg.from?.emailAddress?.name || '',
           date: msg.receivedDateTime,
           snippet: msg.bodyPreview || '',
-          body: body,
+          body,
         };
       });
-      
-      // Track as received
+
       if (session.userId) {
         for (const email of emails) {
           const { data: existing } = await supabase
@@ -450,58 +424,35 @@ app.get('/api/emails', async (req, res) => {
             .eq('email_id', email.id)
             .eq('action', 'received')
             .single();
-          
-          if (!existing) {
-            await trackActivity(session.userId, email.id, 'received');
-          }
+          if (!existing) await trackActivity(session.userId, email.id, 'received');
         }
       }
     } else {
-      // Fetch Gmail emails (existing code)
       oauth2Client.setCredentials(session.tokens);
       const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-      const list = await gmail.users.messages.list({
-        userId: 'me',
-        maxResults: 20,
-        labelIds: ['INBOX'],
-      });
+      const list = await gmail.users.messages.list({ userId: 'me', maxResults: 20, labelIds: ['INBOX'] });
 
       emails = await Promise.all(
         (list.data.messages || []).map(async (msg) => {
-          const full = await gmail.users.messages.get({
-            userId: 'me',
-            id: msg.id!,
-            format: 'full',
-          });
-
+          const full = await gmail.users.messages.get({ userId: 'me', id: msg.id!, format: 'full' });
           const headers = full.data.payload?.headers || [];
           const getHeader = (name: string) => headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
 
-          // Extract body
           let body = '';
           const payload = full.data.payload;
           if (payload?.body?.data) {
             body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
           } else if (payload?.parts) {
             const textPart = payload.parts.find(p => p.mimeType === 'text/plain');
-            if (textPart?.body?.data) {
-              body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
-            }
+            if (textPart?.body?.data) body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
           }
 
-          // Track as received (only if we have a userId)
           if (session.userId) {
             const { data: existing } = await supabase
-              .from('email_activity')
-              .select('id')
-              .eq('email_id', msg.id!)
-              .eq('action', 'received')
-              .single();
-            
-            if (!existing) {
-              await trackActivity(session.userId, msg.id!, 'received');
-            }
+              .from('email_activity').select('id')
+              .eq('email_id', msg.id!).eq('action', 'received').single();
+            if (!existing) await trackActivity(session.userId, msg.id!, 'received');
           }
 
           return {
@@ -511,39 +462,28 @@ app.get('/api/emails', async (req, res) => {
             from: getHeader('From'),
             date: getHeader('Date'),
             snippet: full.data.snippet || '',
-            body: body,
+            body,
           };
         })
       );
     }
 
-    // Load existing analyses from Supabase
     if (session.userId) {
       const emailIds = emails.map(e => e.id);
       const { data: analyses } = await supabase
-        .from('email_analysis')
-        .select('*')
-        .eq('user_id', session.userId)
-        .in('email_id', emailIds);
+        .from('email_analysis').select('*')
+        .eq('user_id', session.userId).in('email_id', emailIds);
 
-      // Attach analyses to emails
       if (analyses) {
         for (const email of emails) {
           const analysis = analyses.find(a => a.email_id === email.id);
           if (analysis) {
             (email as any).analysis = {
-              intent: analysis.intent,
-              priority: analysis.priority,
-              mode: analysis.mode,
-              pol: analysis.pol,
-              pod: analysis.pod,
-              incoterm: analysis.incoterm,
-              cargo_type: analysis.cargo_type,
-              container_type: analysis.container_type,
-              container_count: analysis.container_count,
-              missing_info: analysis.missing_info,
-              summary: analysis.summary,
-              suggested_reply: analysis.suggested_reply,
+              intent: analysis.intent, priority: analysis.priority, mode: analysis.mode,
+              pol: analysis.pol, pod: analysis.pod, incoterm: analysis.incoterm,
+              cargo_type: analysis.cargo_type, container_type: analysis.container_type,
+              container_count: analysis.container_count, missing_info: analysis.missing_info,
+              summary: analysis.summary, suggested_reply: analysis.suggested_reply,
             };
           }
         }
@@ -559,7 +499,7 @@ app.get('/api/emails', async (req, res) => {
 
 // Analyze email with AI
 app.post('/api/analyze', async (req, res) => {
-  const { subject, body, from, emailId, sessionId, source, userEmail, threadId } = req.body;
+  const { subject, body, from, emailId, sessionId, source, userEmail } = req.body;
 
   try {
     const message = await anthropic.messages.create({
@@ -604,30 +544,25 @@ Respond in JSON format:
 
     const text = message.content[0].type === 'text' ? message.content[0].text : '';
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    
+
     if (jsonMatch) {
       const analysis = JSON.parse(jsonMatch[0]);
-      
-      // Determine user ID - either from session or from userEmail (Gmail/Outlook Add-on)
       let userId: string | null = null;
-      
+
       if (sessionId) {
-        // From dashboard
-        const session = sessions.get(sessionId);
+        const session = await getSession(sessionId);
         userId = session?.userId || null;
       } else if (userEmail && (source === 'gmail_addon' || source === 'outlook_addon')) {
-        // From Gmail/Outlook Add-on - get or create user by email
         userId = await getOrCreateUser(userEmail);
         console.log(`📧 ${source} analysis from: ${userEmail} (User ID: ${userId})`);
       }
-      
-      // Save to Supabase if we have user info
+
       if (userId && emailId) {
         await saveAnalysis(userId, sessionId || 'gmail_addon', emailId, subject, from, analysis);
         await trackActivity(userId, emailId, 'analyzed', analysis.intent, analysis.priority);
         console.log(`💾 Analysis saved to Supabase for user: ${userId}`);
       }
-      
+
       res.json({ analysis });
     } else {
       res.status(500).json({ error: 'Failed to parse AI response' });
@@ -642,57 +577,39 @@ Respond in JSON format:
 app.post('/api/send-reply', async (req, res) => {
   const sessionId = req.query.session as string;
   const { to, subject, body, threadId, emailId } = req.body;
-  const session = sessions.get(sessionId);
+  const session = await getSession(sessionId);
 
   if (!session) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
     const replySubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`;
-    
+
     if (session.provider === 'outlook') {
-      // Send via Outlook/Microsoft Graph
       const success = await sendOutlookEmail(session.tokens.access_token, to, replySubject, body);
       if (!success) throw new Error('Failed to send via Outlook');
     } else {
-      // Send via Gmail
       oauth2Client.setCredentials(session.tokens);
       const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-
       const rawMessage = Buffer.from(
         `To: ${to}\r\nSubject: ${replySubject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`
       ).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-      await gmail.users.messages.send({
-        userId: 'me',
-        requestBody: { raw: rawMessage, threadId },
-      });
+      await gmail.users.messages.send({ userId: 'me', requestBody: { raw: rawMessage, threadId } });
     }
 
-    // Track reply activity
     if (session.userId && emailId) {
-      // Calculate response time
       const { data: activity } = await supabase
-        .from('email_activity')
-        .select('created_at')
-        .eq('email_id', emailId)
-        .eq('action', 'received')
-        .single();
+        .from('email_activity').select('created_at')
+        .eq('email_id', emailId).eq('action', 'received').single();
 
       let responseTimeMinutes;
       if (activity) {
-        const receivedAt = new Date(activity.created_at);
-        const now = new Date();
-        responseTimeMinutes = Math.round((now.getTime() - receivedAt.getTime()) / 60000);
+        responseTimeMinutes = Math.round((new Date().getTime() - new Date(activity.created_at).getTime()) / 60000);
       }
 
       await trackActivity(session.userId, emailId, 'replied', undefined, undefined, responseTimeMinutes);
-
-      // Update email_analysis with replied_at
-      await supabase
-        .from('email_analysis')
+      await supabase.from('email_analysis')
         .update({ replied_at: new Date().toISOString(), response_time_minutes: responseTimeMinutes })
-        .eq('email_id', emailId)
-        .eq('user_id', session.userId);
+        .eq('email_id', emailId).eq('user_id', session.userId);
     }
 
     console.log(`✉️ Reply sent to: ${to} (via ${session.provider || 'google'})`);
@@ -707,36 +624,26 @@ app.post('/api/send-reply', async (req, res) => {
 app.post('/api/save-draft', async (req, res) => {
   const sessionId = req.query.session as string;
   const { to, subject, body, threadId, emailId } = req.body;
-  const session = sessions.get(sessionId);
+  const session = await getSession(sessionId);
 
   if (!session) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
     const draftSubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`;
-    
+
     if (session.provider === 'outlook') {
-      // Save draft via Outlook/Microsoft Graph
       const success = await saveOutlookDraft(session.tokens.access_token, to, draftSubject, body);
       if (!success) throw new Error('Failed to save draft via Outlook');
     } else {
-      // Save draft via Gmail
       oauth2Client.setCredentials(session.tokens);
       const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-
       const rawMessage = Buffer.from(
         `To: ${to}\r\nSubject: ${draftSubject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`
       ).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-      await gmail.users.drafts.create({
-        userId: 'me',
-        requestBody: { message: { raw: rawMessage, threadId } },
-      });
+      await gmail.users.drafts.create({ userId: 'me', requestBody: { message: { raw: rawMessage, threadId } } });
     }
 
-    // Track draft activity
-    if (session.userId && emailId) {
-      await trackActivity(session.userId, emailId, 'draft_saved');
-    }
+    if (session.userId && emailId) await trackActivity(session.userId, emailId, 'draft_saved');
 
     console.log(`📝 Draft saved for: ${to} (via ${session.provider || 'google'})`);
     res.json({ success: true });
@@ -748,50 +655,30 @@ app.post('/api/save-draft', async (req, res) => {
 
 // Track reply from Gmail/Outlook Add-on
 app.post('/api/track-reply', async (req, res) => {
-  const { emailId, threadId, subject, replyText, userEmail, source } = req.body;
+  const { emailId, replyText, userEmail, source } = req.body;
 
   if ((source !== 'gmail_addon' && source !== 'outlook_addon') || !userEmail) {
     return res.status(400).json({ error: 'Invalid request' });
   }
 
   try {
-    // Get or create user by email
     const userId = await getOrCreateUser(userEmail);
-    
-    if (!userId) {
-      return res.status(400).json({ error: 'Could not find or create user' });
-    }
+    if (!userId) return res.status(400).json({ error: 'Could not find or create user' });
 
-    // Calculate response time if we have the original email tracked
-    let responseTimeMinutes;
     const { data: activity } = await supabase
-      .from('email_activity')
-      .select('created_at')
-      .eq('email_id', emailId)
-      .eq('action', 'received')
-      .single();
+      .from('email_activity').select('created_at')
+      .eq('email_id', emailId).eq('action', 'received').single();
 
+    let responseTimeMinutes;
     if (activity) {
-      const receivedAt = new Date(activity.created_at);
-      const now = new Date();
-      responseTimeMinutes = Math.round((now.getTime() - receivedAt.getTime()) / 60000);
+      responseTimeMinutes = Math.round((new Date().getTime() - new Date(activity.created_at).getTime()) / 60000);
     }
 
-    // Track reply activity
     await trackActivity(userId, emailId, 'replied', undefined, undefined, responseTimeMinutes);
+    await supabase.from('email_analysis')
+      .update({ replied_at: new Date().toISOString(), response_time_minutes: responseTimeMinutes, suggested_reply: replyText })
+      .eq('email_id', emailId).eq('user_id', userId);
 
-    // Update email_analysis with replied_at
-    await supabase
-      .from('email_analysis')
-      .update({ 
-        replied_at: new Date().toISOString(), 
-        response_time_minutes: responseTimeMinutes,
-        suggested_reply: replyText // Update with the reply that was used
-      })
-      .eq('email_id', emailId)
-      .eq('user_id', userId);
-
-    console.log(`📧 Gmail Add-on reply tracked for: ${userEmail} (Email: ${emailId})`);
     res.json({ success: true });
   } catch (error) {
     console.error('Track reply error:', error);
@@ -801,7 +688,7 @@ app.post('/api/track-reply', async (req, res) => {
 
 // Track draft from Gmail Add-on
 app.post('/api/track-draft', async (req, res) => {
-  const { emailId, threadId, subject, userEmail, source } = req.body;
+  const { emailId, userEmail, source } = req.body;
 
   if (source !== 'gmail_addon' || !userEmail) {
     return res.status(400).json({ error: 'Invalid request' });
@@ -809,15 +696,8 @@ app.post('/api/track-draft', async (req, res) => {
 
   try {
     const userId = await getOrCreateUser(userEmail);
-    
-    if (!userId) {
-      return res.status(400).json({ error: 'Could not find or create user' });
-    }
-
-    // Track draft activity
+    if (!userId) return res.status(400).json({ error: 'Could not find or create user' });
     await trackActivity(userId, emailId, 'draft_saved');
-
-    console.log(`📝 Gmail Add-on draft tracked for: ${userEmail} (Email: ${emailId})`);
     res.json({ success: true });
   } catch (error) {
     console.error('Track draft error:', error);
@@ -829,98 +709,64 @@ app.post('/api/track-draft', async (req, res) => {
 // ANALYTICS ENDPOINTS
 // ============================================
 
-// Get analytics data
 app.get('/api/analytics', async (req, res) => {
   const sessionId = req.query.session as string;
-  const range = req.query.range as string || 'weekly'; // daily, weekly, monthly
-  const session = sessions.get(sessionId);
+  const range = req.query.range as string || 'weekly';
+  const session = await getSession(sessionId);
 
-  if (!session?.userId) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    // Calculate date range
     const now = new Date();
     let startDate: Date;
-    
+
     switch (range) {
-      case 'daily':
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case 'monthly':
-        startDate = new Date(now);
-        startDate.setMonth(now.getMonth() - 6);
-        break;
-      default: // weekly
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - 28);
+      case 'daily': startDate = new Date(now); startDate.setDate(now.getDate() - 7); break;
+      case 'monthly': startDate = new Date(now); startDate.setMonth(now.getMonth() - 6); break;
+      default: startDate = new Date(now); startDate.setDate(now.getDate() - 28);
     }
 
-    // Get daily analytics
-    const { data: dailyStats } = await supabase
-      .from('analytics_daily')
-      .select('*')
-      .eq('user_id', session.userId)
-      .gte('date', startDate.toISOString().split('T')[0])
-      .order('date', { ascending: true });
+    const { data: dailyStats } = await supabase.from('analytics_daily').select('*')
+      .eq('user_id', session.userId).gte('date', startDate.toISOString().split('T')[0]).order('date', { ascending: true });
 
-    // Get intent breakdown from email_analysis
-    const { data: intentData } = await supabase
-      .from('email_analysis')
-      .select('intent')
-      .eq('user_id', session.userId)
-      .gte('created_at', startDate.toISOString());
+    const { data: intentData } = await supabase.from('email_analysis').select('intent')
+      .eq('user_id', session.userId).gte('created_at', startDate.toISOString());
 
-    // Get priority breakdown
-    const { data: priorityData } = await supabase
-      .from('email_analysis')
-      .select('priority')
-      .eq('user_id', session.userId)
-      .gte('created_at', startDate.toISOString());
+    const { data: priorityData } = await supabase.from('email_analysis').select('priority')
+      .eq('user_id', session.userId).gte('created_at', startDate.toISOString());
 
-    // Get response time stats
-    const { data: responseData } = await supabase
-      .from('email_analysis')
-      .select('response_time_minutes')
-      .eq('user_id', session.userId)
-      .not('response_time_minutes', 'is', null)
-      .gte('created_at', startDate.toISOString());
+    const { data: responseData } = await supabase.from('email_analysis').select('response_time_minutes')
+      .eq('user_id', session.userId).not('response_time_minutes', 'is', null).gte('created_at', startDate.toISOString());
 
-    // Calculate stats
     const totalReceived = dailyStats?.reduce((sum, d) => sum + (d.emails_received || 0), 0) || 0;
     const totalAnalyzed = dailyStats?.reduce((sum, d) => sum + (d.emails_analyzed || 0), 0) || 0;
     const totalReplied = dailyStats?.reduce((sum, d) => sum + (d.emails_replied || 0), 0) || 0;
 
-    // Intent breakdown
     const intentCounts: Record<string, number> = {};
     intentData?.forEach(item => {
       const intent = item.intent || 'general';
       intentCounts[intent] = (intentCounts[intent] || 0) + 1;
     });
 
-    // Priority breakdown
     const priorityCounts: Record<string, number> = {};
     priorityData?.forEach(item => {
       const priority = item.priority || 'medium';
       priorityCounts[priority] = (priorityCounts[priority] || 0) + 1;
     });
 
-    // Response time stats
     const responseTimes = responseData?.map(r => r.response_time_minutes) || [];
-    const avgResponseTime = responseTimes.length > 0 
-      ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length)
-      : 0;
-    const fastestResponse = responseTimes.length > 0 ? Math.min(...responseTimes) : 0;
-    const slowestResponse = responseTimes.length > 0 ? Math.max(...responseTimes) : 0;
+    const avgResponseTime = responseTimes.length > 0
+      ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length) : 0;
+
+    const formatTime = (min: number) => {
+      const h = Math.floor(min / 60); const m = min % 60;
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    };
 
     res.json({
       stats: {
-        totalEmails: totalReceived,
-        analyzed: totalAnalyzed,
-        replied: totalReplied,
-        avgResponseTime: `${avgResponseTime} min`,
+        totalEmails: totalReceived, analyzed: totalAnalyzed, replied: totalReplied,
+        avgResponseTime: formatTime(avgResponseTime),
         automationRate: totalReceived > 0 ? `${Math.round((totalAnalyzed / totalReceived) * 100)}%` : '0%',
       },
       dailyStats,
@@ -928,8 +774,8 @@ app.get('/api/analytics', async (req, res) => {
       priorityBreakdown: Object.entries(priorityCounts).map(([priority, count]) => ({ priority, count })),
       responseTimes: {
         average: avgResponseTime,
-        fastest: fastestResponse,
-        slowest: slowestResponse,
+        fastest: responseTimes.length > 0 ? Math.min(...responseTimes) : 0,
+        slowest: responseTimes.length > 0 ? Math.max(...responseTimes) : 0,
         trend: responseTimes.slice(-7),
       },
     });
@@ -943,26 +789,19 @@ app.get('/api/analytics', async (req, res) => {
 // TEAM / LEADERBOARD ENDPOINTS
 // ============================================
 
-// Create a team (manager)
 app.post('/api/team/create', async (req, res) => {
   const { sessionId, teamName } = req.body;
-  const session = sessions.get(sessionId);
+  const session = await getSession(sessionId);
   if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    // Update user role to manager
     await supabase.from('profiles').update({ role: 'manager' }).eq('id', session.userId);
 
-    // Create team
-    const { data: team, error } = await supabase
-      .from('teams')
-      .insert({ name: teamName, manager_id: session.userId })
-      .select()
-      .single();
+    const { data: team, error } = await supabase.from('teams')
+      .insert({ name: teamName, manager_id: session.userId }).select().single();
 
     if (error) return res.status(500).json({ error: error.message });
 
-    // Link manager to team
     await supabase.from('profiles').update({ team_id: team.id }).eq('id', session.userId);
 
     res.json({ team });
@@ -971,23 +810,17 @@ app.post('/api/team/create', async (req, res) => {
   }
 });
 
-// Join a team (employee)
 app.post('/api/team/join', async (req, res) => {
   const { sessionId, inviteCode } = req.body;
-  const session = sessions.get(sessionId);
+  const session = await getSession(sessionId);
   if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    // Find team by invite code
-    const { data: team, error } = await supabase
-      .from('teams')
-      .select('*')
-      .eq('invite_code', inviteCode.toUpperCase())
-      .single();
+    const { data: team, error } = await supabase.from('teams')
+      .select('*').eq('invite_code', inviteCode.toUpperCase()).single();
 
     if (error || !team) return res.status(404).json({ error: 'Team not found' });
 
-    // Link employee to team
     await supabase.from('profiles').update({ team_id: team.id }).eq('id', session.userId);
 
     res.json({ team });
@@ -996,77 +829,58 @@ app.post('/api/team/join', async (req, res) => {
   }
 });
 
-// Get team info
 app.get('/api/team', async (req, res) => {
   const sessionId = req.query.session as string;
-  const session = sessions.get(sessionId);
+  const session = await getSession(sessionId);
   if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    // Get user profile with team
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*, teams(*)')
-      .eq('id', session.userId)
-      .single();
+    const { data: profile } = await supabase.from('profiles')
+      .select('id, email, full_name, role, team_id').eq('id', session.userId).single();
 
-    res.json({ profile });
+    if (!profile) return res.json({ profile: null });
+
+    let team = null;
+    if (profile.team_id) {
+      const { data: teamData } = await supabase.from('teams').select('*').eq('id', profile.team_id).single();
+      team = teamData;
+    }
+
+    res.json({ profile: { ...profile, teams: team } });
   } catch (e) {
     res.status(500).json({ error: 'Failed to get team' });
   }
 });
 
-// Get leaderboard
 app.get('/api/team/leaderboard', async (req, res) => {
   const sessionId = req.query.session as string;
-  const session = sessions.get(sessionId);
+  const session = await getSession(sessionId);
   if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    // Get user's team
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('team_id, role')
-      .eq('id', session.userId)
-      .single();
+    const { data: profile } = await supabase.from('profiles')
+      .select('team_id, role').eq('id', session.userId).single();
 
     if (!profile?.team_id) return res.status(404).json({ error: 'Not in a team' });
 
-    // Get all team members
-    const { data: members } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, role')
-      .eq('team_id', profile.team_id);
+    const { data: members } = await supabase.from('profiles')
+      .select('id, full_name, email, role').eq('team_id', profile.team_id);
 
     if (!members) return res.status(404).json({ error: 'No members found' });
 
-    // Get stats for each member
     const leaderboard = await Promise.all(members.map(async (member) => {
-      // Emails analyzed
-      const { data: analyzed } = await supabase
-        .from('email_analysis')
-        .select('id, mode, pol, pod, intent')
-        .eq('user_id', member.id);
+      const { data: analyzed } = await supabase.from('email_analysis')
+        .select('id, mode, pol, pod, intent').eq('user_id', member.id);
 
-      // Replies sent
-      const { data: replied } = await supabase
-        .from('email_activity')
-        .select('id')
-        .eq('user_id', member.id)
-        .eq('action', 'replied');
+      const { data: replied } = await supabase.from('email_activity')
+        .select('id').eq('user_id', member.id).eq('action', 'replied');
 
-      // Response times
-      const { data: responseTimes } = await supabase
-        .from('email_analysis')
-        .select('response_time_minutes')
-        .eq('user_id', member.id)
-        .not('response_time_minutes', 'is', null);
+      const { data: responseTimes } = await supabase.from('email_analysis')
+        .select('response_time_minutes').eq('user_id', member.id).not('response_time_minutes', 'is', null);
 
       const avgResponseTime = responseTimes?.length
-        ? Math.round(responseTimes.reduce((sum, r) => sum + r.response_time_minutes, 0) / responseTimes.length)
-        : 0;
+        ? Math.round(responseTimes.reduce((sum, r) => sum + r.response_time_minutes, 0) / responseTimes.length) : 0;
 
-      // Transport mode breakdown
       const modeBreakdown = { ocean: 0, air: 0, road: 0, rail: 0, other: 0 };
       analyzed?.forEach(e => {
         const mode = e.mode?.toLowerCase() || 'other';
@@ -1074,18 +888,16 @@ app.get('/api/team/leaderboard', async (req, res) => {
         else modeBreakdown.other++;
       });
 
-      // Import vs Export (based on POL/POD - if POD contains local country = import)
-      const importCount = analyzed?.filter(e => e.intent?.includes('import') || e.pod?.toLowerCase().includes('rotterdam') || e.pod?.toLowerCase().includes('amsterdam')).length || 0;
-      const exportCount = (analyzed?.length || 0) - importCount;
+      const importCount = analyzed?.filter(e =>
+        e.intent?.includes('import') ||
+        e.pod?.toLowerCase().includes('rotterdam') ||
+        e.pod?.toLowerCase().includes('amsterdam')
+      ).length || 0;
 
-      // Unique customers
-      const { data: customers } = await supabase
-        .from('email_analysis')
-        .select('from_email')
-        .eq('user_id', member.id);
+      const { data: customers } = await supabase.from('email_analysis')
+        .select('from_email').eq('user_id', member.id);
       const uniqueCustomers = new Set(customers?.map(c => c.from_email)).size;
 
-      // Intent breakdown
       const intentCounts: Record<string, number> = {};
       analyzed?.forEach(e => {
         const intent = e.intent || 'general';
@@ -1104,20 +916,15 @@ app.get('/api/team/leaderboard', async (req, res) => {
           replyRate: analyzed?.length ? Math.round(((replied?.length || 0) / analyzed.length) * 100) : 0,
           uniqueCustomers,
           modeBreakdown,
-          importExport: { import: importCount, export: exportCount },
+          importExport: { import: importCount, export: (analyzed?.length || 0) - importCount },
           intentBreakdown: intentCounts,
         },
       };
     }));
 
-    // Sort by emails analyzed
     leaderboard.sort((a, b) => b.stats.analyzed - a.stats.analyzed);
 
-    res.json({ 
-      leaderboard,
-      currentUserId: session.userId,
-      isManager: profile.role === 'manager',
-    });
+    res.json({ leaderboard, currentUserId: session.userId, isManager: profile.role === 'manager' });
   } catch (e) {
     console.error('Leaderboard error:', e);
     res.status(500).json({ error: 'Failed to get leaderboard' });
