@@ -44,13 +44,29 @@ interface DocumentAnalysis {
   };
   cargo: {
     description: string;
+    hs_code: string;
     packages: number;
     gross_weight: { value: number; unit: string };
+    net_weight: { value: number; unit: string };
+    tare_weight: { value: number; unit: string };
     volume_cbm: number;
     container_type: string;
     seal_numbers: string[];
+    dangerous_goods: {
+      is_dangerous: boolean;
+      un_number: string;
+      class: string;
+      packing_group: string;
+      proper_shipping_name: string;
+    };
   };
-  freight: { terms: string };
+  freight: { terms: string; charges: string };
+  compliance: {
+    customs_value: string;
+    currency: string;
+    country_of_origin: string;
+    export_license: string;
+  };
   risks: string[];
   missing_information: string[];
 }
@@ -76,7 +92,9 @@ export default function DocumentsPage() {
   const [pastedText, setPastedText] = useState('');
   const [fileName, setFileName] = useState('');
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'summary' | 'parties' | 'cargo' | 'risks'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'parties' | 'cargo' | 'compliance' | 'risks'>('summary');
+  const [showReport, setShowReport] = useState(false);
+  const [reportText, setReportText] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const theme = darkMode ? {
@@ -127,7 +145,7 @@ export default function DocumentsPage() {
   const handleFileUpload = async (file: File) => {
     setFileName(file.name);
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
       const text = e.target?.result as string;
       setPastedText(text);
     };
@@ -138,6 +156,7 @@ export default function DocumentsPage() {
     if (!pastedText.trim() || !session) return;
     setLoading(true);
     setAnalysis(null);
+    setShowReport(false);
 
     try {
       const res = await fetch(`${API_URL}/api/analyze-document`, {
@@ -155,6 +174,7 @@ export default function DocumentsPage() {
         notify('success', 'Document analyzed successfully!');
         loadHistory(session);
         setActiveTab('summary');
+        setSelected(null);
       } else {
         notify('error', data.error || 'Analysis failed');
       }
@@ -162,6 +182,119 @@ export default function DocumentsPage() {
       notify('error', 'Failed to analyze document');
     }
     setLoading(false);
+  };
+
+  const generateReport = (doc: DocumentAnalysis) => {
+    const date = new Date().toLocaleDateString('en-GB');
+    const blNum = doc.references?.bl_number || 'N/A';
+    const route = `${doc.transport?.pol?.name || '?'} (${doc.transport?.pol?.code || '?'}) → ${doc.transport?.pod?.name || '?'} (${doc.transport?.pod?.code || '?'})`;
+
+    let report = `SHIPMENT DOCUMENT EXTRACTION REPORT
+Generated: ${date}
+Document Type: ${doc.document_type}
+Confidence Score: ${doc.confidence}%
+
+═══════════════════════════════════════
+SHIPMENT OVERVIEW
+═══════════════════════════════════════
+BL/AWB Number: ${blNum}
+Booking Number: ${doc.references?.booking_number || 'N/A'}
+Mode: ${doc.shipment_summary?.mode || 'N/A'}
+Route: ${route}
+Incoterm: ${doc.shipment_summary?.incoterm || 'N/A'}
+Freight Terms: ${doc.freight?.terms || 'N/A'}
+
+═══════════════════════════════════════
+PARTIES
+═══════════════════════════════════════
+Shipper: ${doc.parties?.shipper || 'N/A'}
+Consignee: ${doc.parties?.consignee || 'N/A'}
+Notify Party: ${doc.parties?.notify_party || 'N/A'}
+
+═══════════════════════════════════════
+TRANSPORT
+═══════════════════════════════════════
+Vessel: ${doc.transport?.vessel || 'N/A'}
+Voyage: ${doc.transport?.voyage || 'N/A'}
+ETD: ${doc.transport?.etd || 'N/A'}
+ETA: ${doc.transport?.eta || 'N/A'}
+Final Destination: ${doc.transport?.final_destination || 'N/A'}
+
+═══════════════════════════════════════
+CARGO
+═══════════════════════════════════════
+Description: ${doc.cargo?.description || 'N/A'}
+HS Code: ${doc.cargo?.hs_code || 'N/A'}
+Container Type: ${doc.cargo?.container_type || 'N/A'}
+Container Numbers: ${doc.references?.container_numbers?.map(c => c.value).join(', ') || 'N/A'}
+Seal Numbers: ${doc.cargo?.seal_numbers?.join(', ') || 'N/A'}
+Packages: ${doc.cargo?.packages || 'N/A'}
+Gross Weight: ${doc.cargo?.gross_weight?.value ? `${doc.cargo.gross_weight.value} ${doc.cargo.gross_weight.unit}` : 'N/A'}
+Net Weight: ${doc.cargo?.net_weight?.value ? `${doc.cargo.net_weight.value} ${doc.cargo.net_weight.unit}` : 'N/A'}
+Tare Weight: ${doc.cargo?.tare_weight?.value ? `${doc.cargo.tare_weight.value} ${doc.cargo.tare_weight.unit}` : 'N/A'}
+Volume: ${doc.cargo?.volume_cbm ? `${doc.cargo.volume_cbm} CBM` : 'N/A'}`;
+
+    if (doc.cargo?.dangerous_goods?.is_dangerous) {
+      report += `\n\n⚠️ DANGEROUS GOODS
+UN Number: ${doc.cargo.dangerous_goods.un_number || 'N/A'}
+Class: ${doc.cargo.dangerous_goods.class || 'N/A'}
+Packing Group: ${doc.cargo.dangerous_goods.packing_group || 'N/A'}
+Proper Shipping Name: ${doc.cargo.dangerous_goods.proper_shipping_name || 'N/A'}`;
+    }
+
+    report += `\n\n═══════════════════════════════════════
+COMPLIANCE
+═══════════════════════════════════════
+Country of Origin: ${doc.compliance?.country_of_origin || 'N/A'}
+Customs Value: ${doc.compliance?.customs_value ? `${doc.compliance.customs_value} ${doc.compliance.currency || ''}` : 'N/A'}
+Export License: ${doc.compliance?.export_license || 'N/A'}`;
+
+    if (doc.risks?.length > 0) {
+      report += `\n\n═══════════════════════════════════════
+⚠️ RISKS DETECTED
+═══════════════════════════════════════`;
+      doc.risks.forEach(r => { report += `\n• ${r}`; });
+    }
+
+    if (doc.missing_information?.length > 0) {
+      report += `\n\n═══════════════════════════════════════
+❓ MISSING INFORMATION
+═══════════════════════════════════════`;
+      doc.missing_information.forEach(m => { report += `\n• ${m}`; });
+
+      report += `\n\n═══════════════════════════════════════
+📧 SUGGESTED EMAIL TO REQUEST MISSING INFO
+═══════════════════════════════════════
+Dear Partner,
+
+Please be informed that upon reviewing the shipping document ${blNum}, the following information is missing or incomplete:
+
+${doc.missing_information.map(m => `- ${m}`).join('\n')}
+
+Kindly provide the above details at your earliest convenience to avoid delays in processing.
+
+Best regards,
+Freight Operations Team`;
+    }
+
+    report += `\n\n═══════════════════════════════════════
+End of Report — Generated by FreightWizard AI
+═══════════════════════════════════════`;
+
+    return report;
+  };
+
+  const handleGenerateReport = () => {
+    const doc = selected ? selected.analysis : analysis;
+    if (!doc) return;
+    const report = generateReport(doc);
+    setReportText(report);
+    setShowReport(true);
+  };
+
+  const copyReport = () => {
+    navigator.clipboard.writeText(reportText);
+    notify('success', '📋 Report copied to clipboard!');
   };
 
   const getConfidenceColor = (score: number) => {
@@ -195,9 +328,9 @@ export default function DocumentsPage() {
     if (!displayAnalysis?.risks?.length) return;
     const risks = displayAnalysis.risks.join('\n- ');
     const missing = displayAnalysis.missing_information?.join('\n- ') || 'None';
-    const text = `Dear Partner,\n\nWe have reviewed the shipping document ${displayAnalysis.references?.bl_number || ''} and identified the following issues that require your attention:\n\nRisks detected:\n- ${risks}\n\nMissing information:\n- ${missing}\n\nKindly address the above points at your earliest convenience.\n\nBest regards,\nFreight Team`;
+    const text = `Dear Partner,\n\nWe have reviewed the shipping document ${displayAnalysis.references?.bl_number || ''} and identified the following issues:\n\nRisks:\n- ${risks}\n\nMissing information:\n- ${missing}\n\nKindly address the above at your earliest convenience.\n\nBest regards,\nFreight Team`;
     navigator.clipboard.writeText(text);
-    notify('success', 'Email copied to clipboard!');
+    notify('success', '📋 Risk email copied!');
   };
 
   return (
@@ -205,6 +338,30 @@ export default function DocumentsPage() {
       {notification && (
         <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-xl text-white ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
           {notification.msg}
+        </div>
+      )}
+
+      {/* Report Modal */}
+      {showReport && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl`}>
+            <div className="flex items-center justify-between p-6 border-b border-white/5">
+              <h2 className="text-lg font-bold">📋 Document Extraction Report</h2>
+              <div className="flex gap-2">
+                <button onClick={copyReport} className="px-4 py-2 bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] rounded-xl text-white text-sm font-medium">
+                  📋 Copy All
+                </button>
+                <button onClick={() => setShowReport(false)} className={`px-4 py-2 ${theme.hover} border ${theme.cardBorder} rounded-xl text-sm`}>
+                  ✕ Close
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <pre className={`whitespace-pre-wrap font-mono text-xs ${theme.textMuted} leading-relaxed`}>
+                {reportText}
+              </pre>
+            </div>
+          </div>
         </div>
       )}
 
@@ -233,19 +390,15 @@ export default function DocumentsPage() {
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Document Intelligence</h1>
-          <p className={theme.textMuted}>Upload shipping documents for AI-powered analysis and risk detection</p>
+          <p className={theme.textMuted}>Upload shipping documents for AI-powered analysis, risk detection and report generation</p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Left: Upload + History */}
           <div className="space-y-4">
-            {/* Upload Card */}
             <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-5`}>
-              <h2 className="font-semibold mb-4 flex items-center gap-2">
-                📤 Analyze Document
-              </h2>
+              <h2 className="font-semibold mb-4">📤 Analyze Document</h2>
 
-              {/* Mode Toggle */}
               <div className={`flex gap-1 p-1 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl mb-4`}>
                 <button
                   onClick={() => setInputMode('upload')}
@@ -268,13 +421,13 @@ export default function DocumentsPage() {
                 >
                   <div className="text-3xl mb-2">📄</div>
                   <p className={`text-sm ${theme.textMuted}`}>
-                    {fileName ? `✅ ${fileName}` : 'Click to upload PDF, TXT, or paste document text'}
+                    {fileName ? `✅ ${fileName}` : 'Click to upload TXT or paste document text'}
                   </p>
                   <p className={`text-xs ${theme.textDim} mt-1`}>Supports BL, AWB, Invoice, Packing List</p>
                   <input
                     ref={fileRef}
                     type="file"
-                    accept=".txt,.pdf,.csv"
+                    accept=".txt,.csv"
                     className="hidden"
                     onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
                   />
@@ -302,23 +455,19 @@ export default function DocumentsPage() {
               >
                 {loading ? (
                   <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Analyzing...</>
-                ) : (
-                  <>🔍 Analyze Document</>
-                )}
+                ) : <>🔍 Analyze Document</>}
               </button>
             </div>
 
             {/* History */}
             {history.length > 0 && (
               <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-5`}>
-                <h2 className="font-semibold mb-3 flex items-center gap-2">
-                  🕐 Recent Documents
-                </h2>
+                <h2 className="font-semibold mb-3">🕐 Recent Documents</h2>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {history.map((doc) => (
                     <div
                       key={doc.id}
-                      onClick={() => { setSelected(doc); setAnalysis(null); setActiveTab('summary'); }}
+                      onClick={() => { setSelected(doc); setAnalysis(null); setActiveTab('summary'); setShowReport(false); }}
                       className={`p-3 rounded-xl border cursor-pointer transition ${selected?.id === doc.id ? 'border-[#5200FF]/50 bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10' : `${theme.cardBorder} ${theme.hover}`}`}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -341,15 +490,13 @@ export default function DocumentsPage() {
                 {/* Document Header */}
                 <div className="p-6 border-b border-white/5 bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10">
                   <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-3xl">{getDocTypeIcon(displayAnalysis.document_type)}</span>
-                        <div>
-                          <h2 className="text-xl font-bold">{displayAnalysis.document_type}</h2>
-                          <p className={`text-sm ${theme.textMuted}`}>
-                            {getModeIcon(displayAnalysis.shipment_summary?.mode)} {displayAnalysis.shipment_summary?.route}
-                          </p>
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{getDocTypeIcon(displayAnalysis.document_type)}</span>
+                      <div>
+                        <h2 className="text-xl font-bold">{displayAnalysis.document_type}</h2>
+                        <p className={`text-sm ${theme.textMuted}`}>
+                          {getModeIcon(displayAnalysis.shipment_summary?.mode)} {displayAnalysis.shipment_summary?.route}
+                        </p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -363,8 +510,7 @@ export default function DocumentsPage() {
                     </div>
                   </div>
 
-                  {/* Quick Stats */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-3 gap-3 mb-4">
                     {[
                       { label: 'Incoterm', value: displayAnalysis.shipment_summary?.incoterm || '—' },
                       { label: 'Freight', value: displayAnalysis.freight?.terms || '—' },
@@ -376,19 +522,37 @@ export default function DocumentsPage() {
                       </div>
                     ))}
                   </div>
+
+                  {/* Generate Report Button */}
+                  <button
+                    onClick={handleGenerateReport}
+                    className="w-full py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white flex items-center justify-center gap-2"
+                  >
+                    📋 Generate Extraction Report
+                  </button>
                 </div>
+
+                {/* Dangerous Goods Alert */}
+                {displayAnalysis.cargo?.dangerous_goods?.is_dangerous && (
+                  <div className="mx-6 mt-4 p-4 bg-red-500/20 border border-red-500/40 rounded-xl">
+                    <h3 className="text-red-400 font-bold flex items-center gap-2 mb-2">
+                      ☢️ DANGEROUS GOODS DETECTED
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div><span className={theme.textDim}>UN Number:</span> <span className="text-red-300 font-mono">{displayAnalysis.cargo.dangerous_goods.un_number || '—'}</span></div>
+                      <div><span className={theme.textDim}>Class:</span> <span className="text-red-300">{displayAnalysis.cargo.dangerous_goods.class || '—'}</span></div>
+                      <div><span className={theme.textDim}>Packing Group:</span> <span className="text-red-300">{displayAnalysis.cargo.dangerous_goods.packing_group || '—'}</span></div>
+                      <div><span className={theme.textDim}>PSN:</span> <span className="text-red-300">{displayAnalysis.cargo.dangerous_goods.proper_shipping_name || '—'}</span></div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Risks Banner */}
                 {displayAnalysis.risks?.length > 0 && (
                   <div className={`mx-6 mt-4 p-4 ${darkMode ? 'bg-red-500/10' : 'bg-red-50'} border border-red-500/20 rounded-xl`}>
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-red-400 font-semibold text-sm flex items-center gap-2">
-                        ⚠️ {displayAnalysis.risks.length} Risk{displayAnalysis.risks.length > 1 ? 's' : ''} Detected
-                      </h3>
-                      <button
-                        onClick={generateRiskEmail}
-                        className="text-xs px-3 py-1 bg-red-500/20 text-red-400 rounded-full hover:bg-red-500/30 transition"
-                      >
+                      <h3 className="text-red-400 font-semibold text-sm">⚠️ {displayAnalysis.risks.length} Risk{displayAnalysis.risks.length > 1 ? 's' : ''} Detected</h3>
+                      <button onClick={generateRiskEmail} className="text-xs px-3 py-1 bg-red-500/20 text-red-400 rounded-full hover:bg-red-500/30 transition">
                         📧 Copy Risk Email
                       </button>
                     </div>
@@ -402,12 +566,10 @@ export default function DocumentsPage() {
                   </div>
                 )}
 
-                {/* Missing Info Banner */}
+                {/* Missing Info */}
                 {displayAnalysis.missing_information?.length > 0 && (
                   <div className={`mx-6 mt-3 p-4 ${darkMode ? 'bg-yellow-500/10' : 'bg-yellow-50'} border border-yellow-500/20 rounded-xl`}>
-                    <h3 className="text-yellow-400 font-semibold text-sm mb-2">
-                      ❓ Missing Information
-                    </h3>
+                    <h3 className="text-yellow-400 font-semibold text-sm mb-2">❓ Missing Information</h3>
                     <div className="flex flex-wrap gap-2">
                       {displayAnalysis.missing_information.map((item, i) => (
                         <span key={i} className="text-xs px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-full">{item}</span>
@@ -418,13 +580,13 @@ export default function DocumentsPage() {
 
                 {/* Tabs */}
                 <div className={`flex gap-1 p-1 mx-6 mt-4 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl`}>
-                  {(['summary', 'parties', 'cargo', 'risks'] as const).map((tab) => (
+                  {(['summary', 'parties', 'cargo', 'compliance', 'risks'] as const).map((tab) => (
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab)}
                       className={`flex-1 py-2 text-xs rounded-lg capitalize transition ${activeTab === tab ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}
                     >
-                      {tab === 'summary' ? '🗺️ Route' : tab === 'parties' ? '👥 Parties' : tab === 'cargo' ? '📦 Cargo' : '⚠️ Risks'}
+                      {tab === 'summary' ? '🗺️' : tab === 'parties' ? '👥' : tab === 'cargo' ? '📦' : tab === 'compliance' ? '📜' : '⚠️'} {tab}
                     </button>
                   ))}
                 </div>
@@ -433,7 +595,6 @@ export default function DocumentsPage() {
                 <div className="p-6">
                   {activeTab === 'summary' && (
                     <div className="space-y-4">
-                      {/* Route */}
                       <div>
                         <h3 className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-3`}>Transport</h3>
                         <div className="grid grid-cols-2 gap-3">
@@ -452,8 +613,6 @@ export default function DocumentsPage() {
                           ))}
                         </div>
                       </div>
-
-                      {/* References */}
                       <div>
                         <h3 className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-3`}>References</h3>
                         <div className="grid grid-cols-2 gap-3">
@@ -467,7 +626,6 @@ export default function DocumentsPage() {
                             </div>
                           ))}
                         </div>
-                        {/* Container Numbers */}
                         {displayAnalysis.references?.container_numbers?.length > 0 && (
                           <div className={`mt-3 ${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-3`}>
                             <p className={`text-xs ${theme.textDim} mb-2`}>Container Numbers</p>
@@ -481,8 +639,6 @@ export default function DocumentsPage() {
                           </div>
                         )}
                       </div>
-
-                      {/* Summary */}
                       {displayAnalysis.shipment_summary?.description && (
                         <div className={`${darkMode ? 'bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10' : 'bg-gradient-to-r from-purple-50 to-blue-50'} rounded-xl p-4`}>
                           <p className={`text-xs ${theme.textDim} mb-1`}>Operational Summary</p>
@@ -512,9 +668,13 @@ export default function DocumentsPage() {
                       <div className="grid grid-cols-2 gap-3">
                         {[
                           { label: 'Container Type', value: displayAnalysis.cargo?.container_type || '—' },
+                          { label: 'HS Code', value: displayAnalysis.cargo?.hs_code || '—' },
                           { label: 'Packages', value: displayAnalysis.cargo?.packages ? String(displayAnalysis.cargo.packages) : '—' },
-                          { label: 'Gross Weight', value: displayAnalysis.cargo?.gross_weight?.value ? `${displayAnalysis.cargo.gross_weight.value} ${displayAnalysis.cargo.gross_weight.unit}` : '—' },
                           { label: 'Volume (CBM)', value: displayAnalysis.cargo?.volume_cbm ? `${displayAnalysis.cargo.volume_cbm} CBM` : '—' },
+                          { label: 'Gross Weight', value: displayAnalysis.cargo?.gross_weight?.value ? `${displayAnalysis.cargo.gross_weight.value} ${displayAnalysis.cargo.gross_weight.unit}` : '—' },
+                          { label: 'Net Weight', value: displayAnalysis.cargo?.net_weight?.value ? `${displayAnalysis.cargo.net_weight.value} ${displayAnalysis.cargo.net_weight.unit}` : '—' },
+                          { label: 'Tare Weight', value: displayAnalysis.cargo?.tare_weight?.value ? `${displayAnalysis.cargo.tare_weight.value} ${displayAnalysis.cargo.tare_weight.unit}` : '—' },
+                          { label: 'Freight Charges', value: displayAnalysis.freight?.charges || '—' },
                         ].map((item, i) => (
                           <div key={i} className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-3`}>
                             <p className={`text-xs ${theme.textDim} mb-1`}>{item.label}</p>
@@ -538,6 +698,24 @@ export default function DocumentsPage() {
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {activeTab === 'compliance' && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { label: 'Country of Origin', value: displayAnalysis.compliance?.country_of_origin || '—' },
+                          { label: 'Currency', value: displayAnalysis.compliance?.currency || '—' },
+                          { label: 'Customs Value', value: displayAnalysis.compliance?.customs_value || '—' },
+                          { label: 'Export License', value: displayAnalysis.compliance?.export_license || '—' },
+                        ].map((item, i) => (
+                          <div key={i} className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-3`}>
+                            <p className={`text-xs ${theme.textDim} mb-1`}>{item.label}</p>
+                            <p className="text-sm font-medium">{item.value}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -574,12 +752,14 @@ export default function DocumentsPage() {
                         </div>
                       )}
 
-                      <button
-                        onClick={generateRiskEmail}
-                        className="w-full py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white flex items-center justify-center gap-2"
-                      >
-                        📧 Generate Risk Alert Email
-                      </button>
+                      <div className="flex gap-3">
+                        <button onClick={generateRiskEmail} className={`flex-1 py-3 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm font-medium`}>
+                          📧 Copy Risk Email
+                        </button>
+                        <button onClick={handleGenerateReport} className="flex-1 py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium">
+                          📋 Full Report
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -590,7 +770,7 @@ export default function DocumentsPage() {
                   <div className="text-6xl mb-4">📋</div>
                   <h3 className="text-xl font-bold mb-2">Document Intelligence</h3>
                   <p className={`${theme.textMuted} mb-6 max-w-sm`}>
-                    Upload a shipping document or paste text to extract structured data, detect risks, and identify missing information.
+                    Upload a shipping document or paste text to extract structured data, detect risks, and generate reports.
                   </p>
                   <div className="flex flex-wrap gap-2 justify-center">
                     {['MBL', 'HBL', 'AWB', 'Invoice', 'Packing List'].map(type => (
