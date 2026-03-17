@@ -169,7 +169,6 @@ export default function TeamPage() {
   notify('error', result.error || 'Invalid invite code');
 }
  
-  
   } catch (e) { notify('error', 'Error joining team'); }
   setSetupLoading(false);
 };
