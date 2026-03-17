@@ -319,6 +319,12 @@ Team
             </Link>
           )}
 
+          {user && (
+  <Link href={`/documents?session=${session}`} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10 border border-[#5200FF]/30 ${theme.text} hover:border-[#5200FF]/50 transition`}>
+    📋 Documents
+  </Link>
+)}
+
           {/* Language */}
           <div className="relative">
             <button onClick={() => setLangMenuOpen(!langMenuOpen)} className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover}`}>
