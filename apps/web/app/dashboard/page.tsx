@@ -94,33 +94,48 @@ interface FolderDef {
   key: FolderKey;
   label: string;
   icon: string;
+  iconStyle?: React.CSSProperties;
   group: string;
   color?: string;
-  isCustom?: boolean;
 }
 
+const NAV_ITEMS = [
+  { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_inbox' },
+  { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
+  { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
+  { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
+];
+
+// Priority icon filters
+const PRIORITY_FILTERS: Record<string, string> = {
+  urgent: 'brightness(0) saturate(100%) invert(29%) sepia(96%) saturate(2000%) hue-rotate(340deg)',
+  high: 'brightness(0) saturate(100%) invert(60%) sepia(80%) saturate(800%) hue-rotate(5deg)',
+  medium: 'brightness(0) saturate(100%) invert(85%) sepia(60%) saturate(800%) hue-rotate(5deg)',
+  low: 'brightness(0) saturate(100%) invert(65%) sepia(60%) saturate(500%) hue-rotate(80deg)',
+};
+
 const SYSTEM_FOLDERS: FolderDef[] = [
-  { key: 'all', label: 'All Mail', icon: '📬', group: 'main' },
-  { key: 'urgent', label: 'Urgent', icon: '🔴', group: 'priority', color: 'text-red-400' },
-  { key: 'high', label: 'High', icon: '🟠', group: 'priority', color: 'text-orange-400' },
-  { key: 'medium', label: 'Medium', icon: '🟡', group: 'priority', color: 'text-yellow-400' },
-  { key: 'low', label: 'Low', icon: '🟢', group: 'priority', color: 'text-green-400' },
-  { key: 'not_replied', label: 'Not Replied', icon: '📭', group: 'status', color: 'text-blue-400' },
-  { key: 'replied', label: 'Replied', icon: '✅', group: 'status', color: 'text-green-400' },
-  { key: 'draft_saved', label: 'Drafts', icon: '📝', group: 'status', color: 'text-gray-400' },
-  { key: 'ocean', label: 'Ocean', icon: '🚢', group: 'transport', color: 'text-blue-400' },
-  { key: 'air', label: 'Air', icon: '✈️', group: 'transport', color: 'text-sky-400' },
-  { key: 'road', label: 'Road', icon: '🚛', group: 'transport', color: 'text-yellow-400' },
-  { key: 'rail', label: 'Rail', icon: '🚂', group: 'transport', color: 'text-purple-400' },
-  { key: 'quote_request', label: 'Quote Requests', icon: '💰', group: 'intent', color: 'text-yellow-400' },
-  { key: 'booking_confirmation', label: 'Bookings', icon: '📋', group: 'intent', color: 'text-green-400' },
-  { key: 'tracking_inquiry', label: 'Tracking', icon: '📍', group: 'intent', color: 'text-blue-400' },
-  { key: 'documentation_request', label: 'Documents', icon: '📄', group: 'intent', color: 'text-purple-400' },
-  { key: 'trash', label: 'Trash', icon: '🗑️', group: 'system', color: 'text-red-400' },
+  { key: 'all', label: 'All Mail', icon: 'Dashboard_all_mail', group: 'main' },
+  { key: 'urgent', label: 'Urgent', icon: 'Dashboard_priority', iconStyle: { filter: PRIORITY_FILTERS.urgent }, group: 'priority', color: 'text-red-400' },
+  { key: 'high', label: 'High', icon: 'Dashboard_priority', iconStyle: { filter: PRIORITY_FILTERS.high }, group: 'priority', color: 'text-orange-400' },
+  { key: 'medium', label: 'Medium', icon: 'Dashboard_priority', iconStyle: { filter: PRIORITY_FILTERS.medium }, group: 'priority', color: 'text-yellow-400' },
+  { key: 'low', label: 'Low', icon: 'Dashboard_priority', iconStyle: { filter: PRIORITY_FILTERS.low }, group: 'priority', color: 'text-green-400' },
+  { key: 'not_replied', label: 'Not Replied', icon: 'Dashboad_not_replied', group: 'status', color: 'text-blue-400' },
+  { key: 'replied', label: 'Replied', icon: 'Dashboard_replied', group: 'status', color: 'text-green-400' },
+  { key: 'draft_saved', label: 'Drafts', icon: 'Dashboard_draft', group: 'status', color: 'text-gray-400' },
+  { key: 'ocean', label: 'Ocean', icon: 'Dashboard_ocean', group: 'transport', color: 'text-blue-400' },
+  { key: 'air', label: 'Air', icon: 'Dashboard_air', group: 'transport', color: 'text-sky-400' },
+  { key: 'road', label: 'Road', icon: 'Dashboard_road', group: 'transport', color: 'text-yellow-400' },
+  { key: 'rail', label: 'Rail', icon: 'Dashboard_rail', group: 'transport', color: 'text-purple-400' },
+  { key: 'quote_request', label: 'Quote Requests', icon: 'Dashboard_quotation', group: 'intent', color: 'text-yellow-400' },
+  { key: 'booking_confirmation', label: 'Bookings', icon: 'Dashboard_analyrtics_AI Insights', group: 'intent', color: 'text-green-400' },
+  { key: 'tracking_inquiry', label: 'Tracking', icon: 'Dashboard_tracking', group: 'intent', color: 'text-blue-400' },
+  { key: 'documentation_request', label: 'Documents', icon: 'Dashboard_documents', group: 'intent', color: 'text-purple-400' },
 ];
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const [session, setSession] = useState<string | null>(null);
   const [user, setUser] = useState<{ email: string; name: string } | null>(null);
   const [emails, setEmails] = useState<Email[]>([]);
@@ -151,9 +166,7 @@ export default function DashboardPage() {
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
   const [newLabelIcon, setNewLabelIcon] = useState(LABEL_ICONS[0]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; emailId: string } | null>(null);
-  const pathname = usePathname();
 
-  // Resizable panels
   const [sidebarWidth, setSidebarWidth] = useState(210);
   const [emailListWidth, setEmailListWidth] = useState(300);
   const sidebarResizing = useRef(false);
@@ -196,36 +209,24 @@ export default function DashboardPage() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // Resize handlers
   const startSidebarResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     sidebarResizing.current = true;
-    const startX = e.clientX;
-    const startW = sidebarWidth;
-    const onMove = (me: MouseEvent) => {
-      if (!sidebarResizing.current) return;
-      setSidebarWidth(Math.max(48, Math.min(320, startW + (me.clientX - startX))));
-    };
+    const startX = e.clientX; const startW = sidebarWidth;
+    const onMove = (me: MouseEvent) => { if (!sidebarResizing.current) return; setSidebarWidth(Math.max(48, Math.min(320, startW + (me.clientX - startX)))); };
     const onUp = () => { sidebarResizing.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
   }, [sidebarWidth]);
 
   const startListResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     listResizing.current = true;
-    const startX = e.clientX;
-    const startW = emailListWidth;
-    const onMove = (me: MouseEvent) => {
-      if (!listResizing.current) return;
-      setEmailListWidth(Math.max(200, Math.min(600, startW + (me.clientX - startX))));
-    };
+    const startX = e.clientX; const startW = emailListWidth;
+    const onMove = (me: MouseEvent) => { if (!listResizing.current) return; setEmailListWidth(Math.max(200, Math.min(600, startW + (me.clientX - startX)))); };
     const onUp = () => { listResizing.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
   }, [emailListWidth]);
 
-  // Close context menu on click outside
   useEffect(() => {
     const close = () => setContextMenu(null);
     window.addEventListener('click', close);
@@ -248,7 +249,6 @@ export default function DashboardPage() {
     else setLoading(false);
   }, [searchParams]);
 
-  // Persist to localStorage
   useEffect(() => { localStorage.setItem('fw_custom_labels', JSON.stringify(customLabels)); }, [customLabels]);
   useEffect(() => { localStorage.setItem('fw_manual_folders', JSON.stringify(manualFolders)); }, [manualFolders]);
   useEffect(() => { localStorage.setItem('fw_trash', JSON.stringify(Array.from(trashedEmails))); }, [trashedEmails]);
@@ -291,15 +291,13 @@ export default function DashboardPage() {
   const analyzeAll = async () => {
     const toAnalyze = filteredEmails.filter(e => !e.analysis && !e.isAnalyzing);
     if (!toAnalyze.length) return;
-    setAnalyzing(true);
-    setProgress({ current: 0, total: toAnalyze.length });
+    setAnalyzing(true); setProgress({ current: 0, total: toAnalyze.length });
     for (let i = 0; i < toAnalyze.length; i++) {
       setProgress({ current: i + 1, total: toAnalyze.length });
       await analyzeEmail(toAnalyze[i]);
       await new Promise(r => setTimeout(r, 500));
     }
-    setAnalyzing(false);
-    notify('success', `Analyzed ${toAnalyze.length} emails!`);
+    setAnalyzing(false); notify('success', `Analyzed ${toAnalyze.length} emails!`);
   };
 
   const sendReply = async () => {
@@ -351,7 +349,6 @@ export default function DashboardPage() {
     setSending(false);
   };
 
-  // Delete / Trash
   const moveToTrash = (emailId: string) => {
     setTrashedEmails(prev => new Set([...Array.from(prev), emailId]));
     if (selected?.id === emailId) setSelected(null);
@@ -360,7 +357,7 @@ export default function DashboardPage() {
   };
 
   const restoreFromTrash = (emailId: string) => {
-  setTrashedEmails(prev => { const n = new Set(Array.from(prev)); n.delete(emailId); return n; });
+    setTrashedEmails(prev => { const n = new Set(Array.from(prev)); n.delete(emailId); return n; });
     notify('success', 'Email restored');
   };
 
@@ -379,26 +376,19 @@ export default function DashboardPage() {
     notify('success', 'Trash emptied');
   };
 
-  // Labels
   const createLabel = () => {
     if (!newLabelName.trim()) return;
     const key = `label_${Date.now()}`;
     const newLabel: CustomLabel = { key, label: newLabelName.trim(), color: newLabelColor.value, icon: newLabelIcon };
     setCustomLabels(prev => [...prev, newLabel]);
-    setNewLabelName('');
-    setNewLabelIcon(LABEL_ICONS[0]);
-    setNewLabelColor(LABEL_COLORS[0]);
+    setNewLabelName(''); setNewLabelIcon(LABEL_ICONS[0]); setNewLabelColor(LABEL_COLORS[0]);
     setShowCreateLabel(false);
     notify('success', `Label "${newLabel.label}" created!`);
   };
 
   const deleteLabel = (key: string) => {
     setCustomLabels(prev => prev.filter(l => l.key !== key));
-    setManualFolders(prev => {
-      const next = { ...prev };
-      Object.keys(next).forEach(id => { if (next[id] === key) delete next[id]; });
-      return next;
-    });
+    setManualFolders(prev => { const next = { ...prev }; Object.keys(next).forEach(id => { if (next[id] === key) delete next[id]; }); return next; });
     if (activeFolder === key) setActiveFolder('all');
   };
 
@@ -408,25 +398,21 @@ export default function DashboardPage() {
     notify('success', 'Label applied!');
   };
 
-  // Drag and drop
   const onDragStart = (e: React.DragEvent, emailId: string) => {
     e.dataTransfer.setData('emailId', emailId);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const onDragOver = (e: React.DragEvent, folderKey: FolderKey) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverFolder(folderKey);
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverFolder(folderKey);
   };
 
   const onDrop = (e: React.DragEvent, folderKey: FolderKey) => {
     e.preventDefault();
     const emailId = e.dataTransfer.getData('emailId');
     if (emailId) {
-      if (folderKey === 'trash') {
-        moveToTrash(emailId);
-      } else {
+      if (folderKey === 'trash') { moveToTrash(emailId); }
+      else {
         setManualFolders(prev => ({ ...prev, [emailId]: folderKey }));
         const allFolders = [...SYSTEM_FOLDERS, ...customLabels.map(l => ({ key: l.key, label: l.label }))];
         notify('success', `Email moved to ${allFolders.find(f => f.key === folderKey)?.label}`);
@@ -435,42 +421,22 @@ export default function DashboardPage() {
     setDragOverFolder(null);
   };
 
-  const onDragLeave = () => setDragOverFolder(null);
-
-  // Context menu
   const handleContextMenu = (e: React.MouseEvent, emailId: string) => {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, emailId });
   };
 
-  // Smart filtering
   const filteredEmails = useMemo(() => {
     let result = [...emails];
-
-    if (activeFolder === 'trash') {
-      return result.filter(e => trashedEmails.has(e.id));
-    }
-
-    // Exclude trashed
+    if (activeFolder === 'trash') return result.filter(e => trashedEmails.has(e.id));
     result = result.filter(e => !trashedEmails.has(e.id));
-
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(e =>
-        e.subject?.toLowerCase().includes(q) ||
-        e.from?.toLowerCase().includes(q) ||
-        e.snippet?.toLowerCase().includes(q) ||
-        e.analysis?.summary?.toLowerCase().includes(q)
-      );
+      result = result.filter(e => e.subject?.toLowerCase().includes(q) || e.from?.toLowerCase().includes(q) || e.snippet?.toLowerCase().includes(q) || e.analysis?.summary?.toLowerCase().includes(q));
     }
-
     if (activeFolder !== 'all') {
-      // Check custom labels first
       const isCustomLabel = customLabels.some(l => l.key === activeFolder);
-      if (isCustomLabel) {
-        return result.filter(e => manualFolders[e.id] === activeFolder);
-      }
-
+      if (isCustomLabel) return result.filter(e => manualFolders[e.id] === activeFolder);
       result = result.filter(e => {
         if (manualFolders[e.id] === activeFolder) return true;
         if (manualFolders[e.id] && manualFolders[e.id] !== activeFolder) return false;
@@ -525,9 +491,7 @@ export default function DashboardPage() {
         }
       }).length;
     });
-    customLabels.forEach(l => {
-      counts[l.key] = nonTrashed.filter(e => manualFolders[e.id] === l.key).length;
-    });
+    customLabels.forEach(l => { counts[l.key] = nonTrashed.filter(e => manualFolders[e.id] === l.key).length; });
     return counts;
   }, [emails, manualFolders, trashedEmails, customLabels]);
 
@@ -554,6 +518,13 @@ export default function DashboardPage() {
 
   const currentFolder = [...SYSTEM_FOLDERS, ...customLabels.map(l => ({ key: l.key, label: l.label, icon: l.icon }))].find(f => f.key === activeFolder);
 
+  // Determine icon filter for sidebar folders in light mode
+  const getFolderIconStyle = (folder: FolderDef, isActive: boolean): React.CSSProperties => {
+    if (folder.iconStyle) return folder.iconStyle; // priority icons keep their color
+    if (isActive) return darkMode ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter;
+    return theme.iconFilter;
+  };
+
   if (loading) {
     return (
       <div className={`min-h-screen ${theme.bgGradient} ${theme.text} flex items-center justify-center`}>
@@ -572,11 +543,8 @@ export default function DashboardPage() {
 
       {/* Context Menu */}
       {contextMenu && (
-        <div
-          className={`fixed z-50 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-2xl py-1 min-w-48`}
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={e => e.stopPropagation()}
-        >
+        <div className={`fixed z-50 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-2xl py-1 min-w-48`}
+          style={{ left: contextMenu.x, top: contextMenu.y }} onClick={e => e.stopPropagation()}>
           <p className={`px-4 py-2 text-xs font-semibold ${theme.textDim} uppercase tracking-wider border-b ${theme.cardBorder}`}>Apply Label</p>
           {customLabels.map(label => (
             <button key={label.key} onClick={() => applyLabel(contextMenu.emailId, label.key)}
@@ -584,13 +552,12 @@ export default function DashboardPage() {
               {label.icon} {label.label}
             </button>
           ))}
-          {customLabels.length === 0 && (
-            <p className={`px-4 py-2 text-xs ${theme.textDim}`}>No labels yet — create one in the sidebar</p>
-          )}
+          {customLabels.length === 0 && <p className={`px-4 py-2 text-xs ${theme.textDim}`}>No labels yet</p>}
           <div className={`border-t ${theme.cardBorder} mt-1`} />
           <button onClick={() => moveToTrash(contextMenu.emailId)}
             className={`w-full px-4 py-2 text-sm text-left ${theme.hover} flex items-center gap-2 text-red-400`}>
-            🗑️ Move to Trash
+            <Icon name="Dashboard_trash" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} />
+            Move to Trash
           </button>
         </div>
       )}
@@ -600,18 +567,26 @@ export default function DashboardPage() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-end p-6">
           <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-lg shadow-2xl`}>
             <div className={`flex items-center justify-between px-5 py-4 border-b ${theme.cardBorder}`}>
-              <h3 className="font-semibold">New Message</h3>
+              <h3 className="font-semibold flex items-center gap-2">
+                <Icon name="Dashboard_compose" className="w-5 h-5" style={theme.iconFilter} />
+                New Message
+              </h3>
               <button onClick={() => setShowCompose(false)} className={`${theme.textDim} hover:text-white text-lg`}>✕</button>
             </div>
             <div className="p-4 space-y-3">
-              <input value={composeTo} onChange={e => setComposeTo(e.target.value)} placeholder="To" className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              <input value={composeSubject} onChange={e => setComposeSubject(e.target.value)} placeholder="Subject" className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              <textarea value={composeBody} onChange={e => setComposeBody(e.target.value)} placeholder="Write your message..." rows={8} className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF] resize-none`} />
+              <input value={composeTo} onChange={e => setComposeTo(e.target.value)} placeholder="To"
+                className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
+              <input value={composeSubject} onChange={e => setComposeSubject(e.target.value)} placeholder="Subject"
+                className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
+              <textarea value={composeBody} onChange={e => setComposeBody(e.target.value)} placeholder="Write your message..." rows={8}
+                className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF] resize-none`} />
               <div className="flex gap-3">
-                <button onClick={sendCompose} disabled={sending} className="flex-1 py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
+                <button onClick={sendCompose} disabled={sending}
+                  className="flex-1 py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
                   {sending ? 'Sending...' : 'Send'}
                 </button>
-                <button onClick={() => setShowCompose(false)} className={`px-4 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm`}>Discard</button>
+                <button onClick={() => setShowCompose(false)}
+                  className={`px-4 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm`}>Discard</button>
               </div>
             </div>
           </div>
@@ -623,18 +598,17 @@ export default function DashboardPage() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
           <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-sm shadow-2xl`}>
             <div className={`flex items-center justify-between px-5 py-4 border-b ${theme.cardBorder}`}>
-              <h3 className="font-semibold">Create New Label</h3>
+              <h3 className="font-semibold flex items-center gap-2">
+                <Icon name="Dashboard_new_label" className="w-5 h-5" style={theme.iconFilter} />
+                Create New Label
+              </h3>
               <button onClick={() => setShowCreateLabel(false)} className={`${theme.textDim} hover:text-white text-lg`}>✕</button>
             </div>
             <div className="p-4 space-y-4">
-              <input
-                value={newLabelName}
-                onChange={e => setNewLabelName(e.target.value)}
+              <input value={newLabelName} onChange={e => setNewLabelName(e.target.value)}
                 placeholder="Label name (e.g. Others, Done, Follow up)"
                 className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}
-                onKeyDown={e => e.key === 'Enter' && createLabel()}
-                autoFocus
-              />
+                onKeyDown={e => e.key === 'Enter' && createLabel()} autoFocus />
               <div>
                 <p className={`text-xs ${theme.textDim} mb-2`}>Icon</p>
                 <div className="flex flex-wrap gap-2">
@@ -673,50 +647,54 @@ export default function DashboardPage() {
       )}
 
       {/* Header */}
-      <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-4 flex items-center justify-between sticky top-0 z-40`}>
-        <Link href="/" className="flex items-center gap-2">
+      <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-3 flex items-center justify-between sticky top-0 z-40`}>
+        <Link href="/" className="flex items-center gap-2 flex-shrink-0">
           <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
-          <span className="text-lg font-bold">FreightWizard</span>
+          <span className="text-base font-bold">FreightWizard</span>
         </Link>
-        <div className="flex items-center gap-3">
-          {user && (
-  <div className="flex items-center gap-1 mx-2">
-    <Link href={`/dashboard?session=${session}`} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${pathname === '/dashboard' ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40' : `border border-transparent ${theme.hover} ${theme.textMuted}`}`}>
-      📬 Inbox
-    </Link>
-    <Link href={`/analytics?session=${session}`} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${pathname?.startsWith('/analytics') ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40' : `border border-transparent ${theme.hover} ${theme.textMuted}`}`}>
-      <Icon name="Dashboard_analyrtics_AI Insights" className="w-3.5 h-3.5" style={theme.iconFilter} />
-      Analytics
-    </Link>
-    <Link href={`/team?session=${session}`} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${pathname?.startsWith('/team') ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40' : `border border-transparent ${theme.hover} ${theme.textMuted}`}`}>
-      <Icon name="Dashboard_email_team" className="w-3.5 h-3.5" style={theme.iconFilter} />
-      Team
-    </Link>
-    <Link href={`/documents?session=${session}`} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${pathname?.startsWith('/documents') ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40' : `border border-transparent ${theme.hover} ${theme.textMuted}`}`}>
-      <Icon name="Dashboard_documents" className="w-3.5 h-3.5" style={theme.iconFilter} />
-      Documents
-    </Link>
-  </div>
-)}
+
+        <div className="flex items-center gap-2">
+          {NAV_ITEMS.map(item => (
+            <Link key={item.href} href={`${item.href}?session=${session}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${
+                pathname?.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')
+                  ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40'
+                  : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`
+              }`}>
+              <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
+              {item.label[language]}
+            </Link>
+          ))}
+
+          <div className={`w-px h-5 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
+
           <div className="relative">
-            <button onClick={() => setLangMenuOpen(!langMenuOpen)} className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover}`}>
-              {langLabels[language]} ▼
+            <button onClick={() => setLangMenuOpen(!langMenuOpen)}
+              className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover} flex items-center gap-1`}>
+              {langLabels[language]} <span className="text-xs">▼</span>
             </button>
             {langMenuOpen && (
-              <div className={`absolute top-full right-0 mt-2 ${theme.card} border ${theme.cardBorder} rounded-lg shadow-xl z-50`}>
+              <div className={`absolute top-full right-0 mt-2 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-xl z-50 overflow-hidden`}>
                 {(['en', 'pt', 'nl'] as Language[]).map(l => (
-                  <button key={l} onClick={() => changeLang(l)} className={`w-full px-4 py-2 text-left text-sm ${theme.hover}`}>{langLabels[l]}</button>
+                  <button key={l} onClick={() => changeLang(l)}
+                    className={`w-full px-4 py-2 text-left text-sm ${theme.hover} ${language === l ? 'text-[#9E14FB] font-medium' : theme.textMuted}`}>
+                    {langLabels[l]}
+                  </button>
                 ))}
               </div>
             )}
           </div>
+
           <button onClick={toggleTheme} className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
-            {darkMode ? <Icon name="Dashboard_sun_light_mode" className="w-5 h-5" /> : <Icon name="Dashboard_moon_dark_mode" className="w-5 h-5" />}
+            {darkMode ? <Icon name="Dashboard_sun_light_mode" className="w-4 h-4" style={theme.iconFilter} /> : <Icon name="Dashboard_moon_dark_mode" className="w-4 h-4" style={theme.iconFilter} />}
           </button>
+
           {user && (
             <>
-              <span className={`text-sm ${theme.textMuted}`}>{user.email}</span>
-              <button onClick={disconnect} className="text-sm text-red-400 border border-red-400/30 px-3 py-1.5 rounded-full hover:bg-red-400/10">{t.disconnect}</button>
+              <span className={`text-sm ${theme.textMuted} hidden lg:block max-w-36 truncate`}>{user.email}</span>
+              <button onClick={disconnect} className="text-sm text-red-400 border border-red-400/30 px-3 py-1.5 rounded-full hover:bg-red-400/10 transition">
+                {language === 'pt' ? 'Desconectar' : language === 'nl' ? 'Ontkoppelen' : 'Disconnect'}
+              </button>
             </>
           )}
         </div>
@@ -753,12 +731,12 @@ export default function DashboardPage() {
                 <div className="p-2 pt-3 flex-shrink-0">
                   <button onClick={() => setShowCompose(true)}
                     className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2">
-                    ✏️ {!isNarrow && t.compose}
+                    <Icon name="Dashboard_compose" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
+                    {!isNarrow && t.compose}
                   </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-2 pb-2">
-                  {/* System folders */}
                   {groups.map((group, gi) => (
                     <div key={gi} className="mb-2">
                       {group.label && !isNarrow && (
@@ -772,18 +750,23 @@ export default function DashboardPage() {
                           <button key={folder.key} onClick={() => setActiveFolder(folder.key)}
                             onDragOver={(e) => onDragOver(e, folder.key)}
                             onDrop={(e) => onDrop(e, folder.key)}
-                            onDragLeave={onDragLeave}
+                            onDragLeave={() => setDragOverFolder(null)}
                             className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm transition mb-0.5 ${
                               isDragTarget ? 'border-2 border-[#5200FF] bg-[#5200FF]/20 scale-105' :
                               isActive ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/30' :
                               theme.hover}`}
                             title={isNarrow ? folder.label : ''}>
-                            <span className="text-base flex-shrink-0">{folder.icon}</span>
+                            <Icon name={folder.icon} className="w-4 h-4 flex-shrink-0"
+                              style={getFolderIconStyle(folder, isActive)} />
                             {!isNarrow && (
                               <>
-                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : theme.textMuted} ${folder.color || ''}`}>{folder.label}</span>
+                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : theme.textMuted} ${folder.color || ''}`}>
+                                  {folder.label}
+                                </span>
                                 {count > 0 && (
-                                  <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#5200FF]/30 text-[#9E14FB]' : darkMode ? 'bg-white/10 text-gray-400' : 'bg-slate-200 text-slate-500'}`}>{count}</span>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#5200FF]/30 text-[#9E14FB]' : darkMode ? 'bg-white/10 text-gray-400' : 'bg-slate-200 text-slate-500'}`}>
+                                    {count}
+                                  </span>
                                 )}
                               </>
                             )}
@@ -797,10 +780,11 @@ export default function DashboardPage() {
                   {/* Custom Labels */}
                   {!isNarrow && (
                     <div className="mt-2">
-                      <div className={`flex items-center justify-between px-2 mb-1`}>
+                      <div className="flex items-center justify-between px-2 mb-1">
                         <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider`}>{t.labels}</p>
-                        <button onClick={() => setShowCreateLabel(true)}
-                          className={`text-xs ${theme.textDim} hover:text-[#9E14FB] transition`} title="Create label">+</button>
+                        <button onClick={() => setShowCreateLabel(true)} className={`text-xs ${theme.textDim} hover:text-[#9E14FB] transition`} title="Create label">
+                          <Icon name="Dashboard_new_label" className="w-4 h-4" style={theme.iconFilter} />
+                        </button>
                       </div>
                       {customLabels.map(label => {
                         const count = folderCounts[label.key] || 0;
@@ -811,7 +795,7 @@ export default function DashboardPage() {
                             <button onClick={() => setActiveFolder(label.key)}
                               onDragOver={(e) => onDragOver(e, label.key)}
                               onDrop={(e) => onDrop(e, label.key)}
-                              onDragLeave={onDragLeave}
+                              onDragLeave={() => setDragOverFolder(null)}
                               className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm transition mb-0.5 ${
                                 isDragTarget ? 'border-2 border-[#5200FF] bg-[#5200FF]/20 scale-105' :
                                 isActive ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/30' :
@@ -831,7 +815,7 @@ export default function DashboardPage() {
                       })}
                       <button onClick={() => setShowCreateLabel(true)}
                         className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm ${theme.textDim} ${theme.hover} transition mt-1 border border-dashed ${theme.cardBorder}`}>
-                        <span>🏷️</span>
+                        <Icon name="Dashboard_new_label" className="w-4 h-4" style={theme.iconFilter} />
                         <span className="text-xs">{t.createLabel}</span>
                       </button>
                     </div>
@@ -842,12 +826,13 @@ export default function DashboardPage() {
                     <button onClick={() => setActiveFolder('trash')}
                       onDragOver={(e) => onDragOver(e, 'trash')}
                       onDrop={(e) => onDrop(e, 'trash')}
-                      onDragLeave={onDragLeave}
+                      onDragLeave={() => setDragOverFolder(null)}
                       className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm transition ${
                         dragOverFolder === 'trash' ? 'border-2 border-red-500 bg-red-500/20 scale-105' :
                         activeFolder === 'trash' ? 'bg-red-500/10 border border-red-500/30' :
                         theme.hover}`}>
-                      <span className="text-base">🗑️</span>
+                      <Icon name="Dashboard_trash" className="w-4 h-4 flex-shrink-0"
+                        style={{ filter: activeFolder === 'trash' ? 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' : theme.iconFilter.filter }} />
                       {!isNarrow && (
                         <>
                           <span className={`flex-1 text-left ${activeFolder === 'trash' ? 'font-medium text-red-400' : theme.textMuted}`}>{t.trash}</span>
@@ -868,8 +853,9 @@ export default function DashboardPage() {
 
             {/* MIDDLE: Email List */}
             <div style={{ width: emailListWidth, flexShrink: 0 }} className="flex flex-col gap-2 transition-none">
+              {/* Search */}
               <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl px-4 py-3 flex items-center gap-3 flex-shrink-0`}>
-                <span className={theme.textDim}>🔍</span>
+                <Icon name="Dashboard_search_emails" className="w-4 h-4 flex-shrink-0" style={theme.iconFilter} />
                 <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={t.search} className={`flex-1 bg-transparent text-sm focus:outline-none ${theme.text}`} />
                 {searchQuery && <button onClick={() => setSearchQuery('')} className={`text-xs ${theme.textDim}`}>✕</button>}
@@ -879,16 +865,21 @@ export default function DashboardPage() {
                 <div className={`p-3 border-b ${theme.cardBorder} flex-shrink-0`}>
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <p className="text-sm font-semibold">{currentFolder?.icon} {currentFolder?.label}</p>
+                      <p className="text-sm font-semibold flex items-center gap-1.5">
+                        {currentFolder && 'icon' in currentFolder && (
+                          <Icon name={(currentFolder as FolderDef).icon} className="w-4 h-4"
+                            style={getFolderIconStyle(currentFolder as FolderDef, true)} />
+                        )}
+                        {currentFolder?.label}
+                      </p>
                       <p className={`text-xs ${theme.textDim}`}>{filteredEmails.length} emails</p>
                     </div>
                     <div className="flex gap-1">
                       {activeFolder === 'trash' && trashedEmails.size > 0 && (
-                        <button onClick={emptyTrash} className="text-xs text-red-400 border border-red-400/30 px-2 py-1 rounded-lg hover:bg-red-400/10">
-                          Empty
-                        </button>
+                        <button onClick={emptyTrash} className="text-xs text-red-400 border border-red-400/30 px-2 py-1 rounded-lg hover:bg-red-400/10">Empty</button>
                       )}
-                      <button onClick={() => session && loadEmails(session)} className={`text-xs ${theme.textMuted} ${theme.hover} px-2 py-1 border ${theme.cardBorder} rounded-lg`}>↻</button>
+                      <button onClick={() => session && loadEmails(session)}
+                        className={`text-xs ${theme.textMuted} ${theme.hover} px-2 py-1 border ${theme.cardBorder} rounded-lg`}>↻</button>
                     </div>
                   </div>
                   {activeFolder !== 'trash' && (
@@ -897,7 +888,7 @@ export default function DashboardPage() {
                       {analyzing ? (
                         <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> {progress.current}/{progress.total}</>
                       ) : (
-                        <><Icon name="Dashboard_email_Analyze all bottom" className="w-4 h-4" />{t.analyzeAll} ({unanalyzedCount})</>
+                        <><Icon name="Dashboard_email_Analyze all bottom" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />{t.analyzeAll} ({unanalyzedCount})</>
                       )}
                     </button>
                   )}
@@ -924,8 +915,10 @@ export default function DashboardPage() {
                             {email.analysis && <span className={`text-[9px] px-1.5 py-0.5 rounded-full text-white ${getPriorityColor(email.analysis.priority)}`}>{email.analysis.priority}</span>}
                             {!isInTrash && (
                               <button onClick={(e) => { e.stopPropagation(); moveToTrash(email.id); }}
-                                className={`w-5 h-5 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition hover:bg-red-500/20 hover:text-red-400 ${theme.textDim}`}
-                                title="Move to trash">🗑</button>
+                                className={`w-5 h-5 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition`}
+                                title="Move to trash">
+                                <Icon name="Dashboard_trash" className="w-3 h-3" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} />
+                              </button>
                             )}
                           </div>
                         </div>
@@ -944,13 +937,10 @@ export default function DashboardPage() {
                           )}
                           {isInTrash && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">🗑️ Trash</span>}
                         </div>
-                        {/* Trash actions */}
                         {isInTrash && (
                           <div className="flex gap-2 mt-2" onClick={e => e.stopPropagation()}>
-                            <button onClick={() => restoreFromTrash(email.id)}
-                              className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30">{t.restore}</button>
-                            <button onClick={() => deleteForever(email.id)}
-                              className="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30">{t.deleteForever}</button>
+                            <button onClick={() => restoreFromTrash(email.id)} className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30">{t.restore}</button>
+                            <button onClick={() => deleteForever(email.id)} className="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30">{t.deleteForever}</button>
                           </div>
                         )}
                       </div>
@@ -980,13 +970,14 @@ export default function DashboardPage() {
                           {!trashedEmails.has(selected.id) && (
                             <button onClick={() => moveToTrash(selected.id)}
                               className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-400 border border-red-400/30 rounded-full hover:bg-red-400/10 transition">
-                              🗑️ Delete
+                              <Icon name="Dashboard_trash" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} />
+                              Delete
                             </button>
                           )}
                           {!selected.analysis && !selected.isAnalyzing && !trashedEmails.has(selected.id) && (
                             <button onClick={() => analyzeEmail(selected)}
                               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
-                              <Icon name="Dashboard_email_Analyze all bottom" className="w-4 h-4" />
+                              <Icon name="Dashboard_email_Analyze all bottom" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
                               {t.analyze}
                             </button>
                           )}
