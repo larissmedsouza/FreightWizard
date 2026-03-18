@@ -795,8 +795,8 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                           <h3 className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-3`}>Risks Detected</h3>
                           <div className="space-y-2">
                             {displayAnalysis.risks.map((risk, i) => (
-                              <div key={i} className={`${darkMode ? 'bg-red-500/10' : 'bg-red-50'} border border-red-500/20 rounded-xl p-3`}>
-                                <p className="text-sm text-red-400">• {risk}</p>
+                              <div key={i} className={`${darkMode ? 'bg-red-500/10' : 'bg-red-100'} border ${darkMode ? 'border-red-500/20' : 'border-red-300'} rounded-xl p-3`}>
+                                <p className={`text-sm ${darkMode ? 'text-red-400' : 'text-red-700'}`}>• {risk}</p>
                               </div>
                             ))}
                           </div>
@@ -813,8 +813,8 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                           <h3 className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-3`}>Missing Information</h3>
                           <div className="space-y-2">
                             {displayAnalysis.missing_information.map((item, i) => (
-                              <div key={i} className={`${darkMode ? 'bg-yellow-500/10' : 'bg-yellow-50'} border border-yellow-500/20 rounded-xl p-3`}>
-                                <p className="text-sm text-yellow-400">• {item}</p>
+                              <div key={i} className={`${darkMode ? 'bg-yellow-500/10' : 'bg-yellow-100'} border ${darkMode ? 'border-yellow-500/20' : 'border-yellow-400'} rounded-xl p-3`}>
+                                <p className={`text-sm ${darkMode ? 'text-yellow-400' : 'text-yellow-800'}`}>• {item}</p>
                               </div>
                             ))}
                           </div>
