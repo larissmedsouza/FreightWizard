@@ -397,18 +397,18 @@ export default function ComparePage() {
               {/* Stats */}
               <div className="grid grid-cols-3 gap-4 mb-6">
                 {[
-                  { label: 'Matched', count: counts.match, color: 'text-green-400', bg: 'bg-green-500/10', icon: 'Dashboard_document_comparison_matches' },
-                  { label: 'Mismatched', count: counts.mismatch, color: 'text-orange-400', bg: 'bg-orange-500/10', icon: 'Dashboard_document_comparison_mismatches' },
-                  { label: 'Missing', count: counts.missing, color: 'text-red-400', bg: 'bg-red-500/10', icon: 'Dashboard_document_comparison_missing' },
-                ].map((stat, i) => (
-                  <div key={i} className={`${stat.bg} rounded-xl p-4 text-center`}>
-                    <div className="flex justify-center mb-2">
-                      <Icon name={stat.icon} className="w-5 h-5" style={theme.iconFilter} />
-                    </div>
-                    <p className={`text-2xl font-bold ${stat.color}`}>{stat.count}</p>
-                    <p className={`text-xs ${theme.textMuted}`}>{stat.label}</p>
-                  </div>
-                ))}
+  { label: 'Matched', count: counts.match, color: 'text-green-500', bg: 'bg-green-500/10', icon: 'Dashboard_document_comparison_matches', iconFilter: { filter: 'brightness(0) saturate(100%) invert(55%) sepia(60%) saturate(500%) hue-rotate(80deg)' } },
+  { label: 'Mismatched', count: counts.mismatch, color: 'text-orange-400', bg: 'bg-orange-500/10', icon: 'Dashboard_document_comparison_mismatches', iconFilter: { filter: 'brightness(0) saturate(100%) invert(70%) sepia(80%) saturate(800%) hue-rotate(5deg)' } },
+  { label: 'Missing', count: counts.missing, color: 'text-red-400', bg: 'bg-red-500/10', icon: 'Dashboard_document_comparison_missing', iconFilter: { filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' } },
+].map((stat, i) => (
+  <div key={i} className={`${stat.bg} rounded-xl p-4 text-center`}>
+    <div className="flex justify-center mb-2">
+      <Icon name={stat.icon} className="w-5 h-5" style={stat.iconFilter} />
+    </div>
+    <p className={`text-2xl font-bold ${stat.color}`}>{stat.count}</p>
+    <p className={`text-xs ${theme.textMuted}`}>{stat.label}</p>
+  </div>
+))}
               </div>
 
               {/* Summary */}
@@ -428,7 +428,7 @@ export default function ComparePage() {
                   </h3>
                   <ul className="space-y-1">
                     {result.critical_mismatches.map((m, i) => (
-                      <li key={i} className="text-sm text-red-300">• {m}</li>
+                      <li key={i} className="text-sm text-red-600">• {m}</li>
                     ))}
                   </ul>
                 </div>
