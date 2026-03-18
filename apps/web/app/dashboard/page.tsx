@@ -20,8 +20,27 @@ interface Email {
   body: string;
   analysis?: any;
   isAnalyzing?: boolean;
-  manualFolder?: string;
 }
+
+interface CustomLabel {
+  key: string;
+  label: string;
+  color: string;
+  icon: string;
+}
+
+const LABEL_COLORS = [
+  { name: 'Purple', value: 'text-purple-400', bg: 'bg-purple-500/20' },
+  { name: 'Blue', value: 'text-blue-400', bg: 'bg-blue-500/20' },
+  { name: 'Green', value: 'text-green-400', bg: 'bg-green-500/20' },
+  { name: 'Yellow', value: 'text-yellow-400', bg: 'bg-yellow-500/20' },
+  { name: 'Red', value: 'text-red-400', bg: 'bg-red-500/20' },
+  { name: 'Pink', value: 'text-pink-400', bg: 'bg-pink-500/20' },
+  { name: 'Cyan', value: 'text-cyan-400', bg: 'bg-cyan-500/20' },
+  { name: 'Orange', value: 'text-orange-400', bg: 'bg-orange-500/20' },
+];
+
+const LABEL_ICONS = ['🏷️', '📌', '⭐', '🔖', '📎', '🗂️', '✅', '🔔', '💼', '🌟'];
 
 const translations = {
   en: {
@@ -35,6 +54,8 @@ const translations = {
     suggestedReply: 'Suggested Reply', sendReply: 'Send Reply', editReply: 'Edit',
     saveDraft: 'Save Draft', cancel: 'Cancel', sending: 'Sending...', saving: 'Saving...',
     analytics: 'Analytics', search: 'Search emails...', allMail: 'All Mail', compose: 'Compose',
+    trash: 'Trash', labels: 'Labels', createLabel: '+ New Label', restore: 'Restore',
+    deleteForever: 'Delete Forever', trashEmpty: 'Trash is empty',
   },
   pt: {
     inbox: 'Caixa de Entrada', emails: 'emails', analyzed: 'analisados', analyzeAll: 'Analisar Todos',
@@ -47,6 +68,8 @@ const translations = {
     suggestedReply: 'Resposta Sugerida', sendReply: 'Enviar', editReply: 'Editar',
     saveDraft: 'Salvar Rascunho', cancel: 'Cancelar', sending: 'Enviando...', saving: 'Salvando...',
     analytics: 'Analytics', search: 'Buscar emails...', allMail: 'Todos', compose: 'Escrever',
+    trash: 'Lixeira', labels: 'Etiquetas', createLabel: '+ Nova Etiqueta', restore: 'Restaurar',
+    deleteForever: 'Apagar Sempre', trashEmpty: 'Lixeira vazia',
   },
   nl: {
     inbox: 'Inbox', emails: 'emails', analyzed: 'geanalyseerd', analyzeAll: 'Analyseer Alles',
@@ -59,11 +82,13 @@ const translations = {
     suggestedReply: 'Voorgesteld Antwoord', sendReply: 'Verstuur', editReply: 'Bewerk',
     saveDraft: 'Concept Opslaan', cancel: 'Annuleren', sending: 'Versturen...', saving: 'Opslaan...',
     analytics: 'Analytics', search: 'Emails zoeken...', allMail: 'Alle mail', compose: 'Opstellen',
+    trash: 'Prullenbak', labels: 'Labels', createLabel: '+ Nieuw Label', restore: 'Herstellen',
+    deleteForever: 'Definitief Verwijderen', trashEmpty: 'Prullenbak is leeg',
   },
 };
 
 type Language = 'en' | 'pt' | 'nl';
-type FolderKey = 'all' | 'urgent' | 'high' | 'medium' | 'low' | 'replied' | 'draft_saved' | 'not_replied' | 'ocean' | 'air' | 'road' | 'rail' | 'quote_request' | 'booking_confirmation' | 'tracking_inquiry' | 'documentation_request';
+type FolderKey = 'all' | 'urgent' | 'high' | 'medium' | 'low' | 'replied' | 'draft_saved' | 'not_replied' | 'ocean' | 'air' | 'road' | 'rail' | 'quote_request' | 'booking_confirmation' | 'tracking_inquiry' | 'documentation_request' | 'trash' | string;
 
 interface FolderDef {
   key: FolderKey;
@@ -71,9 +96,10 @@ interface FolderDef {
   icon: string;
   group: string;
   color?: string;
+  isCustom?: boolean;
 }
 
-const FOLDERS: FolderDef[] = [
+const SYSTEM_FOLDERS: FolderDef[] = [
   { key: 'all', label: 'All Mail', icon: '📬', group: 'main' },
   { key: 'urgent', label: 'Urgent', icon: '🔴', group: 'priority', color: 'text-red-400' },
   { key: 'high', label: 'High', icon: '🟠', group: 'priority', color: 'text-orange-400' },
@@ -90,6 +116,7 @@ const FOLDERS: FolderDef[] = [
   { key: 'booking_confirmation', label: 'Bookings', icon: '📋', group: 'intent', color: 'text-green-400' },
   { key: 'tracking_inquiry', label: 'Tracking', icon: '📍', group: 'intent', color: 'text-blue-400' },
   { key: 'documentation_request', label: 'Documents', icon: '📄', group: 'intent', color: 'text-purple-400' },
+  { key: 'trash', label: 'Trash', icon: '🗑️', group: 'system', color: 'text-red-400' },
 ];
 
 export default function DashboardPage() {
@@ -117,13 +144,19 @@ export default function DashboardPage() {
   const [composeBody, setComposeBody] = useState('');
   const [dragOverFolder, setDragOverFolder] = useState<FolderKey | null>(null);
   const [manualFolders, setManualFolders] = useState<Record<string, FolderKey>>({});
+  const [trashedEmails, setTrashedEmails] = useState<Set<string>>(new Set());
+  const [customLabels, setCustomLabels] = useState<CustomLabel[]>([]);
+  const [showCreateLabel, setShowCreateLabel] = useState(false);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
+  const [newLabelIcon, setNewLabelIcon] = useState(LABEL_ICONS[0]);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; emailId: string } | null>(null);
 
   // Resizable panels
-  const [sidebarWidth, setSidebarWidth] = useState(200);
+  const [sidebarWidth, setSidebarWidth] = useState(210);
   const [emailListWidth, setEmailListWidth] = useState(300);
   const sidebarResizing = useRef(false);
   const listResizing = useRef(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const t = translations[language];
 
@@ -170,8 +203,7 @@ export default function DashboardPage() {
     const startW = sidebarWidth;
     const onMove = (me: MouseEvent) => {
       if (!sidebarResizing.current) return;
-      const newW = Math.max(48, Math.min(320, startW + (me.clientX - startX)));
-      setSidebarWidth(newW);
+      setSidebarWidth(Math.max(48, Math.min(320, startW + (me.clientX - startX))));
     };
     const onUp = () => { sidebarResizing.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
@@ -185,37 +217,46 @@ export default function DashboardPage() {
     const startW = emailListWidth;
     const onMove = (me: MouseEvent) => {
       if (!listResizing.current) return;
-      const newW = Math.max(200, Math.min(600, startW + (me.clientX - startX)));
-      setEmailListWidth(newW);
+      setEmailListWidth(Math.max(200, Math.min(600, startW + (me.clientX - startX))));
     };
     const onUp = () => { listResizing.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }, [emailListWidth]);
 
+  // Close context menu on click outside
+  useEffect(() => {
+    const close = () => setContextMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, []);
+
   useEffect(() => {
     const savedTheme = localStorage.getItem('fw_theme');
     const savedLang = localStorage.getItem('fw_lang') as Language;
+    const savedLabels = localStorage.getItem('fw_custom_labels');
+    const savedManual = localStorage.getItem('fw_manual_folders');
+    const savedTrash = localStorage.getItem('fw_trash');
     if (savedTheme) setDarkMode(savedTheme === 'dark');
     if (savedLang) setLanguage(savedLang);
+    if (savedLabels) setCustomLabels(JSON.parse(savedLabels));
+    if (savedManual) setManualFolders(JSON.parse(savedManual));
+    if (savedTrash) setTrashedEmails(new Set(JSON.parse(savedTrash)));
     const sid = searchParams.get('session') || localStorage.getItem('fw_session');
-    if (sid) {
-      localStorage.setItem('fw_session', sid);
-      setSession(sid);
-      checkAuth(sid);
-    } else {
-      setLoading(false);
-    }
+    if (sid) { localStorage.setItem('fw_session', sid); setSession(sid); checkAuth(sid); }
+    else setLoading(false);
   }, [searchParams]);
+
+  // Persist to localStorage
+  useEffect(() => { localStorage.setItem('fw_custom_labels', JSON.stringify(customLabels)); }, [customLabels]);
+  useEffect(() => { localStorage.setItem('fw_manual_folders', JSON.stringify(manualFolders)); }, [manualFolders]);
+  useEffect(() => { localStorage.setItem('fw_trash', JSON.stringify([...trashedEmails])); }, [trashedEmails]);
 
   const checkAuth = async (sid: string) => {
     try {
       const res = await fetch(`${API_URL}/api/auth/status?session=${sid}`);
       const data = await res.json();
-      if (data.authenticated) {
-        setUser({ email: data.email, name: data.name });
-        await loadEmails(sid);
-      }
+      if (data.authenticated) { setUser({ email: data.email, name: data.name }); await loadEmails(sid); }
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -309,7 +350,64 @@ export default function DashboardPage() {
     setSending(false);
   };
 
-  // Drag and drop handlers
+  // Delete / Trash
+  const moveToTrash = (emailId: string) => {
+    setTrashedEmails(prev => new Set([...prev, emailId]));
+    if (selected?.id === emailId) setSelected(null);
+    notify('success', 'Email moved to Trash');
+    setContextMenu(null);
+  };
+
+  const restoreFromTrash = (emailId: string) => {
+    setTrashedEmails(prev => { const n = new Set(prev); n.delete(emailId); return n; });
+    notify('success', 'Email restored');
+  };
+
+  const deleteForever = (emailId: string) => {
+    setTrashedEmails(prev => { const n = new Set(prev); n.delete(emailId); return n; });
+    setEmails(prev => prev.filter(e => e.id !== emailId));
+    if (selected?.id === emailId) setSelected(null);
+    notify('success', 'Email permanently deleted');
+  };
+
+  const emptyTrash = () => {
+    const trashIds = [...trashedEmails];
+    setEmails(prev => prev.filter(e => !trashIds.includes(e.id)));
+    setTrashedEmails(new Set());
+    if (selected && trashIds.includes(selected.id)) setSelected(null);
+    notify('success', 'Trash emptied');
+  };
+
+  // Labels
+  const createLabel = () => {
+    if (!newLabelName.trim()) return;
+    const key = `label_${Date.now()}`;
+    const newLabel: CustomLabel = { key, label: newLabelName.trim(), color: newLabelColor.value, icon: newLabelIcon };
+    setCustomLabels(prev => [...prev, newLabel]);
+    setNewLabelName('');
+    setNewLabelIcon(LABEL_ICONS[0]);
+    setNewLabelColor(LABEL_COLORS[0]);
+    setShowCreateLabel(false);
+    notify('success', `Label "${newLabel.label}" created!`);
+  };
+
+  const deleteLabel = (key: string) => {
+    setCustomLabels(prev => prev.filter(l => l.key !== key));
+    setManualFolders(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(id => { if (next[id] === key) delete next[id]; });
+      return next;
+    });
+    if (activeFolder === key) setActiveFolder('all');
+  };
+
+  const applyLabel = (emailId: string, labelKey: FolderKey) => {
+    setManualFolders(prev => ({ ...prev, [emailId]: labelKey }));
+    setContextMenu(null);
+    notify('success', 'Label applied!');
+  };
+
+  // Drag and drop
   const onDragStart = (e: React.DragEvent, emailId: string) => {
     e.dataTransfer.setData('emailId', emailId);
     e.dataTransfer.effectAllowed = 'move';
@@ -325,17 +423,36 @@ export default function DashboardPage() {
     e.preventDefault();
     const emailId = e.dataTransfer.getData('emailId');
     if (emailId) {
-      setManualFolders(prev => ({ ...prev, [emailId]: folderKey }));
-      notify('success', `Email moved to ${FOLDERS.find(f => f.key === folderKey)?.label}`);
+      if (folderKey === 'trash') {
+        moveToTrash(emailId);
+      } else {
+        setManualFolders(prev => ({ ...prev, [emailId]: folderKey }));
+        const allFolders = [...SYSTEM_FOLDERS, ...customLabels.map(l => ({ key: l.key, label: l.label }))];
+        notify('success', `Email moved to ${allFolders.find(f => f.key === folderKey)?.label}`);
+      }
     }
     setDragOverFolder(null);
   };
 
   const onDragLeave = () => setDragOverFolder(null);
 
+  // Context menu
+  const handleContextMenu = (e: React.MouseEvent, emailId: string) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, emailId });
+  };
+
   // Smart filtering
   const filteredEmails = useMemo(() => {
     let result = [...emails];
+
+    if (activeFolder === 'trash') {
+      return result.filter(e => trashedEmails.has(e.id));
+    }
+
+    // Exclude trashed
+    result = result.filter(e => !trashedEmails.has(e.id));
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(e =>
@@ -345,9 +462,15 @@ export default function DashboardPage() {
         e.analysis?.summary?.toLowerCase().includes(q)
       );
     }
+
     if (activeFolder !== 'all') {
+      // Check custom labels first
+      const isCustomLabel = customLabels.some(l => l.key === activeFolder);
+      if (isCustomLabel) {
+        return result.filter(e => manualFolders[e.id] === activeFolder);
+      }
+
       result = result.filter(e => {
-        // Check manual folder first
         if (manualFolders[e.id] === activeFolder) return true;
         if (manualFolders[e.id] && manualFolders[e.id] !== activeFolder) return false;
         const a = e.analysis;
@@ -371,13 +494,14 @@ export default function DashboardPage() {
       });
     }
     return result;
-  }, [emails, searchQuery, activeFolder, manualFolders]);
+  }, [emails, searchQuery, activeFolder, manualFolders, trashedEmails, customLabels]);
 
   const folderCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: emails.length };
-    FOLDERS.forEach(f => {
-      if (f.key === 'all') return;
-      counts[f.key] = emails.filter(e => {
+    const nonTrashed = emails.filter(e => !trashedEmails.has(e.id));
+    const counts: Record<string, number> = { all: nonTrashed.length, trash: trashedEmails.size };
+    SYSTEM_FOLDERS.forEach(f => {
+      if (f.key === 'all' || f.key === 'trash') return;
+      counts[f.key] = nonTrashed.filter(e => {
         if (manualFolders[e.id] === f.key) return true;
         if (manualFolders[e.id] && manualFolders[e.id] !== f.key) return false;
         const a = e.analysis;
@@ -400,8 +524,11 @@ export default function DashboardPage() {
         }
       }).length;
     });
+    customLabels.forEach(l => {
+      counts[l.key] = nonTrashed.filter(e => manualFolders[e.id] === l.key).length;
+    });
     return counts;
-  }, [emails, manualFolders]);
+  }, [emails, manualFolders, trashedEmails, customLabels]);
 
   const getPriorityColor = (p?: string) => {
     const colors: Record<string, string> = { urgent: 'bg-red-500', high: 'bg-orange-500', medium: 'bg-yellow-500', low: 'bg-green-500' };
@@ -414,16 +541,17 @@ export default function DashboardPage() {
   const changeLang = (l: Language) => { setLanguage(l); localStorage.setItem('fw_lang', l); setLangMenuOpen(false); };
   const langLabels: Record<Language, string> = { en: 'EN', pt: 'PT', nl: 'NL' };
   const unanalyzedCount = filteredEmails.filter(e => !e.analysis && !e.isAnalyzing).length;
+  const isNarrow = sidebarWidth < 100;
 
   const groups = [
-    { label: null, folders: FOLDERS.filter(f => f.group === 'main') },
-    { label: 'Priority', folders: FOLDERS.filter(f => f.group === 'priority') },
-    { label: 'Status', folders: FOLDERS.filter(f => f.group === 'status') },
-    { label: 'Transport', folders: FOLDERS.filter(f => f.group === 'transport') },
-    { label: 'Intent', folders: FOLDERS.filter(f => f.group === 'intent') },
+    { label: null, folders: SYSTEM_FOLDERS.filter(f => f.group === 'main') },
+    { label: 'Priority', folders: SYSTEM_FOLDERS.filter(f => f.group === 'priority') },
+    { label: 'Status', folders: SYSTEM_FOLDERS.filter(f => f.group === 'status') },
+    { label: 'Transport', folders: SYSTEM_FOLDERS.filter(f => f.group === 'transport') },
+    { label: 'Intent', folders: SYSTEM_FOLDERS.filter(f => f.group === 'intent') },
   ];
 
-  const isNarrow = sidebarWidth < 100;
+  const currentFolder = [...SYSTEM_FOLDERS, ...customLabels.map(l => ({ key: l.key, label: l.label, icon: l.icon }))].find(f => f.key === activeFolder);
 
   if (loading) {
     return (
@@ -438,6 +566,31 @@ export default function DashboardPage() {
       {notification && (
         <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-xl text-white ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
           {notification.msg}
+        </div>
+      )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className={`fixed z-50 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-2xl py-1 min-w-48`}
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={e => e.stopPropagation()}
+        >
+          <p className={`px-4 py-2 text-xs font-semibold ${theme.textDim} uppercase tracking-wider border-b ${theme.cardBorder}`}>Apply Label</p>
+          {customLabels.map(label => (
+            <button key={label.key} onClick={() => applyLabel(contextMenu.emailId, label.key)}
+              className={`w-full px-4 py-2 text-sm text-left ${theme.hover} flex items-center gap-2 ${label.color}`}>
+              {label.icon} {label.label}
+            </button>
+          ))}
+          {customLabels.length === 0 && (
+            <p className={`px-4 py-2 text-xs ${theme.textDim}`}>No labels yet — create one in the sidebar</p>
+          )}
+          <div className={`border-t ${theme.cardBorder} mt-1`} />
+          <button onClick={() => moveToTrash(contextMenu.emailId)}
+            className={`w-full px-4 py-2 text-sm text-left ${theme.hover} flex items-center gap-2 text-red-400`}>
+            🗑️ Move to Trash
+          </button>
         </div>
       )}
 
@@ -457,10 +610,62 @@ export default function DashboardPage() {
                 <button onClick={sendCompose} disabled={sending} className="flex-1 py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
                   {sending ? 'Sending...' : 'Send'}
                 </button>
-                <button onClick={() => setShowCompose(false)} className={`px-4 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm`}>
-                  Discard
-                </button>
+                <button onClick={() => setShowCompose(false)} className={`px-4 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm`}>Discard</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Label Modal */}
+      {showCreateLabel && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-sm shadow-2xl`}>
+            <div className={`flex items-center justify-between px-5 py-4 border-b ${theme.cardBorder}`}>
+              <h3 className="font-semibold">Create New Label</h3>
+              <button onClick={() => setShowCreateLabel(false)} className={`${theme.textDim} hover:text-white text-lg`}>✕</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <input
+                value={newLabelName}
+                onChange={e => setNewLabelName(e.target.value)}
+                placeholder="Label name (e.g. Others, Done, Follow up)"
+                className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}
+                onKeyDown={e => e.key === 'Enter' && createLabel()}
+                autoFocus
+              />
+              <div>
+                <p className={`text-xs ${theme.textDim} mb-2`}>Icon</p>
+                <div className="flex flex-wrap gap-2">
+                  {LABEL_ICONS.map(icon => (
+                    <button key={icon} onClick={() => setNewLabelIcon(icon)}
+                      className={`w-8 h-8 rounded-lg text-lg flex items-center justify-center transition ${newLabelIcon === icon ? 'bg-[#5200FF]/30 border border-[#5200FF]' : theme.hover}`}>
+                      {icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className={`text-xs ${theme.textDim} mb-2`}>Color</p>
+                <div className="flex flex-wrap gap-2">
+                  {LABEL_COLORS.map(color => (
+                    <button key={color.name} onClick={() => setNewLabelColor(color)}
+                      className={`px-3 py-1 rounded-full text-xs border transition ${color.value} ${newLabelColor.name === color.name ? 'border-[#5200FF] bg-[#5200FF]/20' : `${theme.cardBorder} ${color.bg}`}`}>
+                      {color.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {newLabelName && (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${newLabelColor.bg} border ${theme.cardBorder}`}>
+                  <span>{newLabelIcon}</span>
+                  <span className={`text-sm font-medium ${newLabelColor.value}`}>{newLabelName}</span>
+                </div>
+              )}
+              <button onClick={createLabel} disabled={!newLabelName.trim()}
+                className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
+                Create Label
+              </button>
             </div>
           </div>
         </div>
@@ -515,7 +720,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <div className="p-4" ref={containerRef}>
+      <div className="p-4">
         {!user ? (
           <div className="flex items-center justify-center h-[60vh]">
             <div className="text-center">
@@ -539,20 +744,19 @@ export default function DashboardPage() {
         ) : (
           <div className="flex gap-0" style={{ height: 'calc(100vh - 88px)' }}>
 
-            {/* LEFT SIDEBAR — resizable */}
+            {/* LEFT SIDEBAR */}
             <div style={{ width: sidebarWidth, flexShrink: 0 }} className="flex flex-col transition-none">
               <div className={`${theme.sidebar} border ${theme.cardBorder} rounded-2xl h-full overflow-y-auto flex flex-col`}>
-                {/* Compose Button */}
-                <div className="p-2 pt-3">
-                  <button
-                    onClick={() => setShowCompose(true)}
-                    className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2"
-                  >
+                {/* Compose */}
+                <div className="p-2 pt-3 flex-shrink-0">
+                  <button onClick={() => setShowCompose(true)}
+                    className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2">
                     ✏️ {!isNarrow && t.compose}
                   </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-2 pb-2">
+                  {/* System folders */}
                   {groups.map((group, gi) => (
                     <div key={gi} className="mb-2">
                       {group.label && !isNarrow && (
@@ -563,139 +767,206 @@ export default function DashboardPage() {
                         const isActive = activeFolder === folder.key;
                         const isDragTarget = dragOverFolder === folder.key;
                         return (
-                          <button
-                            key={folder.key}
-                            onClick={() => setActiveFolder(folder.key)}
+                          <button key={folder.key} onClick={() => setActiveFolder(folder.key)}
                             onDragOver={(e) => onDragOver(e, folder.key)}
                             onDrop={(e) => onDrop(e, folder.key)}
                             onDragLeave={onDragLeave}
                             className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm transition mb-0.5 ${
                               isDragTarget ? 'border-2 border-[#5200FF] bg-[#5200FF]/20 scale-105' :
                               isActive ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/30' :
-                              theme.hover
-                            }`}
-                            title={isNarrow ? folder.label : ''}
-                          >
+                              theme.hover}`}
+                            title={isNarrow ? folder.label : ''}>
                             <span className="text-base flex-shrink-0">{folder.icon}</span>
                             {!isNarrow && (
                               <>
-                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : theme.textMuted} ${folder.color || ''}`}>
-                                  {folder.label}
-                                </span>
+                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : theme.textMuted} ${folder.color || ''}`}>{folder.label}</span>
                                 {count > 0 && (
-                                  <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#5200FF]/30 text-[#9E14FB]' : darkMode ? 'bg-white/10 text-gray-400' : 'bg-slate-200 text-slate-500'}`}>
-                                    {count}
-                                  </span>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#5200FF]/30 text-[#9E14FB]' : darkMode ? 'bg-white/10 text-gray-400' : 'bg-slate-200 text-slate-500'}`}>{count}</span>
                                 )}
                               </>
                             )}
                           </button>
                         );
                       })}
-                      {gi < groups.length - 1 && group.label && !isNarrow && (
-                        <div className={`border-b ${theme.cardBorder} my-2`} />
-                      )}
+                      {gi < groups.length - 1 && group.label && !isNarrow && <div className={`border-b ${theme.cardBorder} my-2`} />}
                     </div>
                   ))}
+
+                  {/* Custom Labels */}
+                  {!isNarrow && (
+                    <div className="mt-2">
+                      <div className={`flex items-center justify-between px-2 mb-1`}>
+                        <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider`}>{t.labels}</p>
+                        <button onClick={() => setShowCreateLabel(true)}
+                          className={`text-xs ${theme.textDim} hover:text-[#9E14FB] transition`} title="Create label">+</button>
+                      </div>
+                      {customLabels.map(label => {
+                        const count = folderCounts[label.key] || 0;
+                        const isActive = activeFolder === label.key;
+                        const isDragTarget = dragOverFolder === label.key;
+                        return (
+                          <div key={label.key} className="group relative">
+                            <button onClick={() => setActiveFolder(label.key)}
+                              onDragOver={(e) => onDragOver(e, label.key)}
+                              onDrop={(e) => onDrop(e, label.key)}
+                              onDragLeave={onDragLeave}
+                              className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm transition mb-0.5 ${
+                                isDragTarget ? 'border-2 border-[#5200FF] bg-[#5200FF]/20 scale-105' :
+                                isActive ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/30' :
+                                theme.hover}`}>
+                              <span className="text-base flex-shrink-0">{label.icon}</span>
+                              <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : ''} ${label.color}`}>{label.label}</span>
+                              {count > 0 && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#5200FF]/30 text-[#9E14FB]' : darkMode ? 'bg-white/10 text-gray-400' : 'bg-slate-200 text-slate-500'}`}>{count}</span>
+                              )}
+                            </button>
+                            <button onClick={() => deleteLabel(label.key)}
+                              className={`absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition ${darkMode ? 'bg-white/10 hover:bg-red-500/20 text-gray-400 hover:text-red-400' : 'bg-slate-200 hover:bg-red-100 text-slate-400 hover:text-red-500'}`}>
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
+                      <button onClick={() => setShowCreateLabel(true)}
+                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm ${theme.textDim} ${theme.hover} transition mt-1 border border-dashed ${theme.cardBorder}`}>
+                        <span>🏷️</span>
+                        <span className="text-xs">{t.createLabel}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Trash */}
+                  <div className={`border-t ${theme.cardBorder} mt-3 pt-2`}>
+                    <button onClick={() => setActiveFolder('trash')}
+                      onDragOver={(e) => onDragOver(e, 'trash')}
+                      onDrop={(e) => onDrop(e, 'trash')}
+                      onDragLeave={onDragLeave}
+                      className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm transition ${
+                        dragOverFolder === 'trash' ? 'border-2 border-red-500 bg-red-500/20 scale-105' :
+                        activeFolder === 'trash' ? 'bg-red-500/10 border border-red-500/30' :
+                        theme.hover}`}>
+                      <span className="text-base">🗑️</span>
+                      {!isNarrow && (
+                        <>
+                          <span className={`flex-1 text-left ${activeFolder === 'trash' ? 'font-medium text-red-400' : theme.textMuted}`}>{t.trash}</span>
+                          {trashedEmails.size > 0 && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">{trashedEmails.size}</span>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Sidebar resize handle */}
-            <div
-              onMouseDown={startSidebarResize}
-              className={`w-1.5 mx-1 rounded-full cursor-col-resize ${theme.divider} transition-colors flex-shrink-0 self-stretch`}
-              title="Drag to resize sidebar"
-            />
+            <div onMouseDown={startSidebarResize}
+              className={`w-1.5 mx-1 rounded-full cursor-col-resize ${theme.divider} transition-colors flex-shrink-0 self-stretch`} />
 
-            {/* MIDDLE: Email List — resizable */}
+            {/* MIDDLE: Email List */}
             <div style={{ width: emailListWidth, flexShrink: 0 }} className="flex flex-col gap-2 transition-none">
-              {/* Search */}
               <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl px-4 py-3 flex items-center gap-3 flex-shrink-0`}>
                 <span className={theme.textDim}>🔍</span>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t.search}
-                  className={`flex-1 bg-transparent text-sm focus:outline-none ${theme.text}`}
-                />
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t.search} className={`flex-1 bg-transparent text-sm focus:outline-none ${theme.text}`} />
                 {searchQuery && <button onClick={() => setSearchQuery('')} className={`text-xs ${theme.textDim}`}>✕</button>}
               </div>
 
-              {/* Email list */}
               <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl overflow-hidden flex flex-col flex-1`}>
                 <div className={`p-3 border-b ${theme.cardBorder} flex-shrink-0`}>
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <p className="text-sm font-semibold">{FOLDERS.find(f => f.key === activeFolder)?.icon} {FOLDERS.find(f => f.key === activeFolder)?.label}</p>
+                      <p className="text-sm font-semibold">{currentFolder?.icon} {currentFolder?.label}</p>
                       <p className={`text-xs ${theme.textDim}`}>{filteredEmails.length} emails</p>
                     </div>
-                    <button onClick={() => session && loadEmails(session)} className={`text-xs ${theme.textMuted} ${theme.hover} px-2 py-1 border ${theme.cardBorder} rounded-lg`}>↻</button>
+                    <div className="flex gap-1">
+                      {activeFolder === 'trash' && trashedEmails.size > 0 && (
+                        <button onClick={emptyTrash} className="text-xs text-red-400 border border-red-400/30 px-2 py-1 rounded-lg hover:bg-red-400/10">
+                          Empty
+                        </button>
+                      )}
+                      <button onClick={() => session && loadEmails(session)} className={`text-xs ${theme.textMuted} ${theme.hover} px-2 py-1 border ${theme.cardBorder} rounded-lg`}>↻</button>
+                    </div>
                   </div>
-                  <button
-                    onClick={analyzeAll}
-                    disabled={analyzing || unanalyzedCount === 0}
-                    className={`w-full py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2 ${unanalyzedCount === 0 ? 'opacity-40 cursor-not-allowed bg-white/5' : 'bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] text-white'}`}
-                  >
-                    {analyzing ? (
-                      <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> {progress.current}/{progress.total}</>
-                    ) : (
-                      <><Icon name="Dashboard_email_Analyze all bottom" className="w-4 h-4" />{t.analyzeAll} ({unanalyzedCount})</>
-                    )}
-                  </button>
+                  {activeFolder !== 'trash' && (
+                    <button onClick={analyzeAll} disabled={analyzing || unanalyzedCount === 0}
+                      className={`w-full py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2 ${unanalyzedCount === 0 ? 'opacity-40 cursor-not-allowed bg-white/5' : 'bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] text-white'}`}>
+                      {analyzing ? (
+                        <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> {progress.current}/{progress.total}</>
+                      ) : (
+                        <><Icon name="Dashboard_email_Analyze all bottom" className="w-4 h-4" />{t.analyzeAll} ({unanalyzedCount})</>
+                      )}
+                    </button>
+                  )}
                 </div>
 
                 <div className="overflow-y-auto flex-1">
                   {filteredEmails.length === 0 ? (
-                    <div className={`p-6 text-center ${theme.textDim} text-sm`}>
-                      {searchQuery ? 'No emails match your search' : 'No emails in this folder'}
+                    <div className={`p-8 text-center ${theme.textDim}`}>
+                      <p className="text-3xl mb-2">{activeFolder === 'trash' ? '🗑️' : '📭'}</p>
+                      <p className="text-sm">{activeFolder === 'trash' ? t.trashEmpty : 'No emails here'}</p>
                     </div>
-                  ) : filteredEmails.map(email => (
-                    <div
-                      key={email.id}
-                      draggable
-                      onDragStart={(e) => onDragStart(e, email.id)}
-                      onClick={() => { setSelected(email); setIsEditing(false); }}
-                      className={`p-3 border-b ${theme.cardBorder} cursor-grab active:cursor-grabbing ${theme.hover} ${selected?.id === email.id ? theme.selected : ''}`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium truncate max-w-[130px]">{email.from.split('<')[0].trim()}</span>
-                        {email.isAnalyzing && <div className="w-3 h-3 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin flex-shrink-0"></div>}
-                        {email.analysis && <span className={`text-[9px] px-1.5 py-0.5 rounded-full text-white flex-shrink-0 ${getPriorityColor(email.analysis.priority)}`}>{email.analysis.priority}</span>}
+                  ) : filteredEmails.map(email => {
+                    const isInTrash = trashedEmails.has(email.id);
+                    const emailLabel = manualFolders[email.id] ? customLabels.find(l => l.key === manualFolders[email.id]) : null;
+                    return (
+                      <div key={email.id} draggable={!isInTrash} onDragStart={(e) => onDragStart(e, email.id)}
+                        onClick={() => { setSelected(email); setIsEditing(false); }}
+                        onContextMenu={(e) => !isInTrash && handleContextMenu(e, email.id)}
+                        className={`p-3 border-b ${theme.cardBorder} ${!isInTrash ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${theme.hover} ${selected?.id === email.id ? theme.selected : ''}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium truncate max-w-[110px]">{email.from.split('<')[0].trim()}</span>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {email.isAnalyzing && <div className="w-3 h-3 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin"></div>}
+                            {email.analysis && <span className={`text-[9px] px-1.5 py-0.5 rounded-full text-white ${getPriorityColor(email.analysis.priority)}`}>{email.analysis.priority}</span>}
+                            {!isInTrash && (
+                              <button onClick={(e) => { e.stopPropagation(); moveToTrash(email.id); }}
+                                className={`w-5 h-5 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition hover:bg-red-500/20 hover:text-red-400 ${theme.textDim}`}
+                                title="Move to trash">🗑</button>
+                            )}
+                          </div>
+                        </div>
+                        <p className={`text-xs ${darkMode ? 'text-gray-300' : 'text-slate-700'} truncate mb-1`}>{email.subject}</p>
+                        <p className={`text-xs ${theme.textDim} truncate`}>{email.snippet}</p>
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                          {email.analysis && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]">
+                              {email.analysis.intent?.replace(/_/g, ' ')}
+                            </span>
+                          )}
+                          {emailLabel && (
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${emailLabel.color} bg-white/5`}>
+                              {emailLabel.icon} {emailLabel.label}
+                            </span>
+                          )}
+                          {isInTrash && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">🗑️ Trash</span>}
+                        </div>
+                        {/* Trash actions */}
+                        {isInTrash && (
+                          <div className="flex gap-2 mt-2" onClick={e => e.stopPropagation()}>
+                            <button onClick={() => restoreFromTrash(email.id)}
+                              className="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30">{t.restore}</button>
+                            <button onClick={() => deleteForever(email.id)}
+                              className="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30">{t.deleteForever}</button>
+                          </div>
+                        )}
                       </div>
-                      <p className={`text-xs ${darkMode ? 'text-gray-300' : 'text-slate-700'} truncate mb-1`}>{email.subject}</p>
-                      <p className={`text-xs ${theme.textDim} truncate`}>{email.snippet}</p>
-                      {email.analysis && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB] mt-1 inline-block">
-                          {email.analysis.intent?.replace(/_/g, ' ')}
-                        </span>
-                      )}
-                      {manualFolders[email.id] && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 text-gray-400 mt-1 ml-1 inline-block">
-                          {FOLDERS.find(f => f.key === manualFolders[email.id])?.icon}
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
-            {/* Email list resize handle */}
-            <div
-              onMouseDown={startListResize}
-              className={`w-1.5 mx-1 rounded-full cursor-col-resize ${theme.divider} transition-colors flex-shrink-0 self-stretch`}
-              title="Drag to resize email list"
-            />
+            {/* List resize handle */}
+            <div onMouseDown={startListResize}
+              className={`w-1.5 mx-1 rounded-full cursor-col-resize ${theme.divider} transition-colors flex-shrink-0 self-stretch`} />
 
-            {/* RIGHT: Email Detail — fills remaining space, sticky reply bar */}
+            {/* RIGHT: Email Detail */}
             <div className={`flex-1 min-w-0 ${theme.card} rounded-2xl border ${theme.cardBorder} overflow-hidden flex flex-col`}>
               {selected ? (
                 <>
-                  {/* Scrollable top section */}
                   <div className="flex-1 overflow-y-auto">
-                    {/* Header */}
                     <div className={`p-5 border-b ${theme.cardBorder} sticky top-0 ${theme.card} z-10`}>
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -703,23 +974,31 @@ export default function DashboardPage() {
                           <p className={`text-sm ${theme.textMuted}`}>{t.from}: {selected.from}</p>
                           <p className={`text-xs ${theme.textDim}`}>{selected.date}</p>
                         </div>
-                        {!selected.analysis && !selected.isAnalyzing && (
-                          <button onClick={() => analyzeEmail(selected)} className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
-                            <Icon name="Dashboard_email_Analyze all bottom" className="w-4 h-4" />
-                            {t.analyze}
-                          </button>
-                        )}
-                        {selected.isAnalyzing && (
-                          <div className="flex items-center gap-2 text-[#1BA1FF] flex-shrink-0">
-                            <div className="w-4 h-4 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin"></div>
-                            {t.analyzing}...
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {!trashedEmails.has(selected.id) && (
+                            <button onClick={() => moveToTrash(selected.id)}
+                              className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-400 border border-red-400/30 rounded-full hover:bg-red-400/10 transition">
+                              🗑️ Delete
+                            </button>
+                          )}
+                          {!selected.analysis && !selected.isAnalyzing && !trashedEmails.has(selected.id) && (
+                            <button onClick={() => analyzeEmail(selected)}
+                              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
+                              <Icon name="Dashboard_email_Analyze all bottom" className="w-4 h-4" />
+                              {t.analyze}
+                            </button>
+                          )}
+                          {selected.isAnalyzing && (
+                            <div className="flex items-center gap-2 text-[#1BA1FF]">
+                              <div className="w-4 h-4 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin"></div>
+                              {t.analyzing}...
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
                     <div className="p-5 space-y-4">
-                      {/* AI Analysis */}
                       {selected.analysis && (
                         <div className={`${darkMode ? 'bg-gradient-to-r from-[#9E14FB]/10 via-[#5200FF]/10 to-[#1BA1FF]/10' : 'bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50'} rounded-xl p-4 border ${theme.cardBorder}`}>
                           <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
@@ -727,45 +1006,35 @@ export default function DashboardPage() {
                             {t.aiAnalysis}
                           </h3>
                           <div className="grid grid-cols-2 gap-3 mb-3">
-                            <div>
-                              <p className={`text-xs ${theme.textDim}`}>{t.intent}</p>
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]">{selected.analysis.intent?.replace(/_/g, ' ')}</span>
-                            </div>
-                            <div>
-                              <p className={`text-xs ${theme.textDim}`}>{t.priority}</p>
-                              <span className={`text-xs px-2 py-0.5 rounded-full text-white ${getPriorityColor(selected.analysis.priority)}`}>{selected.analysis.priority}</span>
-                            </div>
+                            <div><p className={`text-xs ${theme.textDim}`}>{t.intent}</p>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]">{selected.analysis.intent?.replace(/_/g, ' ')}</span></div>
+                            <div><p className={`text-xs ${theme.textDim}`}>{t.priority}</p>
+                              <span className={`text-xs px-2 py-0.5 rounded-full text-white ${getPriorityColor(selected.analysis.priority)}`}>{selected.analysis.priority}</span></div>
                             {selected.analysis.mode && <div><p className={`text-xs ${theme.textDim}`}>{t.mode}</p><p className="text-sm">{selected.analysis.mode}</p></div>}
                             {selected.analysis.pol && <div><p className={`text-xs ${theme.textDim}`}>{t.route}</p><p className="text-sm">{selected.analysis.pol} → {selected.analysis.pod}</p></div>}
                           </div>
                           {selected.analysis.summary && (
-                            <div className="mb-3">
-                              <p className={`text-xs ${theme.textDim} mb-1`}>{t.summary}</p>
-                              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>{selected.analysis.summary}</p>
-                            </div>
+                            <div className="mb-3"><p className={`text-xs ${theme.textDim} mb-1`}>{t.summary}</p>
+                              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>{selected.analysis.summary}</p></div>
                           )}
                           {selected.analysis.missing_info?.length > 0 && (
-                            <div>
-                              <p className={`text-xs ${theme.textDim} mb-1`}>{t.missingInfo}</p>
+                            <div><p className={`text-xs ${theme.textDim} mb-1`}>{t.missingInfo}</p>
                               <div className="flex flex-wrap gap-1">
                                 {selected.analysis.missing_info.map((info: string, i: number) => (
                                   <span key={i} className="text-xs px-2 py-0.5 bg-red-500/20 text-red-500 rounded-full">{info}</span>
                                 ))}
-                              </div>
-                            </div>
+                              </div></div>
                           )}
                         </div>
                       )}
 
-                      {/* Email body */}
                       <div className={`rounded-xl p-4 ${darkMode ? 'bg-white/5' : 'bg-slate-50'}`}>
                         <pre className={`whitespace-pre-wrap font-sans text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'} leading-relaxed`}>
                           {selected.body || selected.snippet}
                         </pre>
                       </div>
 
-                      {/* Suggested reply (scrollable part) */}
-                      {selected.analysis?.suggested_reply && (
+                      {selected.analysis?.suggested_reply && !trashedEmails.has(selected.id) && (
                         <div>
                           <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
                             <Icon name="Dashboard_email_Suggested Reply" className="w-4 h-4" style={theme.iconFilter} />
@@ -776,9 +1045,7 @@ export default function DashboardPage() {
                               <textarea value={editedReply} onChange={(e) => setEditedReply(e.target.value)} rows={8}
                                 className={`w-full bg-transparent text-sm resize-none focus:outline-none ${darkMode ? 'text-gray-300' : 'text-slate-700'}`} />
                             ) : (
-                              <pre className={`whitespace-pre-wrap font-sans text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>
-                                {selected.analysis.suggested_reply}
-                              </pre>
+                              <pre className={`whitespace-pre-wrap font-sans text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>{selected.analysis.suggested_reply}</pre>
                             )}
                           </div>
                         </div>
@@ -786,22 +1053,22 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* STICKY Reply Bar — always visible at bottom */}
-                  {selected.analysis?.suggested_reply && (
-                    <div className={`flex-shrink-0 px-5 py-4 border-t ${theme.cardBorder} ${theme.card} flex gap-2 flex-wrap`}>
-                      <button onClick={sendReply} disabled={sending} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white disabled:opacity-50 shadow-lg shadow-[#5200FF]/20">
+                  {/* Sticky Reply Bar */}
+                  {selected.analysis?.suggested_reply && !trashedEmails.has(selected.id) && (
+                    <div className={`flex-shrink-0 px-5 py-4 border-t ${theme.cardBorder} ${theme.card} flex gap-2 flex-wrap items-center`}>
+                      <button onClick={sendReply} disabled={sending}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white disabled:opacity-50">
                         {sending ? t.sending : t.sendReply}
                       </button>
                       {!isEditing ? (
-                        <button onClick={() => { setEditedReply(selected.analysis?.suggested_reply || ''); setIsEditing(true); }} className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-full text-sm`}>
-                          {t.editReply}
-                        </button>
+                        <button onClick={() => { setEditedReply(selected.analysis?.suggested_reply || ''); setIsEditing(true); }}
+                          className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-full text-sm`}>{t.editReply}</button>
                       ) : (
-                        <button onClick={() => setIsEditing(false)} className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-full text-sm`}>
-                          {t.cancel}
-                        </button>
+                        <button onClick={() => setIsEditing(false)}
+                          className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-full text-sm`}>{t.cancel}</button>
                       )}
-                      <button onClick={saveDraft} disabled={savingDraft} className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-full text-sm disabled:opacity-50`}>
+                      <button onClick={saveDraft} disabled={savingDraft}
+                        className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-full text-sm disabled:opacity-50`}>
                         {savingDraft ? t.saving : t.saveDraft}
                       </button>
                     </div>
