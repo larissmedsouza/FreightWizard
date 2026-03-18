@@ -293,7 +293,7 @@ export default function ComparePage() {
 
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-8 flex items-center gap-3">
-          <Icon name="Dashboard_document_comparison_compare_documents" className="w-8 h-8" style={theme.iconFilter} />
+          <Icon name="Dashboard_document_comparison_icon" className="w-8 h-8" style={theme.iconFilter} />
           <div>
             <h1 className="text-3xl font-bold">Document Comparison</h1>
             <p className={theme.textMuted}>Compare two shipping documents side by side — detect mismatches, missing fields and discrepancies</p>
@@ -507,9 +507,22 @@ export default function ComparePage() {
                       </p>
                     </div>
                     <div>
-                      <span className={`text-xs px-2 py-1 rounded-full border ${getStatusColor(c.status)}`}>
-                        {getStatusIcon(c.status)} {c.status.replace(/_/g, ' ')}
-                      </span>
+                     <span className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1 w-fit ${getStatusColor(c.status)}`}>
+  <Icon
+    name={
+      c.status === 'match' ? 'Dashboard_document_comparison_matches' :
+      c.status === 'mismatch' ? 'Dashboard_document_comparison_mismatches' :
+      'Dashboard_document_comparison_missing'
+    }
+    className="w-3 h-3"
+    style={
+      c.status === 'match' ? { filter: 'brightness(0) saturate(100%) invert(60%) sepia(80%) saturate(400%) hue-rotate(80deg)' } :
+      c.status === 'mismatch' ? { filter: 'brightness(0) saturate(100%) invert(70%) sepia(80%) saturate(800%) hue-rotate(5deg)' } :
+      { filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }
+    }
+  />
+  {c.status.replace(/_/g, ' ')}
+</span>
                     </div>
                   </div>
                 ))}
