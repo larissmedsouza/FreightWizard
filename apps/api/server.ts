@@ -1225,6 +1225,73 @@ app.get('/api/documents/:id', async (req, res) => {
 });
 
 // ============================================
+// DOCUMENT COMPARISON ENDPOINT
+// ============================================
+
+app.post('/api/compare-documents', async (req, res) => {
+  const { doc1Text, doc1Name, doc2Text, doc2Name, sessionId } = req.body;
+  const session = await getSession(sessionId);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 3000,
+      messages: [{
+        role: 'user',
+        content: `You are an expert freight document compliance analyst. Compare these two shipping documents and identify matches, mismatches, and missing fields.
+
+Document 1 (${doc1Name}):
+${doc1Text?.substring(0, 4000)}
+
+Document 2 (${doc2Name}):
+${doc2Text?.substring(0, 4000)}
+
+Respond ONLY with a JSON object:
+{
+  "doc1_type": "",
+  "doc2_type": "",
+  "overall_status": "match|minor_issues|major_issues|critical_issues",
+  "match_score": 0-100,
+  "summary": "",
+  "comparisons": [
+    {
+      "field": "BL Number",
+      "category": "references",
+      "doc1_value": "",
+      "doc2_value": "",
+      "status": "match|mismatch|missing_in_doc1|missing_in_doc2|both_missing",
+      "severity": "critical|high|medium|low",
+      "note": ""
+    }
+  ],
+  "critical_mismatches": [],
+  "recommendations": []
+}
+
+Compare these fields: BL number, booking number, shipper, consignee, notify party, vessel, voyage, POL, POD, ETD, ETA, container numbers, container type, cargo description, gross weight, net weight, volume CBM, packages, incoterm, freight terms, HS code, country of origin.
+
+For severity:
+- critical: BL number, container numbers, shipper, consignee, vessel, POL, POD
+- high: booking number, gross weight, cargo description, ETD/ETA
+- medium: incoterm, freight terms, HS code, packages
+- low: volume CBM, net weight, tare weight, notify party`
+      }]
+    });
+
+    const text = message.content[0].type === 'text' ? message.content[0].text : '';
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(500).json({ error: 'Failed to parse comparison' });
+
+    const comparison = JSON.parse(jsonMatch[0]);
+    res.json({ comparison });
+  } catch (error) {
+    console.error('Comparison error:', error);
+    res.status(500).json({ error: 'Comparison failed' });
+  }
+});
+
+// ============================================
 // START SERVER
 // ============================================
 const PORT = 3001;
