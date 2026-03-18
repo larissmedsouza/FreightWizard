@@ -42,8 +42,9 @@ export default function ComparePage() {
   const [doc2Text, setDoc2Text] = useState('');
   const [doc1Name, setDoc1Name] = useState('Document 1');
   const [doc2Name, setDoc2Name] = useState('Document 2');
+  const [doc1Loaded, setDoc1Loaded] = useState(false);
+  const [doc2Loaded, setDoc2Loaded] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'mismatch' | 'missing' | 'match'>('all');
-  const [showReport, setShowReport] = useState(false);
   const file1Ref = useRef<HTMLInputElement>(null);
   const file2Ref = useRef<HTMLInputElement>(null);
 
@@ -82,36 +83,36 @@ export default function ComparePage() {
   }, [searchParams]);
 
   const handleFile = (file: File, docNum: 1 | 2) => {
-  const ext = file.name.split('.').pop()?.toLowerCase();
-  const setName = docNum === 1 ? setDoc1Name : setDoc2Name;
-  const setText = docNum === 1 ? setDoc1Text : setDoc2Text;
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const setName = docNum === 1 ? setDoc1Name : setDoc2Name;
+    const setText = docNum === 1 ? setDoc1Text : setDoc2Text;
+    const setLoaded = docNum === 1 ? setDoc1Loaded : setDoc2Loaded;
 
-  setName(file.name);
+    setName(file.name);
 
-  if (['pdf', 'jpg', 'jpeg', 'png'].includes(ext || '')) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64 = (e.target?.result as string).split(',')[1];
-      notify('success', '⏳ Extracting text from file...');
-      fetch(`${API_URL}/api/extract-text`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64, mimeType: file.type, fileName: file.name, sessionId: session }),
-      })
-        .then(r => r.json())
-        .then(data => {
-          if (data.text) { setText(data.text); notify('success', '✅ Text extracted!'); }
+    if (['pdf', 'jpg', 'jpeg', 'png'].includes(ext || '')) {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = (e.target?.result as string).split(',')[1];
+        notify('success', '⏳ Extracting text from file...');
+        try {
+          const res = await fetch(`${API_URL}/api/extract-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base64, mimeType: file.type, fileName: file.name, sessionId: session }),
+          });
+          const data = await res.json();
+          if (data.text) { setText(data.text); setLoaded(true); notify('success', '✅ Text extracted!'); }
           else notify('error', 'Could not extract text from file');
-        })
-        .catch(() => notify('error', 'Failed to process file'));
-    };
-    reader.readAsDataURL(file);
-  } else {
-    const reader = new FileReader();
-    reader.onload = (e) => setText(e.target?.result as string);
-    reader.readAsText(file);
-  }
-};
+        } catch { notify('error', 'Failed to process file'); }
+      };
+      reader.readAsDataURL(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => { setText(e.target?.result as string); setLoaded(true); };
+      reader.readAsText(file);
+    }
+  };
 
   const compare = async () => {
     if (!doc1Text.trim() || !doc2Text.trim() || !session) return;
@@ -197,17 +198,7 @@ export default function ComparePage() {
   const generateComparisonReport = () => {
     if (!result) return;
     const date = new Date().toLocaleDateString('en-GB');
-    let report = `DOCUMENT COMPARISON REPORT
-Generated: ${date}
-Document 1: ${doc1Name} (${result.doc1_type})
-Document 2: ${doc2Name} (${result.doc2_type})
-Match Score: ${result.match_score}%
-Overall Status: ${result.overall_status.replace(/_/g, ' ').toUpperCase()}
-
-═══════════════════════════════════════
-SUMMARY
-═══════════════════════════════════════
-${result.summary}`;
+    let report = `DOCUMENT COMPARISON REPORT\nGenerated: ${date}\nDocument 1: ${doc1Name} (${result.doc1_type})\nDocument 2: ${doc2Name} (${result.doc2_type})\nMatch Score: ${result.match_score}%\nOverall Status: ${result.overall_status.replace(/_/g, ' ').toUpperCase()}\n\n═══════════════════════════════════════\nSUMMARY\n═══════════════════════════════════════\n${result.summary}`;
 
     if (result.critical_mismatches?.length > 0) {
       report += `\n\n═══════════════════════════════════════\n🔴 CRITICAL MISMATCHES\n═══════════════════════════════════════`;
@@ -228,9 +219,7 @@ ${result.summary}`;
 
     if (missing.length > 0) {
       report += `\n\n═══════════════════════════════════════\n❌ MISSING FIELDS (${missing.length})\n═══════════════════════════════════════`;
-      missing.forEach(c => {
-        report += `\n• ${c.field}: ${c.status.replace(/_/g, ' ')} [${c.severity}]`;
-      });
+      missing.forEach(c => { report += `\n• ${c.field}: ${c.status.replace(/_/g, ' ')} [${c.severity}]`; });
     }
 
     report += `\n\n═══════════════════════════════════════\n✅ MATCHED FIELDS (${matches.length})\n═══════════════════════════════════════`;
@@ -242,9 +231,16 @@ ${result.summary}`;
     }
 
     report += `\n\n═══════════════════════════════════════\nEnd of Report — Generated by FreightWizard AI\n═══════════════════════════════════════`;
-
     navigator.clipboard.writeText(report);
-    notify('success', 'Comparison report copied to clipboard!');
+    notify('success', 'Comparison report copied!');
+  };
+
+  const copyDiscrepancyEmail = () => {
+    if (!result) return;
+    const discrepancies = result.comparisons.filter(c => c.status !== 'match');
+    const text = `Dear Partner,\n\nWe have compared the documents ${doc1Name} and ${doc2Name} and found the following discrepancies that require attention:\n\n${discrepancies.map(c => `• ${c.field}: ${c.doc1_value || 'N/A'} vs ${c.doc2_value || 'N/A'}`).join('\n')}\n\nPlease review and confirm the correct values at your earliest convenience.\n\nBest regards,\nFreight Operations Team`;
+    navigator.clipboard.writeText(text);
+    notify('success', 'Discrepancy email copied!');
   };
 
   const counts = result ? {
@@ -252,6 +248,13 @@ ${result.summary}`;
     mismatch: result.comparisons.filter(c => c.status === 'mismatch').length,
     missing: result.comparisons.filter(c => c.status !== 'match' && c.status !== 'mismatch').length,
   } : { match: 0, mismatch: 0, missing: 0 };
+
+  const filterTabs = [
+    { key: 'all', label: 'All', icon: 'Dashboard_document_comparison_compare_documents' },
+    { key: 'mismatch', label: 'Mismatches', icon: 'Dashboard_document_comparison_mismatches' },
+    { key: 'missing', label: 'Missing', icon: 'Dashboard_document_comparison_missing' },
+    { key: 'match', label: 'Matches', icon: 'Dashboard_document_comparison_matches' },
+  ] as const;
 
   return (
     <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors`}>
@@ -279,30 +282,42 @@ ${result.summary}`;
             onClick={() => { setDarkMode(!darkMode); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); }}
             className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}
           >
-            {darkMode ? '☀️' : '🌙'}
+            <Icon
+              name={darkMode ? 'Dashboard_document_comparison_sun_light_mode' : 'Dashboard_document_comparison_moon_dark_mode'}
+              className="w-5 h-5"
+              style={theme.iconFilter}
+            />
           </button>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Document Comparison</h1>
-          <p className={theme.textMuted}>Compare two shipping documents side by side — detect mismatches, missing fields and discrepancies</p>
+        <div className="mb-8 flex items-center gap-3">
+          <Icon name="Dashboard_document_comparison_compare_documents" className="w-8 h-8" style={theme.iconFilter} />
+          <div>
+            <h1 className="text-3xl font-bold">Document Comparison</h1>
+            <p className={theme.textMuted}>Compare two shipping documents side by side — detect mismatches, missing fields and discrepancies</p>
+          </div>
         </div>
 
         {/* Upload Area */}
         <div className="grid md:grid-cols-2 gap-4 mb-6">
           {[
-            { num: 1, text: doc1Text, name: doc1Name, setName: setDoc1Name, setText: setDoc1Text, ref: file1Ref },
-            { num: 2, text: doc2Text, name: doc2Name, setName: setDoc2Name, setText: setDoc2Text, ref: file2Ref },
-          ].map(({ num, text, name, setName, setText, ref }) => (
+            { num: 1, text: doc1Text, name: doc1Name, loaded: doc1Loaded, setName: setDoc1Name, setText: setDoc1Text, ref: file1Ref },
+            { num: 2, text: doc2Text, name: doc2Name, loaded: doc2Loaded, setName: setDoc2Name, setText: setDoc2Text, ref: file2Ref },
+          ].map(({ num, text, name, loaded, setName, setText, ref }) => (
             <div key={num} className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-5`}>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-semibold flex items-center gap-2">
                   <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${num === 1 ? 'bg-[#9E14FB]' : 'bg-[#1BA1FF]'}`}>{num}</span>
                   Document {num}
                 </h2>
-                {text && <span className="text-xs text-green-400">✅ Loaded</span>}
+                {loaded && (
+                  <div className="flex items-center gap-1.5">
+                    <Icon name="Dashboard_document_comparison_loaded" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(60%) sepia(80%) saturate(400%) hue-rotate(80deg)' }} />
+                    <span className="text-xs text-green-400">Loaded</span>
+                  </div>
+                )}
               </div>
 
               <input
@@ -314,7 +329,7 @@ ${result.summary}`;
 
               <textarea
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => { setText(e.target.value); if (e.target.value) { num === 1 ? setDoc1Loaded(true) : setDoc2Loaded(true); } }}
                 placeholder={`Paste Document ${num} text here...`}
                 rows={5}
                 className={`w-full px-3 py-2 rounded-xl border ${theme.input} mb-3 text-sm focus:outline-none focus:border-[#5200FF] resize-none`}
@@ -322,11 +337,18 @@ ${result.summary}`;
 
               <button
                 onClick={() => ref.current?.click()}
-                className={`w-full py-2 border-2 border-dashed ${darkMode ? 'border-white/10 hover:border-[#5200FF]/50' : 'border-slate-200 hover:border-[#5200FF]/50'} rounded-xl text-sm ${theme.textMuted} transition`}
+                className={`w-full py-3 border-2 border-dashed ${darkMode ? 'border-white/10 hover:border-[#5200FF]/50' : 'border-slate-200 hover:border-[#5200FF]/50'} rounded-xl text-sm ${theme.textMuted} transition flex items-center justify-center gap-2`}
               >
-                📁 Or upload file
+                <Icon name="Dashboard_document_comparison_or_upload_file" className="w-4 h-4" style={theme.iconFilter} />
+                Upload file (PDF, Word, Excel, Image)
               </button>
-              <input ref={ref} type="file" accept=".txt,.csv,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0], num as 1 | 2)} />
+              <input
+                ref={ref}
+                type="file"
+                accept=".txt,.csv,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0], num as 1 | 2)}
+              />
             </div>
           ))}
         </div>
@@ -340,7 +362,10 @@ ${result.summary}`;
           {loading ? (
             <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Comparing Documents...</>
           ) : (
-            <>🔍 Compare Documents</>
+            <>
+              <Icon name="Dashboard_document_comparison_compare_documents" className="w-6 h-6" style={{ filter: 'brightness(0) invert(1)' }} />
+              Compare Documents
+            </>
           )}
         </button>
 
@@ -372,11 +397,14 @@ ${result.summary}`;
               {/* Stats */}
               <div className="grid grid-cols-3 gap-4 mb-6">
                 {[
-                  { label: 'Matched', count: counts.match, color: 'text-green-400', bg: 'bg-green-500/10' },
-                  { label: 'Mismatched', count: counts.mismatch, color: 'text-orange-400', bg: 'bg-orange-500/10' },
-                  { label: 'Missing', count: counts.missing, color: 'text-red-400', bg: 'bg-red-500/10' },
+                  { label: 'Matched', count: counts.match, color: 'text-green-400', bg: 'bg-green-500/10', icon: 'Dashboard_document_comparison_matches' },
+                  { label: 'Mismatched', count: counts.mismatch, color: 'text-orange-400', bg: 'bg-orange-500/10', icon: 'Dashboard_document_comparison_mismatches' },
+                  { label: 'Missing', count: counts.missing, color: 'text-red-400', bg: 'bg-red-500/10', icon: 'Dashboard_document_comparison_missing' },
                 ].map((stat, i) => (
                   <div key={i} className={`${stat.bg} rounded-xl p-4 text-center`}>
+                    <div className="flex justify-center mb-2">
+                      <Icon name={stat.icon} className="w-5 h-5" style={theme.iconFilter} />
+                    </div>
                     <p className={`text-2xl font-bold ${stat.color}`}>{stat.count}</p>
                     <p className={`text-xs ${theme.textMuted}`}>{stat.label}</p>
                   </div>
@@ -394,7 +422,10 @@ ${result.summary}`;
               {/* Critical Mismatches */}
               {result.critical_mismatches?.length > 0 && (
                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-4">
-                  <h3 className="text-red-400 font-semibold text-sm mb-2">🔴 Critical Mismatches</h3>
+                  <h3 className="text-red-400 font-semibold text-sm mb-2 flex items-center gap-2">
+                    <Icon name="Dashboard_document_comparison_critical_mismatches" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} />
+                    Critical Mismatches
+                  </h3>
                   <ul className="space-y-1">
                     {result.critical_mismatches.map((m, i) => (
                       <li key={i} className="text-sm text-red-300">• {m}</li>
@@ -409,18 +440,15 @@ ${result.summary}`;
                   onClick={generateComparisonReport}
                   className="flex-1 py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2"
                 >
-                  📋 Copy Comparison Report
+                  <Icon name="Dashboard_document_comparison_copy_comparison_report" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
+                  Copy Comparison Report
                 </button>
                 <button
-                  onClick={() => {
-                    const discrepancies = result.comparisons.filter(c => c.status !== 'match');
-                    const text = `Dear Partner,\n\nWe have compared the documents ${doc1Name} and ${doc2Name} and found the following discrepancies that require attention:\n\n${discrepancies.map(c => `• ${c.field}: ${c.doc1_value || 'N/A'} vs ${c.doc2_value || 'N/A'}`).join('\n')}\n\nPlease review and confirm the correct values at your earliest convenience.\n\nBest regards,\nFreight Operations Team`;
-                    navigator.clipboard.writeText(text);
-                    notify('success', 'Discrepancy email copied!');
-                  }}
+                  onClick={copyDiscrepancyEmail}
                   className={`flex-1 py-3 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm font-medium flex items-center justify-center gap-2`}
                 >
-                  📧 Copy Discrepancy Email
+                  <Icon name="Dashboard_document_comparison_copy_discrepancy_email" className="w-4 h-4" style={theme.iconFilter} />
+                  Copy Discrepancy Email
                 </button>
               </div>
             </div>
@@ -429,19 +457,18 @@ ${result.summary}`;
             <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl overflow-hidden`}>
               <div className={`p-4 border-b ${theme.cardBorder} flex items-center justify-between`}>
                 <h2 className="font-semibold">Field by Field Comparison</h2>
-                {/* Filter */}
                 <div className={`flex gap-1 p-1 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl`}>
-                  {[
-                    { key: 'all', label: 'All' },
-                    { key: 'mismatch', label: '⚠️ Mismatches' },
-                    { key: 'missing', label: '❌ Missing' },
-                    { key: 'match', label: '✅ Matches' },
-                  ].map(f => (
+                  {filterTabs.map(f => (
                     <button
                       key={f.key}
-                      onClick={() => setActiveFilter(f.key as any)}
-                      className={`px-3 py-1.5 text-xs rounded-lg transition ${activeFilter === f.key ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}
+                      onClick={() => setActiveFilter(f.key)}
+                      className={`px-3 py-1.5 text-xs rounded-lg transition flex items-center gap-1.5 ${activeFilter === f.key ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}
                     >
+                      <Icon
+                        name={f.icon}
+                        className="w-3 h-3"
+                        style={activeFilter === f.key ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter}
+                      />
                       {f.label}
                     </button>
                   ))}
@@ -492,7 +519,10 @@ ${result.summary}`;
             {/* Recommendations */}
             {result.recommendations?.length > 0 && (
               <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-6`}>
-                <h2 className="font-semibold mb-4">💡 Recommendations</h2>
+                <h2 className="font-semibold mb-4 flex items-center gap-2">
+                  <Icon name="Dashboard_document_comparison_recomendations" className="w-5 h-5" style={theme.iconFilter} />
+                  Recommendations
+                </h2>
                 <div className="space-y-2">
                   {result.recommendations.map((rec, i) => (
                     <div key={i} className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-3`}>
@@ -508,7 +538,9 @@ ${result.summary}`;
         {/* Empty State */}
         {!result && !loading && (
           <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-12 text-center`}>
-            <div className="text-6xl mb-4">🔍</div>
+            <div className="w-20 h-20 mx-auto mb-4 p-4 rounded-2xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
+              <Icon name="Dashboard_document_comparison_compare_documents" className="w-full h-full" style={theme.iconFilter} />
+            </div>
             <h3 className="text-xl font-bold mb-2">Compare Two Documents</h3>
             <p className={`${theme.textMuted} max-w-md mx-auto mb-6`}>
               Paste or upload two shipping documents above to detect mismatches, missing fields and discrepancies automatically.
