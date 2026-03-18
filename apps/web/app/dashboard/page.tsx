@@ -250,7 +250,7 @@ export default function DashboardPage() {
   // Persist to localStorage
   useEffect(() => { localStorage.setItem('fw_custom_labels', JSON.stringify(customLabels)); }, [customLabels]);
   useEffect(() => { localStorage.setItem('fw_manual_folders', JSON.stringify(manualFolders)); }, [manualFolders]);
-  useEffect(() => { localStorage.setItem('fw_trash', JSON.stringify([...trashedEmails])); }, [trashedEmails]);
+  useEffect(() => { localStorage.setItem('fw_trash', JSON.stringify(Array.from(trashedEmails))); }, [trashedEmails]);
 
   const checkAuth = async (sid: string) => {
     try {
@@ -352,26 +352,26 @@ export default function DashboardPage() {
 
   // Delete / Trash
   const moveToTrash = (emailId: string) => {
-    setTrashedEmails(prev => new Set([...prev, emailId]));
+    setTrashedEmails(prev => new Set([...Array.from(prev), emailId]));
     if (selected?.id === emailId) setSelected(null);
     notify('success', 'Email moved to Trash');
     setContextMenu(null);
   };
 
   const restoreFromTrash = (emailId: string) => {
-    setTrashedEmails(prev => { const n = new Set(prev); n.delete(emailId); return n; });
+  setTrashedEmails(prev => { const n = new Set(Array.from(prev)); n.delete(emailId); return n; });
     notify('success', 'Email restored');
   };
 
   const deleteForever = (emailId: string) => {
-    setTrashedEmails(prev => { const n = new Set(prev); n.delete(emailId); return n; });
+    setTrashedEmails(prev => { const n = new Set(Array.from(prev)); n.delete(emailId); return n; });
     setEmails(prev => prev.filter(e => e.id !== emailId));
     if (selected?.id === emailId) setSelected(null);
     notify('success', 'Email permanently deleted');
   };
 
   const emptyTrash = () => {
-    const trashIds = [...trashedEmails];
+    const trashIds = Array.from(trashedEmails);
     setEmails(prev => prev.filter(e => !trashIds.includes(e.id)));
     setTrashedEmails(new Set());
     if (selected && trashIds.includes(selected.id)) setSelected(null);
