@@ -284,17 +284,17 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
     return 'bg-red-500';
   };
 
-  const getDocTypeIcon = (type: string) => {
-    const map: Record<string, string> = {
-      'HBL': 'Dashboard_documents_HBL',
-      'MBL': 'Dashboard_documents_MBL',
-      'AWB': 'Dashboard_documents_other',
-      'Invoice': 'Dashboard_documents_other',
-      'Packing List': 'Dashboard_documents_other',
-      'Other': 'Dashboard_documents_other',
-    };
-    return map[type] || 'Dashboard_documents_other';
+const getDocTypeIcon = (type: string) => {
+  const map: Record<string, string> = {
+    'HBL': 'Dashboard_documents_HBL',
+    'MBL': 'Dashboard_documents_MBL',
+    'AWB': 'Dashboard_documents_AWB',
+    'Invoice': 'Dashboard_documents_invoice',
+    'Packing List': 'Dashboard_documents_packing_list',
+    'Other': 'Dashboard_documents_other',
   };
+  return map[type] || 'Dashboard_documents_other';
+};
 
   const getModeIconName = (mode: string) => {
     const map: Record<string, string> = {
