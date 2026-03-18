@@ -292,13 +292,13 @@ export default function ComparePage() {
       </header>
 
       <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-8 flex items-center gap-3">
-          <Icon name="Dashboard_document_comparison_icon" className="w-8 h-8" style={theme.iconFilter} />
-          <div>
-            <h1 className="text-3xl font-bold">Document Comparison</h1>
-            <p className={theme.textMuted}>Compare two shipping documents side by side — detect mismatches, missing fields and discrepancies</p>
-          </div>
-        </div>
+        <div className="mb-8 flex items-start gap-3">
+  <Icon name="Dashboard_document_comparison_icon" className="w-8 h-8 mt-1" style={theme.iconFilter} />
+  <div>
+    <h1 className="text-3xl font-bold">Document Comparison</h1>
+    <p className={theme.textMuted}>Compare two shipping documents side by side — detect mismatches, missing fields and discrepancies</p>
+  </div>
+</div>
 
         {/* Upload Area */}
         <div className="grid md:grid-cols-2 gap-4 mb-6">
