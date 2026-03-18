@@ -402,20 +402,20 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
             ← Dashboard
           </Link>
           <Link href={`/documents/compare?session=${session}`} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
-  <Icon name="Dashboard_document_inteligence_compare_docs" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
+  <Icon name="Dashboard_documents_Click_to_upload" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
   Compare Docs
 </Link>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-8 flex items-start gap-3">
-  <Icon name="Dashboard_documents" className="w-8 h-8 mt-1" style={theme.iconFilter} />
-          <div>
-            <h1 className="text-3xl font-bold">Document Intelligence</h1>
-            <p className={theme.textMuted}>Upload shipping documents for AI-powered analysis, risk detection and report generation</p>
-          </div>
-        </div>
+        <div className="mb-8 flex items-start gap-2">
+  <Icon name="Dashboard_documents__document_intelligence" className="w-8 h-8 mt-1" style={theme.iconFilter} />
+  <div>
+    <h1 className="text-3xl font-bold">Document Intelligence</h1>
+    <p className={theme.textMuted}>Upload shipping documents for AI-powered analysis, risk detection and report generation</p>
+  </div>
+</div>
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Left: Upload + History */}
