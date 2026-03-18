@@ -1300,6 +1300,17 @@ app.post('/api/extract-text', async (req, res) => {
   if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
+    let mediaType = mimeType;
+    
+    // Claude vision supports: image/jpeg, image/png, image/gif, image/webp, application/pdf
+    const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    
+    if (!supported.includes(mediaType)) {
+      // For unsupported types, try as plain text
+      const buffer = Buffer.from(base64, 'base64');
+      return res.json({ text: buffer.toString('utf-8') });
+    }
+
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4000,
@@ -1307,12 +1318,16 @@ app.post('/api/extract-text', async (req, res) => {
         role: 'user',
         content: [
           {
-            type: 'image',
-            source: { type: 'base64', media_type: mimeType as any, data: base64 },
-          },
+            type: 'document',
+            source: { 
+              type: 'base64', 
+              media_type: mediaType as 'application/pdf' | 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+              data: base64 
+            },
+          } as any,
           {
             type: 'text',
-            text: 'Extract ALL text from this document image exactly as it appears. Preserve the structure, labels, values and layout as much as possible. Output only the extracted text, no commentary.',
+            text: 'Extract ALL text from this document exactly as it appears. Preserve structure, labels, values and layout. Output only the extracted text, no commentary.',
           }
         ],
       }]
