@@ -1,15 +1,23 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 
 const API_URL = 'https://freightwizard-production.up.railway.app';
 
 const Icon = ({ name, className = "w-6 h-6", style }: { name: string; className?: string; style?: React.CSSProperties }) => (
   <img src={`/icons/${name}.svg`} alt={name} className={className} style={style} />
 );
+
+type Language = 'en' | 'pt' | 'nl';
+
+const NAV_ITEMS = [
+  { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_analytics_total email' },
+  { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
+  { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
+  { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
+];
 
 interface DocumentAnalysis {
   id?: string;
@@ -83,8 +91,11 @@ interface SavedDocument {
 
 export default function DocumentsPage() {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const [session, setSession] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(true);
+  const [language, setLanguage] = useState<Language>('en');
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null);
   const [history, setHistory] = useState<SavedDocument[]>([]);
@@ -97,8 +108,6 @@ export default function DocumentsPage() {
   const [showReport, setShowReport] = useState(false);
   const [reportText, setReportText] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
-  const pathname = usePathname();
-  const [language, setLanguage] = useState<'en'|'pt'|'nl'>('en');
 
   const theme = darkMode ? {
     bg: 'bg-[#050510]',
@@ -127,16 +136,27 @@ export default function DocumentsPage() {
     setTimeout(() => setNotification(null), 3000);
   };
 
+  const toggleTheme = () => {
+    setDarkMode(!darkMode);
+    localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light');
+  };
+
+  const changeLang = (l: Language) => {
+    setLanguage(l);
+    localStorage.setItem('fw_lang', l);
+    setLangMenuOpen(false);
+  };
+
   useEffect(() => {
     const savedTheme = localStorage.getItem('fw_theme');
+    const savedLang = localStorage.getItem('fw_lang') as Language;
     if (savedTheme) setDarkMode(savedTheme === 'dark');
+    if (savedLang) setLanguage(savedLang);
     const sid = searchParams.get('session') || localStorage.getItem('fw_session');
     if (sid) {
       setSession(sid);
       loadHistory(sid);
     }
-    const savedLang = localStorage.getItem('fw_lang') as 'en'|'pt'|'nl';
-    if (savedLang) setLanguage(savedLang);
   }, [searchParams]);
 
   const loadHistory = async (sid: string) => {
@@ -147,48 +167,43 @@ export default function DocumentsPage() {
     } catch (e) { console.error(e); }
   };
 
-const handleFileUpload = async (file: File) => {
-  setFileName(file.name);
-  const ext = file.name.split('.').pop()?.toLowerCase();
+  const handleFileUpload = async (file: File) => {
+    setFileName(file.name);
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (['pdf', 'jpg', 'jpeg', 'png'].includes(ext || '')) {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = (e.target?.result as string).split(',')[1];
+        notify('success', '⏳ Extracting text from file...');
+        try {
+          const res = await fetch(`${API_URL}/api/extract-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base64, mimeType: file.type, fileName: file.name, sessionId: session }),
+          });
+          const data = await res.json();
+          if (data.text) { setPastedText(data.text); notify('success', '✅ Text extracted!'); }
+          else notify('error', 'Could not extract text from file');
+        } catch { notify('error', 'Failed to process file'); }
+      };
+      reader.readAsDataURL(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => setPastedText(e.target?.result as string);
+      reader.readAsText(file);
+    }
+  };
 
-  if (['pdf', 'jpg', 'jpeg', 'png'].includes(ext || '')) {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64 = (e.target?.result as string).split(',')[1];
-      notify('success', '⏳ Extracting text from file...');
-      try {
-        const res = await fetch(`${API_URL}/api/extract-text`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ base64, mimeType: file.type, fileName: file.name, sessionId: session }),
-        });
-        const data = await res.json();
-        if (data.text) { setPastedText(data.text); notify('success', '✅ Text extracted!'); }
-        else notify('error', 'Could not extract text from file');
-      } catch { notify('error', 'Failed to process file'); }
-    };
-    reader.readAsDataURL(file);
-  } else {
-    const reader = new FileReader();
-    reader.onload = (e) => setPastedText(e.target?.result as string);
-    reader.readAsText(file);
-  }
-};
   const analyzeDocument = async () => {
     if (!pastedText.trim() || !session) return;
     setLoading(true);
     setAnalysis(null);
     setShowReport(false);
-
     try {
       const res = await fetch(`${API_URL}/api/analyze-document`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: pastedText,
-          fileName: fileName || 'document.txt',
-          sessionId: session,
-        }),
+        body: JSON.stringify({ text: pastedText, fileName: fileName || 'document.txt', sessionId: session }),
       });
       const data = await res.json();
       if (data.analysis) {
@@ -210,74 +225,20 @@ const handleFileUpload = async (file: File) => {
     const date = new Date().toLocaleDateString('en-GB');
     const blNum = doc.references?.bl_number || 'N/A';
     const route = `${doc.transport?.pol?.name || '?'} (${doc.transport?.pol?.code || '?'}) → ${doc.transport?.pod?.name || '?'} (${doc.transport?.pod?.code || '?'})`;
-
-    let report = `SHIPMENT DOCUMENT EXTRACTION REPORT
-Generated: ${date}
-Document Type: ${doc.document_type}
-Confidence Score: ${doc.confidence}%
-
-═══════════════════════════════════════
-SHIPMENT OVERVIEW
-═══════════════════════════════════════
-BL/AWB Number: ${blNum}
-Booking Number: ${doc.references?.booking_number || 'N/A'}
-Mode: ${doc.shipment_summary?.mode || 'N/A'}
-Route: ${route}
-Incoterm: ${doc.shipment_summary?.incoterm || 'N/A'}
-Freight Terms: ${doc.freight?.terms || 'N/A'}
-
-═══════════════════════════════════════
-PARTIES
-═══════════════════════════════════════
-Shipper: ${doc.parties?.shipper || 'N/A'}
-Consignee: ${doc.parties?.consignee || 'N/A'}
-Notify Party: ${doc.parties?.notify_party || 'N/A'}
-
-═══════════════════════════════════════
-TRANSPORT
-═══════════════════════════════════════
-Vessel: ${doc.transport?.vessel || 'N/A'}
-Voyage: ${doc.transport?.voyage || 'N/A'}
-ETD: ${doc.transport?.etd || 'N/A'}
-ETA: ${doc.transport?.eta || 'N/A'}
-Final Destination: ${doc.transport?.final_destination || 'N/A'}
-
-═══════════════════════════════════════
-CARGO
-═══════════════════════════════════════
-Description: ${doc.cargo?.description || 'N/A'}
-HS Code: ${doc.cargo?.hs_code || 'N/A'}
-Container Type: ${doc.cargo?.container_type || 'N/A'}
-Container Numbers: ${doc.references?.container_numbers?.map(c => c.value).join(', ') || 'N/A'}
-Seal Numbers: ${doc.cargo?.seal_numbers?.join(', ') || 'N/A'}
-Packages: ${doc.cargo?.packages || 'N/A'}
-Gross Weight: ${doc.cargo?.gross_weight?.value ? `${doc.cargo.gross_weight.value} ${doc.cargo.gross_weight.unit}` : 'N/A'}
-Net Weight: ${doc.cargo?.net_weight?.value ? `${doc.cargo.net_weight.value} ${doc.cargo.net_weight.unit}` : 'N/A'}
-Tare Weight: ${doc.cargo?.tare_weight?.value ? `${doc.cargo.tare_weight.value} ${doc.cargo.tare_weight.unit}` : 'N/A'}
-Volume: ${doc.cargo?.volume_cbm ? `${doc.cargo.volume_cbm} CBM` : 'N/A'}`;
-
+    let report = `SHIPMENT DOCUMENT EXTRACTION REPORT\nGenerated: ${date}\nDocument Type: ${doc.document_type}\nConfidence Score: ${doc.confidence}%\n\n═══════════════════════════════════════\nSHIPMENT OVERVIEW\n═══════════════════════════════════════\nBL/AWB Number: ${blNum}\nBooking Number: ${doc.references?.booking_number || 'N/A'}\nMode: ${doc.shipment_summary?.mode || 'N/A'}\nRoute: ${route}\nIncoterm: ${doc.shipment_summary?.incoterm || 'N/A'}\nFreight Terms: ${doc.freight?.terms || 'N/A'}\n\n═══════════════════════════════════════\nPARTIES\n═══════════════════════════════════════\nShipper: ${doc.parties?.shipper || 'N/A'}\nConsignee: ${doc.parties?.consignee || 'N/A'}\nNotify Party: ${doc.parties?.notify_party || 'N/A'}\n\n═══════════════════════════════════════\nTRANSPORT\n═══════════════════════════════════════\nVessel: ${doc.transport?.vessel || 'N/A'}\nVoyage: ${doc.transport?.voyage || 'N/A'}\nETD: ${doc.transport?.etd || 'N/A'}\nETA: ${doc.transport?.eta || 'N/A'}\nFinal Destination: ${doc.transport?.final_destination || 'N/A'}\n\n═══════════════════════════════════════\nCARGO\n═══════════════════════════════════════\nDescription: ${doc.cargo?.description || 'N/A'}\nHS Code: ${doc.cargo?.hs_code || 'N/A'}\nContainer Type: ${doc.cargo?.container_type || 'N/A'}\nContainer Numbers: ${doc.references?.container_numbers?.map(c => c.value).join(', ') || 'N/A'}\nSeal Numbers: ${doc.cargo?.seal_numbers?.join(', ') || 'N/A'}\nPackages: ${doc.cargo?.packages || 'N/A'}\nGross Weight: ${doc.cargo?.gross_weight?.value ? `${doc.cargo.gross_weight.value} ${doc.cargo.gross_weight.unit}` : 'N/A'}\nNet Weight: ${doc.cargo?.net_weight?.value ? `${doc.cargo.net_weight.value} ${doc.cargo.net_weight.unit}` : 'N/A'}\nTare Weight: ${doc.cargo?.tare_weight?.value ? `${doc.cargo.tare_weight.value} ${doc.cargo.tare_weight.unit}` : 'N/A'}\nVolume: ${doc.cargo?.volume_cbm ? `${doc.cargo.volume_cbm} CBM` : 'N/A'}`;
     if (doc.cargo?.dangerous_goods?.is_dangerous) {
       report += `\n\n⚠️ DANGEROUS GOODS\nUN Number: ${doc.cargo.dangerous_goods.un_number || 'N/A'}\nClass: ${doc.cargo.dangerous_goods.class || 'N/A'}\nPacking Group: ${doc.cargo.dangerous_goods.packing_group || 'N/A'}\nProper Shipping Name: ${doc.cargo.dangerous_goods.proper_shipping_name || 'N/A'}`;
     }
-
-    report += `\n\n═══════════════════════════════════════
-COMPLIANCE
-═══════════════════════════════════════
-Country of Origin: ${doc.compliance?.country_of_origin || 'N/A'}
-Customs Value: ${doc.compliance?.customs_value ? `${doc.compliance.customs_value} ${doc.compliance.currency || ''}` : 'N/A'}
-Export License: ${doc.compliance?.export_license || 'N/A'}`;
-
+    report += `\n\n═══════════════════════════════════════\nCOMPLIANCE\n═══════════════════════════════════════\nCountry of Origin: ${doc.compliance?.country_of_origin || 'N/A'}\nCustoms Value: ${doc.compliance?.customs_value ? `${doc.compliance.customs_value} ${doc.compliance.currency || ''}` : 'N/A'}\nExport License: ${doc.compliance?.export_license || 'N/A'}`;
     if (doc.risks?.length > 0) {
       report += `\n\n═══════════════════════════════════════\n⚠️ RISKS DETECTED\n═══════════════════════════════════════`;
       doc.risks.forEach(r => { report += `\n• ${r}`; });
     }
-
     if (doc.missing_information?.length > 0) {
       report += `\n\n═══════════════════════════════════════\n❓ MISSING INFORMATION\n═══════════════════════════════════════`;
       doc.missing_information.forEach(m => { report += `\n• ${m}`; });
       report += `\n\n═══════════════════════════════════════\n📧 SUGGESTED EMAIL TO REQUEST MISSING INFO\n═══════════════════════════════════════\nDear Partner,\n\nPlease be informed that upon reviewing the shipping document ${blNum}, the following information is missing or incomplete:\n\n${doc.missing_information.map(m => `- ${m}`).join('\n')}\n\nKindly provide the above details at your earliest convenience to avoid delays in processing.\n\nBest regards,\nFreight Operations Team`;
     }
-
     report += `\n\n═══════════════════════════════════════\nEnd of Report — Generated by FreightWizard AI\n═══════════════════════════════════════`;
     return report;
   };
@@ -310,9 +271,9 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
     const map: Record<string, string> = {
       'HBL': 'Dashboard_documents_HBL',
       'MBL': 'Dashboard_documents_MBL',
-      'AWB': 'Dashboard_documents_other',
-      'Invoice': 'Dashboard_documents_other',
-      'Packing List': 'Dashboard_documents_other',
+      'AWB': 'Dashboard_documents_AWB',
+      'Invoice': 'Dashboard_documents_invoice',
+      'Packing List': 'Dashboard_documents_packing_list',
       'Other': 'Dashboard_documents_other',
     };
     return map[type] || 'Dashboard_documents_other';
@@ -328,8 +289,6 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
     return map[mode?.toLowerCase()] || 'Dashboard_documents_ocean';
   };
 
-  const displayAnalysis = selected ? selected.analysis : analysis;
-
   const generateRiskEmail = () => {
     if (!displayAnalysis?.risks?.length) return;
     const risks = displayAnalysis.risks.join('\n- ');
@@ -338,6 +297,8 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
     navigator.clipboard.writeText(text);
     notify('success', 'Risk email copied!');
   };
+
+  const displayAnalysis = selected ? selected.analysis : analysis;
 
   const tabs = [
     { key: 'summary', icon: 'Dashboard_documents_summary', label: 'Summary' },
@@ -369,73 +330,84 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                   <Icon name="Dashboard_documents_copy_all" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
                   Copy All
                 </button>
-                <button onClick={() => setShowReport(false)} className={`px-4 py-2 ${theme.hover} border ${theme.cardBorder} rounded-xl text-sm`}>
-                  ✕ Close
-                </button>
+                <button onClick={() => setShowReport(false)} className={`px-4 py-2 ${theme.hover} border ${theme.cardBorder} rounded-xl text-sm`}>✕ Close</button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
-              <pre className={`whitespace-pre-wrap font-mono text-xs ${theme.textMuted} leading-relaxed`}>
-                {reportText}
-              </pre>
+              <pre className={`whitespace-pre-wrap font-mono text-xs ${theme.textMuted} leading-relaxed`}>{reportText}</pre>
             </div>
           </div>
         </div>
       )}
 
       {/* Header */}
-     <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-3 flex items-center justify-between sticky top-0 z-40`}>
-  <Link href={`/dashboard?session=${session}`} className="flex items-center gap-2 flex-shrink-0">
-    <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
-    <span className="text-base font-bold">FreightWizard</span>
-  </Link>
+      <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-3 flex items-center justify-between sticky top-0 z-40`}>
+        {/* Logo */}
+        <Link href={`/dashboard?session=${session}`} className="flex items-center gap-2 flex-shrink-0">
+          <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
+          <span className="text-base font-bold">FreightWizard</span>
+        </Link>
 
-  <nav className="flex items-center gap-1 mx-4">
-    {[
-      { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_analytics_total email' },
-      { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
-      { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
-      { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
-    ].map(item => (
-      <Link key={item.href} href={`${item.href}?session=${session}`}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${
-          pathname?.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')
-            ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40'
-            : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`
-        }`}>
-        <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
-        {item.label[language]}
-      </Link>
-    ))}
-  </nav>
+        {/* Right: Nav + Controls */}
+        <div className="flex items-center gap-2">
+          {NAV_ITEMS.map(item => (
+            <Link key={item.href} href={`${item.href}?session=${session}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${
+                pathname?.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')
+                  ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40'
+                  : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`
+              }`}>
+              <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
+              {item.label[language]}
+            </Link>
+          ))}
 
-  <div className="flex items-center gap-2 flex-shrink-0">
-    <div className="relative">
-      <button onClick={() => { const langs: ('en'|'pt'|'nl')[] = ['en','pt','nl']; const next = langs[(langs.indexOf(language)+1)%3]; setLanguage(next); localStorage.setItem('fw_lang', next); }}
-        className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover}`}>
-        {language.toUpperCase()}
-      </button>
-    </div>
-    <button onClick={() => { setDarkMode(!darkMode); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); }}
-      className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
-      <Icon name={darkMode ? 'Dashboard_documents_sun_light_mode' : 'Dashboard_documents_moon_dark_mode'} className="w-5 h-5" style={theme.iconFilter} />
-    </button>
-    <Link href={`/documents/compare?session=${session}`}
-      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
-      <Icon name="Dashboard_documents_Click_to_upload" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
-      {language === 'pt' ? 'Comparar Docs' : language === 'nl' ? 'Vergelijk Docs' : 'Compare Docs'}
-    </Link>
-  </div>
-</header>
+          <div className={`w-px h-5 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
+
+          {/* Language */}
+          <div className="relative">
+            <button onClick={() => setLangMenuOpen(!langMenuOpen)}
+              className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover} flex items-center gap-1`}>
+              {language.toUpperCase()} <span className="text-xs">▼</span>
+            </button>
+            {langMenuOpen && (
+              <div className={`absolute top-full right-0 mt-2 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-xl z-50 overflow-hidden`}>
+                {(['en', 'pt', 'nl'] as Language[]).map(l => (
+                  <button key={l} onClick={() => changeLang(l)}
+                    className={`w-full px-4 py-2 text-left text-sm ${theme.hover} ${language === l ? 'text-[#9E14FB] font-medium' : theme.textMuted}`}>
+                    {l.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Theme */}
+          <button onClick={toggleTheme} className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
+            <Icon
+              name={darkMode ? 'Dashboard_documents_sun_light_mode' : 'Dashboard_documents_moon_dark_mode'}
+              className="w-4 h-4"
+              style={theme.iconFilter}
+            />
+          </button>
+
+          {/* Compare Docs */}
+          <Link href={`/documents/compare?session=${session}`}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
+            <Icon name="Dashboard_documents_Click_to_upload" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
+            {language === 'pt' ? 'Comparar' : language === 'nl' ? 'Vergelijk' : 'Compare Docs'}
+          </Link>
+        </div>
+      </header>
 
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-8 flex items-start gap-2">
-  <Icon name="Dashboard_documents__document_intelligence" className="w-8 h-8 mt-1" style={theme.iconFilter} />
-  <div>
-    <h1 className="text-3xl font-bold">Document Intelligence</h1>
-    <p className={theme.textMuted}>Upload shipping documents for AI-powered analysis, risk detection and report generation</p>
-  </div>
-</div>
+          <Icon name="Dashboard_documents__document_intelligence" className="w-8 h-8 mt-1" style={theme.iconFilter} />
+          <div>
+            <h1 className="text-3xl font-bold">Document Intelligence</h1>
+            <p className={theme.textMuted}>Upload shipping documents for AI-powered analysis, risk detection and report generation</p>
+          </div>
+        </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Left: Upload + History */}
@@ -446,60 +418,36 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                 Analyze Document
               </h2>
 
-              {/* Mode Toggle */}
               <div className={`flex gap-1 p-1 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl mb-4`}>
-                <button
-                  onClick={() => setInputMode('upload')}
-                  className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${inputMode === 'upload' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}
-                >
-                  <Icon
-                    name="Dashboard_documents_upload_file"
-                    className="w-4 h-4"
-                    style={inputMode === 'upload' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter}
-                  />
+                <button onClick={() => setInputMode('upload')}
+                  className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${inputMode === 'upload' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
+                  <Icon name="Dashboard_documents_upload_file" className="w-4 h-4"
+                    style={inputMode === 'upload' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
                   Upload File
                 </button>
-                <button
-                  onClick={() => setInputMode('paste')}
-                  className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${inputMode === 'paste' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}
-                >
-                  <Icon
-                    name="Dashboard_documents_paste_text"
-                    className="w-4 h-4"
-                    style={inputMode === 'paste' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter}
-                  />
+                <button onClick={() => setInputMode('paste')}
+                  className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${inputMode === 'paste' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
+                  <Icon name="Dashboard_documents_paste_text" className="w-4 h-4"
+                    style={inputMode === 'paste' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
                   Paste Text
                 </button>
               </div>
 
               {inputMode === 'upload' ? (
-                <div
-                  onClick={() => fileRef.current?.click()}
-                  className={`border-2 border-dashed ${darkMode ? 'border-white/10 hover:border-[#5200FF]/50' : 'border-slate-200 hover:border-[#5200FF]/50'} rounded-xl p-6 text-center cursor-pointer transition mb-4`}
-                >
+                <div onClick={() => fileRef.current?.click()}
+                  className={`border-2 border-dashed ${darkMode ? 'border-white/10 hover:border-[#5200FF]/50' : 'border-slate-200 hover:border-[#5200FF]/50'} rounded-xl p-6 text-center cursor-pointer transition mb-4`}>
                   <div className="w-12 h-12 mx-auto mb-3 p-2 rounded-xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
                     <Icon name="Dashboard_documents_Click_to_upload" className="w-full h-full" style={theme.iconFilter} />
                   </div>
-                  <p className={`text-sm ${theme.textMuted}`}>
-                    {fileName ? `✅ ${fileName}` : 'Click to upload TXT or paste document text'}
-                  </p>
+                  <p className={`text-sm ${theme.textMuted}`}>{fileName ? `✅ ${fileName}` : 'Click to upload TXT or paste document text'}</p>
                   <p className={`text-xs ${theme.textDim} mt-1`}>Supports BL, AWB, Invoice, Packing List</p>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept=".txt,.csv,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                    className="hidden"
-                    onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
-                  />
+                  <input ref={fileRef} type="file" accept=".txt,.csv,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                    className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
                 </div>
               ) : (
-                <textarea
-                  value={pastedText}
-                  onChange={(e) => setPastedText(e.target.value)}
-                  placeholder="Paste document text here..."
-                  rows={6}
-                  className={`w-full px-4 py-3 rounded-xl border ${theme.input} mb-4 focus:outline-none focus:border-[#5200FF] resize-none text-sm`}
-                />
+                <textarea value={pastedText} onChange={(e) => setPastedText(e.target.value)}
+                  placeholder="Paste document text here..." rows={6}
+                  className={`w-full px-4 py-3 rounded-xl border ${theme.input} mb-4 focus:outline-none focus:border-[#5200FF] resize-none text-sm`} />
               )}
 
               {inputMode === 'upload' && pastedText && (
@@ -508,23 +456,16 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                 </div>
               )}
 
-              <button
-                onClick={analyzeDocument}
-                disabled={loading || !pastedText.trim()}
-                className="w-full py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white disabled:opacity-50 flex items-center justify-center gap-2"
-              >
+              <button onClick={analyzeDocument} disabled={loading || !pastedText.trim()}
+                className="w-full py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white disabled:opacity-50 flex items-center justify-center gap-2">
                 {loading ? (
                   <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Analyzing...</>
                 ) : (
-                  <>
-                    <Icon name="Dashboard_documents_Analyze_document" className="w-5 h-5" style={{ filter: 'brightness(0) invert(1)' }} />
-                    Analyze Document
-                  </>
+                  <><Icon name="Dashboard_documents_Analyze_document" className="w-5 h-5" style={{ filter: 'brightness(0) invert(1)' }} />Analyze Document</>
                 )}
               </button>
             </div>
 
-            {/* History */}
             {history.length > 0 && (
               <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-5`}>
                 <h2 className="font-semibold mb-3 flex items-center gap-2">
@@ -533,11 +474,9 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                 </h2>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {history.map((doc) => (
-                    <div
-                      key={doc.id}
+                    <div key={doc.id}
                       onClick={() => { setSelected(doc); setAnalysis(null); setActiveTab('summary'); setShowReport(false); }}
-                      className={`p-3 rounded-xl border cursor-pointer transition ${selected?.id === doc.id ? 'border-[#5200FF]/50 bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10' : `${theme.cardBorder} ${theme.hover}`}`}
-                    >
+                      className={`p-3 rounded-xl border cursor-pointer transition ${selected?.id === doc.id ? 'border-[#5200FF]/50 bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10' : `${theme.cardBorder} ${theme.hover}`}`}>
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <Icon name={getDocTypeIcon(doc.document_type)} className="w-4 h-4" style={theme.iconFilter} />
@@ -558,7 +497,6 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
           <div className="lg:col-span-2">
             {displayAnalysis ? (
               <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl overflow-hidden`}>
-                {/* Document Header */}
                 <div className="p-6 border-b border-white/5 bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -574,9 +512,7 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-3xl font-bold ${getConfidenceColor(displayAnalysis.confidence)}`}>
-                        {displayAnalysis.confidence}%
-                      </div>
+                      <div className={`text-3xl font-bold ${getConfidenceColor(displayAnalysis.confidence)}`}>{displayAnalysis.confidence}%</div>
                       <p className={`text-xs ${theme.textDim}`}>Confidence</p>
                       <div className={`h-1.5 w-24 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} rounded-full mt-1 ml-auto`}>
                         <div className={`h-full rounded-full ${getConfidenceBg(displayAnalysis.confidence)}`} style={{ width: `${displayAnalysis.confidence}%` }} />
@@ -597,22 +533,16 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                     ))}
                   </div>
 
-                  {/* Generate Report Button */}
-                  <button
-                    onClick={handleGenerateReport}
-                    className="w-full py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white flex items-center justify-center gap-2"
-                  >
+                  <button onClick={handleGenerateReport}
+                    className="w-full py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white flex items-center justify-center gap-2">
                     <Icon name="Dashboard_documents_generate_extraction_report" className="w-5 h-5" style={{ filter: 'brightness(0) invert(1)' }} />
                     Generate Extraction Report
                   </button>
                 </div>
 
-                {/* Dangerous Goods Alert */}
                 {displayAnalysis.cargo?.dangerous_goods?.is_dangerous && (
                   <div className="mx-6 mt-4 p-4 bg-red-500/20 border border-red-500/40 rounded-xl">
-                    <h3 className="text-red-400 font-bold flex items-center gap-2 mb-2">
-                      ☢️ DANGEROUS GOODS DETECTED
-                    </h3>
+                    <h3 className="text-red-400 font-bold flex items-center gap-2 mb-2">☢️ DANGEROUS GOODS DETECTED</h3>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div><span className={theme.textDim}>UN Number:</span> <span className="text-red-300 font-mono">{displayAnalysis.cargo.dangerous_goods.un_number || '—'}</span></div>
                       <div><span className={theme.textDim}>Class:</span> <span className="text-red-300">{displayAnalysis.cargo.dangerous_goods.class || '—'}</span></div>
@@ -622,7 +552,6 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                   </div>
                 )}
 
-                {/* Risks Banner */}
                 {displayAnalysis.risks?.length > 0 && (
                   <div className={`mx-6 mt-4 p-4 ${darkMode ? 'bg-red-500/10' : 'bg-red-100'} border ${darkMode ? 'border-red-500/20' : 'border-red-300'} rounded-xl`}>
                     <div className="flex items-center justify-between mb-2">
@@ -645,7 +574,6 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                   </div>
                 )}
 
-                {/* Missing Info */}
                 {displayAnalysis.missing_information?.length > 0 && (
                   <div className={`mx-6 mt-3 p-4 ${darkMode ? 'bg-yellow-500/10' : 'bg-yellow-100'} border ${darkMode ? 'border-yellow-500/20' : 'border-yellow-400'} rounded-xl`}>
                     <h3 className="text-yellow-400 font-semibold text-sm mb-2 flex items-center gap-2">
@@ -660,25 +588,17 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                   </div>
                 )}
 
-                {/* Tabs */}
                 <div className={`flex gap-1 p-1 mx-6 mt-4 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl`}>
                   {tabs.map((tab) => (
-                    <button
-                      key={tab.key}
-                      onClick={() => setActiveTab(tab.key)}
-                      className={`flex-1 py-2 text-xs rounded-lg transition flex items-center justify-center gap-1 ${activeTab === tab.key ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}
-                    >
-                      <Icon
-                        name={tab.icon}
-                        className="w-3.5 h-3.5"
-                        style={activeTab === tab.key ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter}
-                      />
+                    <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                      className={`flex-1 py-2 text-xs rounded-lg transition flex items-center justify-center gap-1 ${activeTab === tab.key ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
+                      <Icon name={tab.icon} className="w-3.5 h-3.5"
+                        style={activeTab === tab.key ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
                       {tab.label}
                     </button>
                   ))}
                 </div>
 
-                {/* Tab Content */}
                 <div className="p-6">
                   {activeTab === 'summary' && (
                     <div className="space-y-4">
@@ -871,8 +791,8 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                       { label: 'MBL', icon: 'Dashboard_documents_MBL' },
                       { label: 'HBL', icon: 'Dashboard_documents_HBL' },
                       { label: 'AWB', icon: 'Dashboard_documents_AWB' },
-{ label: 'Invoice', icon: 'Dashboard_documents_invoice' },
-{ label: 'Packing List', icon: 'Dashboard_documents_packing_list' },
+                      { label: 'Invoice', icon: 'Dashboard_documents_invoice' },
+                      { label: 'Packing List', icon: 'Dashboard_documents_packing_list' },
                     ].map(type => (
                       <span key={type.label} className={`text-xs px-3 py-1.5 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-full ${theme.textMuted} flex items-center gap-1.5`}>
                         <Icon name={type.icon} className="w-3 h-3" style={theme.iconFilter} />
