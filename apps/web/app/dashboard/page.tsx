@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 
 const API_URL = 'https://freightwizard-production.up.railway.app';
@@ -151,6 +151,7 @@ export default function DashboardPage() {
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
   const [newLabelIcon, setNewLabelIcon] = useState(LABEL_ICONS[0]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; emailId: string } | null>(null);
+  const pathname = usePathname();
 
   // Resizable panels
   const [sidebarWidth, setSidebarWidth] = useState(210);
@@ -679,23 +680,24 @@ export default function DashboardPage() {
         </Link>
         <div className="flex items-center gap-3">
           {user && (
-            <Link href={`/analytics?session=${session}`} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10 border border-[#5200FF]/30 ${theme.text} hover:border-[#5200FF]/50 transition`}>
-              <Icon name="Dashboard_analyrtics_AI Insights" className="w-4 h-4" style={theme.iconFilter} />
-              {t.analytics}
-            </Link>
-          )}
-          {user && (
-            <Link href={`/team?session=${session}`} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10 border border-[#5200FF]/30 ${theme.text} hover:border-[#5200FF]/50 transition`}>
-              <Icon name="Dashboard_email_team" className="w-4 h-4" style={theme.iconFilter} />
-              Team
-            </Link>
-          )}
-          {user && (
-            <Link href={`/documents?session=${session}`} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10 border border-[#5200FF]/30 ${theme.text} hover:border-[#5200FF]/50 transition`}>
-              <Icon name="Dashboard_documents" className="w-4 h-4" style={theme.iconFilter} />
-              Documents
-            </Link>
-          )}
+  <div className="flex items-center gap-1 mx-2">
+    <Link href={`/dashboard?session=${session}`} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${pathname === '/dashboard' ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40' : `border border-transparent ${theme.hover} ${theme.textMuted}`}`}>
+      📬 Inbox
+    </Link>
+    <Link href={`/analytics?session=${session}`} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${pathname?.startsWith('/analytics') ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40' : `border border-transparent ${theme.hover} ${theme.textMuted}`}`}>
+      <Icon name="Dashboard_analyrtics_AI Insights" className="w-3.5 h-3.5" style={theme.iconFilter} />
+      Analytics
+    </Link>
+    <Link href={`/team?session=${session}`} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${pathname?.startsWith('/team') ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40' : `border border-transparent ${theme.hover} ${theme.textMuted}`}`}>
+      <Icon name="Dashboard_email_team" className="w-3.5 h-3.5" style={theme.iconFilter} />
+      Team
+    </Link>
+    <Link href={`/documents?session=${session}`} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${pathname?.startsWith('/documents') ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40' : `border border-transparent ${theme.hover} ${theme.textMuted}`}`}>
+      <Icon name="Dashboard_documents" className="w-3.5 h-3.5" style={theme.iconFilter} />
+      Documents
+    </Link>
+  </div>
+)}
           <div className="relative">
             <button onClick={() => setLangMenuOpen(!langMenuOpen)} className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover}`}>
               {langLabels[language]} ▼

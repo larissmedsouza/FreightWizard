@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const API_URL = 'https://freightwizard-production.up.railway.app';
 
@@ -47,6 +48,8 @@ export default function ComparePage() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'mismatch' | 'missing' | 'match'>('all');
   const file1Ref = useRef<HTMLInputElement>(null);
   const file2Ref = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
+  const [language, setLanguage] = useState<'en'|'pt'|'nl'>('en');
 
   const theme = darkMode ? {
     bg: 'bg-[#050510]',
@@ -80,6 +83,8 @@ export default function ComparePage() {
     if (savedTheme) setDarkMode(savedTheme === 'dark');
     const sid = searchParams.get('session') || localStorage.getItem('fw_session');
     if (sid) setSession(sid);
+    const savedLang = localStorage.getItem('fw_lang') as 'en'|'pt'|'nl';
+    if (savedLang) setLanguage(savedLang);
   }, [searchParams]);
 
   const handleFile = (file: File, docNum: 1 | 2) => {

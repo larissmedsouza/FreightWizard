@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const API_URL = 'https://freightwizard-production.up.railway.app';
 
@@ -146,6 +147,7 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<string | null>(null);
+  const pathname = usePathname();
 
   const t = translations[language];
 

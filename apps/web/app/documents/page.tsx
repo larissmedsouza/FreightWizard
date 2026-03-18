@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const API_URL = 'https://freightwizard-production.up.railway.app';
 
@@ -96,6 +97,8 @@ export default function DocumentsPage() {
   const [showReport, setShowReport] = useState(false);
   const [reportText, setReportText] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
+  const [language, setLanguage] = useState<'en'|'pt'|'nl'>('en');
 
   const theme = darkMode ? {
     bg: 'bg-[#050510]',
@@ -132,6 +135,8 @@ export default function DocumentsPage() {
       setSession(sid);
       loadHistory(sid);
     }
+    const savedLang = localStorage.getItem('fw_lang') as 'en'|'pt'|'nl';
+    if (savedLang) setLanguage(savedLang);
   }, [searchParams]);
 
   const loadHistory = async (sid: string) => {
