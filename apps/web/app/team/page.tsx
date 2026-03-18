@@ -229,44 +229,51 @@ export default function TeamPage() {
         </div>
       )}
 
-      {/* Header */}
-      <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-4 flex items-center justify-between`}>
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
-            <span className="text-lg font-bold">FreightWizard</span>
-          </Link>
-          <span className={`text-sm ${theme.textMuted}`}>/ Team Leaderboard</span>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Invite button - always visible for managers */}
-          {profile?.teams && profile.role === 'manager' && (
-            <button
-              onClick={() => setShowInviteModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white shadow-lg shadow-[#5200FF]/25 hover:scale-105 transition-transform"
-            >
-              <Icon name="Dashboard_team_crown" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
-              Invite Members
-            </button>
-          )}
+      <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-3 flex items-center justify-between sticky top-0 z-40`}>
+  <Link href={`/dashboard?session=${session}`} className="flex items-center gap-2 flex-shrink-0">
+    <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
+    <span className="text-base font-bold">FreightWizard</span>
+  </Link>
 
-          {/* Theme Toggle */}
-          <button
-            onClick={() => { setDarkMode(!darkMode); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); }}
-            className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}
-          >
-            {darkMode ? (
-              <Icon name="Dashboard_team_sun_light_mode" className="w-5 h-5" />
-            ) : (
-              <Icon name="Dashboard_team_moon_dark_mode" className="w-5 h-5" />
-            )}
-          </button>
+  <nav className="flex items-center gap-1 mx-4">
+    {[
+      { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_analytics_total email' },
+      { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
+      { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
+      { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
+    ].map(item => (
+      <Link key={item.href} href={`${item.href}?session=${session}`}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${
+          pathname?.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')
+            ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40'
+            : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`
+        }`}>
+        <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
+        {item.label[language]}
+      </Link>
+    ))}
+  </nav>
 
-          <Link href={`/dashboard?session=${session}`} className={`px-4 py-2 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover}`}>
-            ← Dashboard
-          </Link>
-        </div>
-      </header>
+  <div className="flex items-center gap-2 flex-shrink-0">
+    {profile?.teams && profile.role === 'manager' && (
+      <button onClick={() => setShowInviteModal(true)}
+        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
+        <Icon name="Dashboard_team_crown" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
+        Invite Members
+      </button>
+    )}
+    <div className="relative">
+      <button onClick={() => { const langs: ('en'|'pt'|'nl')[] = ['en','pt','nl']; const next = langs[(langs.indexOf(language)+1)%3]; setLanguage(next); localStorage.setItem('fw_lang', next); }}
+        className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover}`}>
+        {language.toUpperCase()}
+      </button>
+    </div>
+    <button onClick={() => { setDarkMode(!darkMode); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); }}
+      className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
+      {darkMode ? <Icon name="Dashboard_team_sun_light_mode" className="w-5 h-5" /> : <Icon name="Dashboard_team_moon_dark_mode" className="w-5 h-5" />}
+    </button>
+  </div>
+</header>
 
       <div className="max-w-7xl mx-auto p-6">
 

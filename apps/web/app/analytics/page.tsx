@@ -234,45 +234,52 @@ export default function AnalyticsPage() {
   return (
     <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors`}>
       {/* Header */}
-      <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-4 flex items-center justify-between sticky top-0 z-50`}>
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
-            <span className="text-lg font-bold">FreightWizard</span>
-          </Link>
-          <span className={`text-sm ${theme.textMuted}`}>/ {t.title}</span>
+      <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-3 flex items-center justify-between sticky top-0 z-40`}>
+  <Link href={`/dashboard?session=${session}`} className="flex items-center gap-2 flex-shrink-0">
+    <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
+    <span className="text-base font-bold">FreightWizard</span>
+  </Link>
+
+  <nav className="flex items-center gap-1 mx-4">
+    {[
+      { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_analytics_total email' },
+      { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
+      { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
+      { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
+    ].map(item => (
+      <Link key={item.href} href={`${item.href}?session=${session}`}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${
+          pathname?.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')
+            ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40'
+            : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`
+        }`}>
+        <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
+        {item.label[language]}
+      </Link>
+    ))}
+  </nav>
+
+  <div className="flex items-center gap-2 flex-shrink-0">
+    <div className="relative">
+      <button onClick={() => setLangMenuOpen(!langMenuOpen)} className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full hover:bg-white/5`}>
+        {langLabels[language]} ▼
+      </button>
+      {langMenuOpen && (
+        <div className={`absolute top-full right-0 mt-2 ${theme.card} border ${theme.cardBorder} rounded-lg shadow-xl z-50`}>
+          {(['en', 'pt', 'nl'] as Language[]).map(l => (
+            <button key={l} onClick={() => changeLang(l)} className="w-full px-4 py-2 text-left text-sm hover:bg-white/5">{langLabels[l]}</button>
+          ))}
         </div>
-
-        <div className="flex items-center gap-3">
-          {/* Language */}
-          <div className="relative">
-            <button onClick={() => setLangMenuOpen(!langMenuOpen)} className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full hover:bg-white/5`}>
-              {langLabels[language]} ▼
-            </button>
-            {langMenuOpen && (
-              <div className={`absolute top-full right-0 mt-2 ${theme.card} border ${theme.cardBorder} rounded-lg shadow-xl z-50`}>
-                {(['en', 'pt', 'nl'] as Language[]).map(l => (
-                  <button key={l} onClick={() => changeLang(l)} className="w-full px-4 py-2 text-left text-sm hover:bg-white/5">{langLabels[l]}</button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Theme Toggle */}
-          <button onClick={toggleTheme} className={`p-2 rounded-full hover:bg-white/5 border ${theme.cardBorder}`}>
-            {darkMode ? (
-              <Icon name="Dashboard_sun_light_mode" className="w-5 h-5" />
-            ) : (
-              <Icon name="Dashboard_moon_dark_mode" className="w-5 h-5" />
-            )}
-          </button>
-
-          {/* Back to Dashboard */}
-          <Link href="/dashboard" className={`px-4 py-2 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full hover:bg-white/5`}>
-            ← {t.backToDashboard}
-          </Link>
-        </div>
-      </header>
+      )}
+    </div>
+    <button onClick={toggleTheme} className={`p-2 rounded-full hover:bg-white/5 border ${theme.cardBorder}`}>
+      {darkMode ? <Icon name="Dashboard_sun_light_mode" className="w-5 h-5" /> : <Icon name="Dashboard_moon_dark_mode" className="w-5 h-5" />}
+    </button>
+    <Link href={`/dashboard?session=${session}`} className={`px-4 py-2 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full hover:bg-white/5`}>
+      ← {t.backToDashboard}
+    </Link>
+  </div>
+</header>
 
       <div className="max-w-7xl mx-auto p-6">
         {/* Page Title */}
