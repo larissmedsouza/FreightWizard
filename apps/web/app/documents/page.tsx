@@ -408,8 +408,8 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
       </header>
 
       <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-8 flex items-center gap-3">
-          <Icon name="Dashboard_documents" className="w-8 h-8" style={theme.iconFilter} />
+        <div className="mb-8 flex items-start gap-3">
+  <Icon name="Dashboard_documents" className="w-8 h-8 mt-1" style={theme.iconFilter} />
           <div>
             <h1 className="text-3xl font-bold">Document Intelligence</h1>
             <p className={theme.textMuted}>Upload shipping documents for AI-powered analysis, risk detection and report generation</p>
@@ -603,7 +603,7 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
 
                 {/* Risks Banner */}
                 {displayAnalysis.risks?.length > 0 && (
-                  <div className={`mx-6 mt-4 p-4 ${darkMode ? 'bg-red-500/10' : 'bg-red-50'} border border-red-500/20 rounded-xl`}>
+                  <div className={`mx-6 mt-4 p-4 ${darkMode ? 'bg-red-500/10' : 'bg-red-100'} border ${darkMode ? 'border-red-500/20' : 'border-red-300'} rounded-xl`}>
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-red-400 font-semibold text-sm flex items-center gap-2">
                         <Icon name="Dashboard_documents_risk_detected" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} />
@@ -616,7 +616,7 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                     </div>
                     <ul className="space-y-1">
                       {displayAnalysis.risks.map((risk, i) => (
-                        <li key={i} className={`text-xs ${theme.textMuted} flex items-start gap-2`}>
+                        <li key={i} className={`text-xs ${darkMode ? 'text-gray-400' : 'text-red-700'} flex items-start gap-2`}>
                           <span className="text-red-400 mt-0.5">•</span> {risk}
                         </li>
                       ))}
@@ -626,14 +626,14 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
 
                 {/* Missing Info */}
                 {displayAnalysis.missing_information?.length > 0 && (
-                  <div className={`mx-6 mt-3 p-4 ${darkMode ? 'bg-yellow-500/10' : 'bg-yellow-50'} border border-yellow-500/20 rounded-xl`}>
+                  <div className={`mx-6 mt-3 p-4 ${darkMode ? 'bg-yellow-500/10' : 'bg-yellow-100'} border ${darkMode ? 'border-yellow-500/20' : 'border-yellow-400'} rounded-xl`}>
                     <h3 className="text-yellow-400 font-semibold text-sm mb-2 flex items-center gap-2">
                       <Icon name="Dashboard_documents_missing_information" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(80%) sepia(60%) saturate(800%) hue-rotate(5deg)' }} />
                       Missing Information
                     </h3>
                     <div className="flex flex-wrap gap-2">
                       {displayAnalysis.missing_information.map((item, i) => (
-                        <span key={i} className="text-xs px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-full">{item}</span>
+                        <span key={i} className={`text-xs px-2 py-1 rounded-full ${darkMode ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-200 text-yellow-800'}`}>{item}</span>
                       ))}
                     </div>
                   </div>
