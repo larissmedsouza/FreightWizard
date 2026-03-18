@@ -384,6 +384,9 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
           <Link href={`/dashboard?session=${session}`} className={`px-4 py-2 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover}`}>
             ← Dashboard
           </Link>
+          <Link href={`/documents/compare?session=${session}`} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
+  🔍 Compare Docs
+</Link>
         </div>
       </header>
 
