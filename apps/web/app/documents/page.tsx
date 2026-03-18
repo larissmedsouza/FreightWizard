@@ -284,17 +284,17 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
     return 'bg-red-500';
   };
 
-const getDocTypeIcon = (type: string) => {
-  const map: Record<string, string> = {
-    'HBL': 'Dashboard_documents_HBL',
-    'MBL': 'Dashboard_documents_MBL',
-    'AWB': 'Dashboard_documents_AWB',
-    'Invoice': 'Dashboard_documents_invoice',
-    'Packing List': 'Dashboard_documents_packing_list',
-    'Other': 'Dashboard_documents_other',
+  const getDocTypeIcon = (type: string) => {
+    const map: Record<string, string> = {
+      'HBL': 'Dashboard_documents_HBL',
+      'MBL': 'Dashboard_documents_MBL',
+      'AWB': 'Dashboard_documents_other',
+      'Invoice': 'Dashboard_documents_other',
+      'Packing List': 'Dashboard_documents_other',
+      'Other': 'Dashboard_documents_other',
+    };
+    return map[type] || 'Dashboard_documents_other';
   };
-  return map[type] || 'Dashboard_documents_other';
-};
 
   const getModeIconName = (mode: string) => {
     const map: Record<string, string> = {
@@ -829,9 +829,9 @@ const getDocTypeIcon = (type: string) => {
                     {[
                       { label: 'MBL', icon: 'Dashboard_documents_MBL' },
                       { label: 'HBL', icon: 'Dashboard_documents_HBL' },
-                      { label: 'AWB', icon: 'Dashboard_documents_other' },
-                      { label: 'Invoice', icon: 'Dashboard_documents_other' },
-                      { label: 'Packing List', icon: 'Dashboard_documents_other' },
+                      { label: 'AWB', icon: 'Dashboard_documents_AWB' },
+{ label: 'Invoice', icon: 'Dashboard_documents_invoice' },
+{ label: 'Packing List', icon: 'Dashboard_documents_packing_list' },
                     ].map(type => (
                       <span key={type.label} className={`text-xs px-3 py-1.5 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-full ${theme.textMuted} flex items-center gap-1.5`}>
                         <Icon name={type.icon} className="w-3 h-3" style={theme.iconFilter} />
