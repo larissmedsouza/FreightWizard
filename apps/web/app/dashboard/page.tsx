@@ -128,7 +128,7 @@ const SYSTEM_FOLDERS: FolderDef[] = [
   { key: 'road', label: 'Road', icon: 'Dashboard_road', group: 'transport', color: 'text-yellow-400' },
   { key: 'rail', label: 'Rail', icon: 'Dashboard_rail', group: 'transport', color: 'text-purple-400' },
   { key: 'quote_request', label: 'Quote Requests', icon: 'Dashboard_quotation', group: 'intent', color: 'text-yellow-400' },
-  { key: 'booking_confirmation', label: 'Bookings', icon: 'Dashboard_analyrtics_AI Insights', group: 'intent', color: 'text-green-400' },
+  { key: 'booking_confirmation', label: 'Bookings', icon: 'Dashboard_booking', group: 'intent', color: 'text-green-400' },
   { key: 'tracking_inquiry', label: 'Tracking', icon: 'Dashboard_tracking', group: 'intent', color: 'text-blue-400' },
   { key: 'documentation_request', label: 'Documents', icon: 'Dashboard_documents', group: 'intent', color: 'text-purple-400' },
 ];
@@ -760,7 +760,7 @@ export default function DashboardPage() {
                               style={getFolderIconStyle(folder, isActive)} />
                             {!isNarrow && (
                               <>
-                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : theme.textMuted} ${folder.color || ''}`}>
+                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : ''} ${folder.color ? folder.color : (darkMode ? 'text-white' : theme.textMuted)}`}>
                                   {folder.label}
                                 </span>
                                 {count > 0 && (
