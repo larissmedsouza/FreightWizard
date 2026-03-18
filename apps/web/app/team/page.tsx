@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 
 const API_URL = 'https://freightwizard-production.up.railway.app';
 
@@ -50,14 +49,26 @@ interface TeamProfile {
   teams: { name: string; invite_code: string } | null;
 }
 
+type Language = 'en' | 'pt' | 'nl';
+
+const NAV_ITEMS = [
+  { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_analytics_total email' },
+  { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
+  { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
+  { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
+];
+
 export default function TeamPage() {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const [session, setSession] = useState<string | null>(null);
   const [data, setData] = useState<LeaderboardData | null>(null);
   const [profile, setProfile] = useState<TeamProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Member | null>(null);
   const [darkMode, setDarkMode] = useState(true);
+  const [language, setLanguage] = useState<Language>('en');
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [setupMode, setSetupMode] = useState<'create' | 'join' | null>(null);
@@ -66,8 +77,6 @@ export default function TeamPage() {
   const [setupLoading, setSetupLoading] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
-  const pathname = usePathname();
-  const [language, setLanguage] = useState<'en'|'pt'|'nl'>('en');
 
   const theme = darkMode ? {
     bg: 'bg-[#050510]',
@@ -98,7 +107,9 @@ export default function TeamPage() {
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('fw_theme');
+    const savedLang = localStorage.getItem('fw_lang') as Language;
     if (savedTheme) setDarkMode(savedTheme === 'dark');
+    if (savedLang) setLanguage(savedLang);
     const sid = searchParams.get('session') || localStorage.getItem('fw_session');
     if (sid) {
       setSession(sid);
@@ -106,8 +117,6 @@ export default function TeamPage() {
     } else {
       setLoading(false);
     }
-    const savedLang = localStorage.getItem('fw_lang') as 'en'|'pt'|'nl';
-    if (savedLang) setLanguage(savedLang);
   }, [searchParams]);
 
   const loadAll = async (sid: string, skipProfile = false) => {
@@ -193,25 +202,22 @@ export default function TeamPage() {
     }
   };
 
-  const getMedalIcon = (index: number) => {
-    if (index === 0) return 'Dashboard_team_medal';
-    if (index === 1) return 'Dashboard_team_medal';
-    if (index === 2) return 'Dashboard_team_medal';
-    return 'Dashboard_team_ranking';
-  };
-
-  const getMedalColor = (index: number) => {
-    if (index === 0) return '#FFD700';
-    if (index === 1) return '#C0C0C0';
-    if (index === 2) return '#CD7F32';
-    return undefined;
-  };
-
   const getMedalBg = (index: number) => {
     if (index === 0) return 'border-yellow-400/30 bg-yellow-400/5';
     if (index === 1) return 'border-gray-300/30 bg-gray-300/5';
     if (index === 2) return 'border-orange-400/30 bg-orange-400/5';
     return `${theme.card} ${theme.cardBorder}`;
+  };
+
+  const toggleTheme = () => {
+    setDarkMode(!darkMode);
+    localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light');
+  };
+
+  const changeLang = (l: Language) => {
+    setLanguage(l);
+    localStorage.setItem('fw_lang', l);
+    setLangMenuOpen(false);
   };
 
   if (loading) return (
@@ -222,58 +228,72 @@ export default function TeamPage() {
 
   return (
     <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors`}>
-      {/* Notification */}
       {notification && (
         <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-xl text-white ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
           {notification.msg}
         </div>
       )}
 
+      {/* Header */}
       <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-3 flex items-center justify-between sticky top-0 z-40`}>
-  <Link href={`/dashboard?session=${session}`} className="flex items-center gap-2 flex-shrink-0">
-    <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
-    <span className="text-base font-bold">FreightWizard</span>
-  </Link>
+        {/* Logo */}
+        <Link href={`/dashboard?session=${session}`} className="flex items-center gap-2 flex-shrink-0">
+          <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
+          <span className="text-base font-bold">FreightWizard</span>
+        </Link>
 
-  <nav className="flex items-center gap-1 mx-4">
-    {[
-      { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_analytics_total email' },
-      { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
-      { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
-      { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
-    ].map(item => (
-      <Link key={item.href} href={`${item.href}?session=${session}`}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${
-          pathname?.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')
-            ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40'
-            : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`
-        }`}>
-        <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
-        {item.label[language]}
-      </Link>
-    ))}
-  </nav>
+        {/* Right: Nav + Controls */}
+        <div className="flex items-center gap-2">
+          {NAV_ITEMS.map(item => (
+            <Link key={item.href} href={`${item.href}?session=${session}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${
+                pathname?.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')
+                  ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40'
+                  : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`
+              }`}>
+              <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
+              {item.label[language]}
+            </Link>
+          ))}
 
-  <div className="flex items-center gap-2 flex-shrink-0">
-    {profile?.teams && profile.role === 'manager' && (
-      <button onClick={() => setShowInviteModal(true)}
-        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
-        <Icon name="Dashboard_team_crown" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
-        Invite Members
-      </button>
-    )}
-    <div className="relative">
-      <button onClick={() => { const langs: ('en'|'pt'|'nl')[] = ['en','pt','nl']; const next = langs[(langs.indexOf(language)+1)%3]; setLanguage(next); localStorage.setItem('fw_lang', next); }}
-        className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover}`}>
-        {language.toUpperCase()}
-      </button>
-    </div>
-    <button onClick={() => { setDarkMode(!darkMode); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); }}
-      className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
-      {darkMode ? <Icon name="Dashboard_team_sun_light_mode" className="w-5 h-5" /> : <Icon name="Dashboard_team_moon_dark_mode" className="w-5 h-5" />}
-    </button>
-  </div>
-</header>
+          <div className={`w-px h-5 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
+
+          {/* Invite button for managers */}
+          {profile?.teams && profile.role === 'manager' && (
+            <button onClick={() => setShowInviteModal(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
+              <Icon name="Dashboard_team_crown" className="w-3.5 h-3.5" style={{ filter: 'brightness(0) invert(1)' }} />
+              Invite
+            </button>
+          )}
+
+          {/* Language */}
+          <div className="relative">
+            <button onClick={() => setLangMenuOpen(!langMenuOpen)}
+              className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover} flex items-center gap-1`}>
+              {language.toUpperCase()} <span className="text-xs">▼</span>
+            </button>
+            {langMenuOpen && (
+              <div className={`absolute top-full right-0 mt-2 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-xl z-50 overflow-hidden`}>
+                {(['en', 'pt', 'nl'] as Language[]).map(l => (
+                  <button key={l} onClick={() => changeLang(l)}
+                    className={`w-full px-4 py-2 text-left text-sm ${theme.hover} ${language === l ? 'text-[#9E14FB] font-medium' : theme.textMuted}`}>
+                    {l.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Theme */}
+          <button onClick={toggleTheme} className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
+            {darkMode
+              ? <Icon name="Dashboard_team_sun_light_mode" className="w-4 h-4" style={theme.iconFilter} />
+              : <Icon name="Dashboard_team_moon_dark_mode" className="w-4 h-4" style={theme.iconFilter} />
+            }
+          </button>
+        </div>
+      </header>
 
       <div className="max-w-7xl mx-auto p-6">
 
@@ -290,10 +310,8 @@ export default function TeamPage() {
                 <span className="text-3xl font-mono font-bold bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] bg-clip-text text-transparent flex-1">
                   {profile?.teams?.invite_code}
                 </span>
-                <button
-                  onClick={copyInviteCode}
-                  className="px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-lg text-white text-sm font-medium"
-                >
+                <button onClick={copyInviteCode}
+                  className="px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-lg text-white text-sm font-medium">
                   {copiedCode ? '✓ Copied!' : 'Copy'}
                 </button>
               </div>
@@ -308,14 +326,15 @@ export default function TeamPage() {
             <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-8 max-w-md w-full shadow-2xl`}>
               <h2 className="text-2xl font-bold mb-2">Join or Create a Team</h2>
               <p className={`${theme.textMuted} mb-6 text-sm`}>Connect with your colleagues to see the leaderboard.</p>
-
               {!setupMode ? (
                 <div className="flex flex-col gap-3">
-                  <button onClick={() => setSetupMode('create')} className="w-full py-4 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white flex items-center justify-center gap-2">
+                  <button onClick={() => setSetupMode('create')}
+                    className="w-full py-4 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white flex items-center justify-center gap-2">
                     <Icon name="Dashboard_team_crown" className="w-5 h-5" style={{ filter: 'brightness(0) invert(1)' }} />
                     Create a Team (Manager)
                   </button>
-                  <button onClick={() => setSetupMode('join')} className={`w-full py-4 border ${theme.cardBorder} rounded-xl font-medium ${theme.hover} flex items-center justify-center gap-2`}>
+                  <button onClick={() => setSetupMode('join')}
+                    className={`w-full py-4 border ${theme.cardBorder} rounded-xl font-medium ${theme.hover} flex items-center justify-center gap-2`}>
                     <Icon name="Dashboard_team_employee" className="w-5 h-5" style={theme.iconFilter} />
                     Join with Invite Code
                   </button>
@@ -324,12 +343,9 @@ export default function TeamPage() {
                 <div>
                   <button onClick={() => setSetupMode(null)} className={`text-sm ${theme.textMuted} mb-4 flex items-center gap-1`}>← Back</button>
                   <label className={`text-sm ${theme.textMuted} mb-2 block`}>Team Name</label>
-                  <input
-                    value={teamName}
-                    onChange={e => setTeamName(e.target.value)}
+                  <input value={teamName} onChange={e => setTeamName(e.target.value)}
                     placeholder="e.g. Rotterdam Freight Team"
-                    className={`w-full px-4 py-3 rounded-xl border ${theme.input} mb-4 focus:outline-none focus:border-[#5200FF]`}
-                  />
+                    className={`w-full px-4 py-3 rounded-xl border ${theme.input} mb-4 focus:outline-none focus:border-[#5200FF]`} />
                   <button onClick={createTeam} disabled={setupLoading || !teamName.trim()}
                     className="w-full py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white disabled:opacity-50">
                     {setupLoading ? 'Creating...' : 'Create Team'}
@@ -339,12 +355,9 @@ export default function TeamPage() {
                 <div>
                   <button onClick={() => setSetupMode(null)} className={`text-sm ${theme.textMuted} mb-4 flex items-center gap-1`}>← Back</button>
                   <label className={`text-sm ${theme.textMuted} mb-2 block`}>Invite Code</label>
-                  <input
-                    value={inviteCode}
-                    onChange={e => setInviteCode(e.target.value.toUpperCase())}
+                  <input value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())}
                     placeholder="e.g. FW-X7K2"
-                    className={`w-full px-4 py-3 rounded-xl border ${theme.input} mb-4 focus:outline-none focus:border-[#5200FF] font-mono`}
-                  />
+                    className={`w-full px-4 py-3 rounded-xl border ${theme.input} mb-4 focus:outline-none focus:border-[#5200FF] font-mono`} />
                   <button onClick={joinTeam} disabled={setupLoading || !inviteCode.trim()}
                     className="w-full py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white disabled:opacity-50">
                     {setupLoading ? 'Joining...' : 'Join Team'}
@@ -361,7 +374,8 @@ export default function TeamPage() {
             <div>
               <h1 className="text-3xl font-bold">{profile.teams.name}</h1>
               <p className={`${theme.textMuted} text-sm mt-1`}>
-                {data?.leaderboard.length || 0} members • {profile.role === 'manager' ? (
+                {data?.leaderboard.length || 0} members •{' '}
+                {profile.role === 'manager' ? (
                   <span className="inline-flex items-center gap-1">
                     <Icon name="Dashboard_team_crown" className="w-3 h-3" style={theme.iconFilter} /> Manager
                   </span>
@@ -397,28 +411,22 @@ export default function TeamPage() {
                 Rankings
               </h2>
               {data.leaderboard.map((member, index) => (
-                <div
-                  key={member.id}
-                  onClick={() => setSelected(member)}
+                <div key={member.id} onClick={() => setSelected(member)}
                   className={`p-4 rounded-2xl border cursor-pointer transition-all ${
                     selected?.id === member.id
                       ? 'border-[#5200FF]/50 bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10'
                       : `${getMedalBg(index)} ${theme.hover}`
-                  } ${member.id === data.currentUserId ? 'ring-1 ring-[#5200FF]/30' : ''}`}
-                >
+                  } ${member.id === data.currentUserId ? 'ring-1 ring-[#5200FF]/30' : ''}`}>
                   <div className="flex items-center gap-3">
                     <div className="w-8 flex items-center justify-center">
                       {index < 3 ? (
-                        <Icon
-                          name="Dashboard_team_medal"
-                          className="w-7 h-7"
+                        <Icon name="Dashboard_team_medal" className="w-7 h-7"
                           style={{ filter: index === 0
                             ? 'brightness(0) saturate(100%) invert(83%) sepia(61%) saturate(1000%) hue-rotate(0deg) brightness(103%) contrast(101%)'
                             : index === 1
                             ? 'brightness(0) saturate(100%) invert(80%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(90%)'
                             : 'brightness(0) saturate(100%) invert(60%) sepia(40%) saturate(800%) hue-rotate(0deg) brightness(90%)'
-                          }}
-                        />
+                          }} />
                       ) : (
                         <span className={`text-sm font-bold ${theme.textDim}`}>#{index + 1}</span>
                       )}
@@ -427,9 +435,7 @@ export default function TeamPage() {
                       <div className="flex items-center gap-2">
                         <p className="font-medium truncate">{member.name}</p>
                         {member.id === data.currentUserId && <span className="text-xs px-2 py-0.5 bg-[#5200FF]/20 text-[#9E14FB] rounded-full">You</span>}
-                        {member.role === 'manager' && (
-                          <Icon name="Dashboard_team_crown" className="w-3 h-3" style={theme.iconFilter} />
-                        )}
+                        {member.role === 'manager' && <Icon name="Dashboard_team_crown" className="w-3 h-3" style={theme.iconFilter} />}
                       </div>
                       <p className={`text-xs ${theme.textDim} truncate`}>{member.email}</p>
                     </div>
@@ -438,7 +444,6 @@ export default function TeamPage() {
                       <p className={`text-xs ${theme.textDim}`}>analyzed</p>
                     </div>
                   </div>
-
                   <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                     <div>
                       <p className="text-sm font-medium">{member.stats.replyRate}%</p>
@@ -507,7 +512,7 @@ export default function TeamPage() {
                       ].map(({ mode, icon, color }) => (
                         <div key={mode} className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-3 text-center`}>
                           <div className="w-8 h-8 mx-auto mb-2">
-                            <Icon name={icon} className="w-full h-full" style={{ filter: darkMode ? 'brightness(0) invert(1)' : `brightness(0) saturate(100%) invert(19%) sepia(96%) saturate(5765%) hue-rotate(268deg) brightness(102%) contrast(101%)` }} />
+                            <Icon name={icon} className="w-full h-full" style={theme.iconFilter} />
                           </div>
                           <p className="text-lg font-bold" style={{ color }}>
                             {selected.stats.modeBreakdown[mode as keyof typeof selected.stats.modeBreakdown] || 0}
@@ -524,7 +529,7 @@ export default function TeamPage() {
                     <div className="flex gap-4">
                       <div className="flex-1">
                         <div className="flex justify-between text-sm mb-1">
-                          <span className="flex items-center gap-1">🟢 Import</span>
+                          <span>🟢 Import</span>
                           <span>{selected.stats.importExport.import}</span>
                         </div>
                         <div className={`h-3 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-full overflow-hidden`}>
@@ -534,7 +539,7 @@ export default function TeamPage() {
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between text-sm mb-1">
-                          <span className="flex items-center gap-1">🔵 Export</span>
+                          <span>🔵 Export</span>
                           <span>{selected.stats.importExport.export}</span>
                         </div>
                         <div className={`h-3 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-full overflow-hidden`}>
