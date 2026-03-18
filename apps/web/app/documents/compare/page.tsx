@@ -82,14 +82,36 @@ export default function ComparePage() {
   }, [searchParams]);
 
   const handleFile = (file: File, docNum: 1 | 2) => {
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  const setName = docNum === 1 ? setDoc1Name : setDoc2Name;
+  const setText = docNum === 1 ? setDoc1Text : setDoc2Text;
+
+  setName(file.name);
+
+  if (['pdf', 'jpg', 'jpeg', 'png'].includes(ext || '')) {
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = e.target?.result as string;
-      if (docNum === 1) { setDoc1Text(text); setDoc1Name(file.name); }
-      else { setDoc2Text(text); setDoc2Name(file.name); }
+      const base64 = (e.target?.result as string).split(',')[1];
+      notify('success', '⏳ Extracting text from file...');
+      fetch(`${API_URL}/api/extract-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64, mimeType: file.type, fileName: file.name, sessionId: session }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.text) { setText(data.text); notify('success', '✅ Text extracted!'); }
+          else notify('error', 'Could not extract text from file');
+        })
+        .catch(() => notify('error', 'Failed to process file'));
     };
+    reader.readAsDataURL(file);
+  } else {
+    const reader = new FileReader();
+    reader.onload = (e) => setText(e.target?.result as string);
     reader.readAsText(file);
-  };
+  }
+};
 
   const compare = async () => {
     if (!doc1Text.trim() || !doc2Text.trim() || !session) return;
@@ -304,7 +326,7 @@ ${result.summary}`;
               >
                 📁 Or upload file
               </button>
-              <input ref={ref} type="file" accept=".txt,.csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0], num as 1 | 2)} />
+              <input ref={ref} type="file" accept=".txt,.csv,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0], num as 1 | 2)} />
             </div>
           ))}
         </div>

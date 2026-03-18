@@ -142,16 +142,33 @@ export default function DocumentsPage() {
     } catch (e) { console.error(e); }
   };
 
-  const handleFileUpload = async (file: File) => {
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      setPastedText(text);
-    };
-    reader.readAsText(file);
-  };
+const handleFileUpload = async (file: File) => {
+  setFileName(file.name);
+  const ext = file.name.split('.').pop()?.toLowerCase();
 
+  if (['pdf', 'jpg', 'jpeg', 'png'].includes(ext || '')) {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64 = (e.target?.result as string).split(',')[1];
+      notify('success', '⏳ Extracting text from file...');
+      try {
+        const res = await fetch(`${API_URL}/api/extract-text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64, mimeType: file.type, fileName: file.name, sessionId: session }),
+        });
+        const data = await res.json();
+        if (data.text) { setPastedText(data.text); notify('success', '✅ Text extracted!'); }
+        else notify('error', 'Could not extract text from file');
+      } catch { notify('error', 'Failed to process file'); }
+    };
+    reader.readAsDataURL(file);
+  } else {
+    const reader = new FileReader();
+    reader.onload = (e) => setPastedText(e.target?.result as string);
+    reader.readAsText(file);
+  }
+};
   const analyzeDocument = async () => {
     if (!pastedText.trim() || !session) return;
     setLoading(true);
@@ -449,7 +466,7 @@ Export License: ${doc.compliance?.export_license || 'N/A'}`;
                   <input
                     ref={fileRef}
                     type="file"
-                    accept=".txt,.csv"
+                    accept=".txt,.csv,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
                     className="hidden"
                     onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
                   />

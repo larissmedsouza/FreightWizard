@@ -1292,6 +1292,41 @@ For severity:
 });
 
 // ============================================
+// TEXT EXTRACTION FROM FILES
+// ============================================
+app.post('/api/extract-text', async (req, res) => {
+  const { base64, mimeType, fileName, sessionId } = req.body;
+  const session = await getSession(sessionId);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: mimeType as any, data: base64 },
+          },
+          {
+            type: 'text',
+            text: 'Extract ALL text from this document image exactly as it appears. Preserve the structure, labels, values and layout as much as possible. Output only the extracted text, no commentary.',
+          }
+        ],
+      }]
+    });
+
+    const text = message.content[0].type === 'text' ? message.content[0].text : '';
+    res.json({ text });
+  } catch (error) {
+    console.error('Extract text error:', error);
+    res.status(500).json({ error: 'Failed to extract text' });
+  }
+});
+
+// ============================================
 // START SERVER
 // ============================================
 const PORT = 3001;
