@@ -496,7 +496,7 @@ app.get('/api/emails', async (req, res) => {
 
 // Analyze email with AI
 app.post('/api/analyze', async (req, res) => {
-  const { subject, body, from, emailId, sessionId, source, userEmail } = req.body;
+  const { subject, body, from, emailId, sessionId, source, userEmail, language } = req.body;
 
   try {
     const message = await anthropic.messages.create({
@@ -505,6 +505,7 @@ app.post('/api/analyze', async (req, res) => {
       messages: [{
         role: 'user',
         content: `You are FreightWizard AI, an expert freight forwarding email analyst.
+IMPORTANT: Respond with summary and suggested_reply in ${language === 'pt' ? 'Brazilian Portuguese' : language === 'nl' ? 'Dutch' : 'English'}. Keep intent, priority, mode, pol, pod values in English always.
         
 Analyze this freight email and extract:
 1. Intent: quote_request, booking_confirmation, tracking_inquiry, documentation_request, rate_inquiry, status_update, complaint, general_inquiry

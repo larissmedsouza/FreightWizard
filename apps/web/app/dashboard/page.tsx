@@ -275,7 +275,7 @@ export default function DashboardPage() {
     try {
       const res = await fetch(`${API_URL}/api/analyze`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: email.subject, body: email.body || email.snippet, from: email.from, emailId: email.id, sessionId: session })
+        body: JSON.stringify({ subject: email.subject, body: email.body || email.snippet, from: email.from, emailId: email.id, sessionId: session, language })
       });
       const data = await res.json();
       if (data.analysis) {
