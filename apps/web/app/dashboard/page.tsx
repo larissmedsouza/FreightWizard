@@ -30,6 +30,43 @@ interface CustomLabel {
   isFolder?: boolean;
 }
 
+interface Note {
+  id: string;
+  emailId: string;
+  text: string;
+  author: string;
+  createdAt: string;
+}
+
+interface ThreadEvent {
+  type: 'received' | 'analyzed' | 'replied' | 'note' | 'status' | 'assigned';
+  label: string;
+  time: string;
+  icon: string;
+}
+
+type WorkflowStatus = 'new' | 'quoted' | 'booked' | 'pending_docs' | 'waiting_customer' | 'closed';
+type Language = 'en' | 'pt' | 'nl';
+type FolderKey = 'all' | 'urgent' | 'high' | 'medium' | 'low' | 'replied' | 'draft_saved' | 'not_replied' | 'ocean' | 'air' | 'road' | 'rail' | 'quote_request' | 'booking_confirmation' | 'tracking_inquiry' | 'documentation_request' | 'trash' | string;
+
+interface FolderDef {
+  key: FolderKey;
+  label: string;
+  icon: string;
+  iconStyle?: React.CSSProperties;
+  group: string;
+  color?: string;
+}
+
+const WORKFLOW_STATUSES: { key: WorkflowStatus; label: string; color: string; bg: string }[] = [
+  { key: 'new', label: 'New', color: 'text-blue-400', bg: 'bg-blue-500/20' },
+  { key: 'quoted', label: 'Quoted', color: 'text-yellow-400', bg: 'bg-yellow-500/20' },
+  { key: 'booked', label: 'Booked', color: 'text-green-400', bg: 'bg-green-500/20' },
+  { key: 'pending_docs', label: 'Pending Docs', color: 'text-orange-400', bg: 'bg-orange-500/20' },
+  { key: 'waiting_customer', label: 'Waiting Customer', color: 'text-purple-400', bg: 'bg-purple-500/20' },
+  { key: 'closed', label: 'Closed', color: 'text-gray-400', bg: 'bg-gray-500/20' },
+];
+
 const LABEL_COLORS = [
   { name: 'Purple', value: 'text-purple-400', bg: 'bg-purple-500/20' },
   { name: 'Blue', value: 'text-blue-400', bg: 'bg-blue-500/20' },
@@ -88,18 +125,6 @@ const translations = {
   },
 };
 
-type Language = 'en' | 'pt' | 'nl';
-type FolderKey = 'all' | 'urgent' | 'high' | 'medium' | 'low' | 'replied' | 'draft_saved' | 'not_replied' | 'ocean' | 'air' | 'road' | 'rail' | 'quote_request' | 'booking_confirmation' | 'tracking_inquiry' | 'documentation_request' | 'trash' | string;
-
-interface FolderDef {
-  key: FolderKey;
-  label: string;
-  icon: string;
-  iconStyle?: React.CSSProperties;
-  group: string;
-  color?: string;
-}
-
 const NAV_ITEMS = [
   { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_inbox' },
   { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
@@ -131,6 +156,15 @@ const SYSTEM_FOLDERS: FolderDef[] = [
   { key: 'booking_confirmation', label: 'Bookings', icon: 'Dashboard_booking', group: 'intent' },
   { key: 'tracking_inquiry', label: 'Tracking', icon: 'Dashboard_tracking', group: 'intent' },
   { key: 'documentation_request', label: 'Documents', icon: 'Dashboard_documents', group: 'intent' },
+];
+
+// AI Quick Actions
+const AI_ACTIONS = [
+  { key: 'summarize', label: 'Summarize Thread', icon: '📋', prompt: (email: Email) => `Summarize this freight email thread in 3 bullet points: Subject: ${email.subject}\n\n${email.body || email.snippet}` },
+  { key: 'follow_up', label: 'Generate Follow-up', icon: '🔁', prompt: (email: Email) => `Write a professional follow-up email for this freight inquiry. Keep it short and friendly.\n\nOriginal: Subject: ${email.subject}\nFrom: ${email.from}\n${email.snippet}` },
+  { key: 'missing_quote', label: 'Ask for Missing Quote Info', icon: '❓', prompt: (email: Email) => `Write a professional email asking for the missing information needed to provide a freight quote. Based on: Subject: ${email.subject}\n${email.body || email.snippet}\n\nAsk for: cargo type, weight, dimensions, incoterm, port of loading, port of discharge, and target date.` },
+  { key: 'tracking_reply', label: 'Create Tracking Reply', icon: '📍', prompt: (email: Email) => `Write a professional reply to this tracking inquiry. Acknowledge the request and explain what information you'll need to check status.\n\nEmail: Subject: ${email.subject}\n${email.body || email.snippet}` },
+  { key: 'booking_confirm', label: 'Draft Booking Confirmation', icon: '✅', prompt: (email: Email) => `Draft a professional booking confirmation email based on this freight booking request:\n\nSubject: ${email.subject}\nFrom: ${email.from}\n${email.body || email.snippet}` },
 ];
 
 export default function DashboardPage() {
@@ -171,6 +205,15 @@ export default function DashboardPage() {
   const [emailListWidth, setEmailListWidth] = useState(300);
   const sidebarResizing = useRef(false);
   const listResizing = useRef(false);
+
+  // New feature states
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [newNote, setNewNote] = useState('');
+  const [workflowStatuses, setWorkflowStatuses] = useState<Record<string, WorkflowStatus>>({});
+  const [assignments, setAssignments] = useState<Record<string, string>>({});
+  const [activeDetailTab, setActiveDetailTab] = useState<'analysis' | 'timeline' | 'notes' | 'actions'>('analysis');
+  const [aiActionLoading, setAiActionLoading] = useState<string | null>(null);
+  const [aiActionResult, setAiActionResult] = useState<string | null>(null);
 
   const t = translations[language];
 
@@ -239,11 +282,17 @@ export default function DashboardPage() {
     const savedLabels = localStorage.getItem('fw_custom_labels');
     const savedManual = localStorage.getItem('fw_manual_folders');
     const savedTrash = localStorage.getItem('fw_trash');
+    const savedNotes = localStorage.getItem('fw_notes');
+    const savedStatuses = localStorage.getItem('fw_workflow_statuses');
+    const savedAssignments = localStorage.getItem('fw_assignments');
     if (savedTheme) setDarkMode(savedTheme === 'dark');
     if (savedLang) setLanguage(savedLang);
     if (savedLabels) try { setCustomLabels(JSON.parse(savedLabels)); } catch {}
     if (savedManual) try { setManualFolders(JSON.parse(savedManual)); } catch {}
     if (savedTrash) try { setTrashedEmails(new Set(JSON.parse(savedTrash))); } catch {}
+    if (savedNotes) try { setNotes(JSON.parse(savedNotes)); } catch {}
+    if (savedStatuses) try { setWorkflowStatuses(JSON.parse(savedStatuses)); } catch {}
+    if (savedAssignments) try { setAssignments(JSON.parse(savedAssignments)); } catch {}
     const sid = searchParams.get('session') || localStorage.getItem('fw_session');
     if (sid) { localStorage.setItem('fw_session', sid); setSession(sid); checkAuth(sid); }
     else setLoading(false);
@@ -252,6 +301,12 @@ export default function DashboardPage() {
   useEffect(() => { localStorage.setItem('fw_custom_labels', JSON.stringify(customLabels)); }, [customLabels]);
   useEffect(() => { localStorage.setItem('fw_manual_folders', JSON.stringify(manualFolders)); }, [manualFolders]);
   useEffect(() => { localStorage.setItem('fw_trash', JSON.stringify(Array.from(trashedEmails))); }, [trashedEmails]);
+  useEffect(() => { localStorage.setItem('fw_notes', JSON.stringify(notes)); }, [notes]);
+  useEffect(() => { localStorage.setItem('fw_workflow_statuses', JSON.stringify(workflowStatuses)); }, [workflowStatuses]);
+  useEffect(() => { localStorage.setItem('fw_assignments', JSON.stringify(assignments)); }, [assignments]);
+
+  // Reset detail tab when switching emails
+  useEffect(() => { setActiveDetailTab('analysis'); setAiActionResult(null); }, [selected?.id]);
 
   const checkAuth = async (sid: string) => {
     try {
@@ -283,6 +338,8 @@ export default function DashboardPage() {
         const updated = { ...email, analysis: data.analysis, isAnalyzing: false };
         setEmails(prev => prev.map(e => e.id === email.id ? updated : e));
         if (selected?.id === email.id) setSelected(updated);
+        // Auto-add timeline event
+        addTimelineEvent(email.id, 'analyzed', 'AI Analysis completed');
       }
     } catch (e) { console.error(e); }
     setEmails(prev => prev.map(e => e.id === email.id ? { ...e, isAnalyzing: false } : e));
@@ -300,6 +357,111 @@ export default function DashboardPage() {
     setAnalyzing(false); notify('success', `Analyzed ${toAnalyze.length} emails!`);
   };
 
+  // Thread timeline events (stored in notes with type prefix)
+  const addTimelineEvent = (emailId: string, type: string, label: string) => {
+    const event: Note = {
+      id: `evt_${Date.now()}`,
+      emailId,
+      text: `__event__:${type}:${label}`,
+      author: user?.name || 'System',
+      createdAt: new Date().toISOString(),
+    };
+    setNotes(prev => [...prev, event]);
+  };
+
+  const getThreadTimeline = (emailId: string): ThreadEvent[] => {
+    const emailNotes = notes.filter(n => n.emailId === emailId && n.text.startsWith('__event__:'));
+    const email = emails.find(e => e.id === emailId);
+    const events: ThreadEvent[] = [];
+
+    // Always add "received" as first event
+    if (email) {
+      events.push({ type: 'received', label: 'Inquiry received', time: email.date, icon: '📨' });
+    }
+
+    emailNotes.forEach(n => {
+      const parts = n.text.replace('__event__:', '').split(':');
+      const type = parts[0] as ThreadEvent['type'];
+      const label = parts.slice(1).join(':');
+      const iconMap: Record<string, string> = { analyzed: '🤖', replied: '✉️', note: '📝', status: '🔄', assigned: '👤', received: '📨' };
+      events.push({ type, label, time: n.createdAt, icon: iconMap[type] || '•' });
+    });
+
+    return events;
+  };
+
+  const getEmailNotes = (emailId: string) => notes.filter(n => n.emailId === emailId && !n.text.startsWith('__event__:'));
+
+  const addNote = () => {
+    if (!newNote.trim() || !selected) return;
+    const note: Note = {
+      id: `note_${Date.now()}`,
+      emailId: selected.id,
+      text: newNote.trim(),
+      author: user?.name || user?.email || 'Me',
+      createdAt: new Date().toISOString(),
+    };
+    setNotes(prev => [...prev, note]);
+    addTimelineEvent(selected.id, 'note', `Note added by ${note.author}`);
+    setNewNote('');
+    notify('success', 'Note added!');
+  };
+
+  const deleteNote = (noteId: string) => {
+    setNotes(prev => prev.filter(n => n.id !== noteId));
+  };
+
+  const setWorkflowStatus = (emailId: string, status: WorkflowStatus) => {
+    setWorkflowStatuses(prev => ({ ...prev, [emailId]: status }));
+    addTimelineEvent(emailId, 'status', `Status → ${WORKFLOW_STATUSES.find(s => s.key === status)?.label}`);
+    notify('success', 'Status updated!');
+  };
+
+  const setAssignment = (emailId: string, assignee: string) => {
+    setAssignments(prev => ({ ...prev, [emailId]: assignee }));
+    addTimelineEvent(emailId, 'assigned', `Assigned to ${assignee}`);
+    notify('success', `Assigned to ${assignee}!`);
+  };
+
+  const runAiAction = async (action: typeof AI_ACTIONS[0]) => {
+    if (!selected || !session) return;
+    setAiActionLoading(action.key);
+    setAiActionResult(null);
+    try {
+      const res = await fetch(`${API_URL}/api/analyze`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject: `AI Action: ${action.label}`,
+          body: action.prompt(selected),
+          from: selected.from,
+          emailId: selected.id,
+          sessionId: session,
+          language,
+          customPrompt: true,
+        })
+      });
+      const data = await res.json();
+      if (data.analysis?.suggested_reply) {
+        setAiActionResult(data.analysis.suggested_reply);
+      } else if (data.analysis?.summary) {
+        setAiActionResult(data.analysis.summary);
+      }
+    } catch (e) { notify('error', 'AI action failed'); }
+    setAiActionLoading(null);
+  };
+
+  const copyAiResult = () => {
+    if (aiActionResult) { navigator.clipboard.writeText(aiActionResult); notify('success', 'Copied!'); }
+  };
+
+  const useAiResultAsReply = () => {
+    if (aiActionResult && selected) {
+      setEditedReply(aiActionResult);
+      setIsEditing(true);
+      setActiveDetailTab('analysis');
+    }
+  };
+
   const sendReply = async () => {
     if (!selected?.analysis?.suggested_reply || !session) return;
     const replyText = isEditing ? editedReply : selected.analysis.suggested_reply;
@@ -312,7 +474,11 @@ export default function DashboardPage() {
       });
       const data = await res.json();
       notify(data.success ? 'success' : 'error', data.success ? 'Reply sent!' : 'Failed to send');
-      if (data.success) setIsEditing(false);
+      if (data.success) {
+        setIsEditing(false);
+        addTimelineEvent(selected.id, 'replied', 'Reply sent');
+        setWorkflowStatus(selected.id, 'quoted');
+      }
     } catch (e) { notify('error', 'Error sending'); }
     setSending(false);
   };
@@ -398,15 +564,8 @@ export default function DashboardPage() {
     notify('success', 'Applied!');
   };
 
-  const onDragStart = (e: React.DragEvent, emailId: string) => {
-    e.dataTransfer.setData('emailId', emailId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const onDragOver = (e: React.DragEvent, folderKey: FolderKey) => {
-    e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverFolder(folderKey);
-  };
-
+  const onDragStart = (e: React.DragEvent, emailId: string) => { e.dataTransfer.setData('emailId', emailId); e.dataTransfer.effectAllowed = 'move'; };
+  const onDragOver = (e: React.DragEvent, folderKey: FolderKey) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverFolder(folderKey); };
   const onDrop = (e: React.DragEvent, folderKey: FolderKey) => {
     e.preventDefault();
     const emailId = e.dataTransfer.getData('emailId');
@@ -415,37 +574,24 @@ export default function DashboardPage() {
       else {
         setManualFolders(prev => ({ ...prev, [emailId]: folderKey }));
         const allFolders = [...SYSTEM_FOLDERS, ...customLabels.map(l => ({ key: l.key, label: l.label }))];
-        notify('success', `Email moved to ${allFolders.find(f => f.key === folderKey)?.label}`);
+        notify('success', `Moved to ${allFolders.find(f => f.key === folderKey)?.label}`);
       }
     }
     setDragOverFolder(null);
   };
 
-  const handleContextMenu = (e: React.MouseEvent, emailId: string) => {
-    e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY, emailId });
-  };
+  const handleContextMenu = (e: React.MouseEvent, emailId: string) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, emailId }); };
 
   const filteredEmails = useMemo(() => {
     if (!emails || emails.length === 0) return [];
     let result = [...emails];
-
     if (activeFolder === 'trash') return result.filter(e => trashedEmails.has(e.id));
-
     result = result.filter(e => !trashedEmails.has(e.id));
-
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(e =>
-        e.subject?.toLowerCase().includes(q) ||
-        e.from?.toLowerCase().includes(q) ||
-        e.snippet?.toLowerCase().includes(q) ||
-        e.analysis?.summary?.toLowerCase().includes(q)
-      );
+      result = result.filter(e => e.subject?.toLowerCase().includes(q) || e.from?.toLowerCase().includes(q) || e.snippet?.toLowerCase().includes(q) || e.analysis?.summary?.toLowerCase().includes(q));
     }
-
     if (activeFolder === 'all') {
-      // Hide emails assigned to a folder (not labels) from All Mail
       result = result.filter(e => {
         const assignedKey = manualFolders[e.id];
         if (!assignedKey) return true;
@@ -455,12 +601,8 @@ export default function DashboardPage() {
       });
       return result;
     }
-
-    // Custom folder/label
     const isCustom = customLabels.some(l => l.key === activeFolder);
     if (isCustom) return result.filter(e => manualFolders[e.id] === activeFolder);
-
-    // System folders
     result = result.filter(e => {
       if (manualFolders[e.id] === activeFolder) return true;
       if (manualFolders[e.id] && manualFolders[e.id] !== activeFolder) return false;
@@ -484,20 +626,20 @@ export default function DashboardPage() {
         default: return false;
       }
     });
-
     return result;
   }, [emails, searchQuery, activeFolder, manualFolders, trashedEmails, customLabels]);
 
   const folderCounts = useMemo(() => {
     const nonTrashed = emails.filter(e => !trashedEmails.has(e.id));
-    const counts: Record<string, number> = { all: nonTrashed.filter(e => {
-      const assignedKey = manualFolders[e.id];
-      if (!assignedKey) return true;
-      const assigned = customLabels.find(l => l.key === assignedKey);
-      if (!assigned) return true;
-      return assigned.isFolder !== true;
-    }).length, trash: trashedEmails.size };
-
+    const counts: Record<string, number> = {
+      all: nonTrashed.filter(e => {
+        const k = manualFolders[e.id];
+        if (!k) return true;
+        const l = customLabels.find(x => x.key === k);
+        return !l || l.isFolder !== true;
+      }).length,
+      trash: trashedEmails.size
+    };
     SYSTEM_FOLDERS.forEach(f => {
       if (f.key === 'all' || f.key === 'trash') return;
       counts[f.key] = nonTrashed.filter(e => {
@@ -549,11 +691,7 @@ export default function DashboardPage() {
   ];
 
   const currentFolder = [...SYSTEM_FOLDERS, ...customLabels.map(l => ({ key: l.key, label: l.label, icon: l.icon, group: 'custom', iconStyle: undefined }))].find(f => f.key === activeFolder);
-
-  const getFolderIconStyle = (folder: FolderDef, isActive: boolean): React.CSSProperties => {
-    if (folder.iconStyle) return folder.iconStyle;
-    return theme.iconFilter;
-  };
+  const getFolderIconStyle = (folder: FolderDef): React.CSSProperties => folder.iconStyle || theme.iconFilter;
 
   if (loading) {
     return (
@@ -562,6 +700,12 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  const selectedWorkflow = selected ? (workflowStatuses[selected.id] || 'new') : 'new';
+  const selectedWorkflowDef = WORKFLOW_STATUSES.find(s => s.key === selectedWorkflow);
+  const selectedAssignee = selected ? (assignments[selected.id] || '') : '';
+  const selectedTimeline = selected ? getThreadTimeline(selected.id) : [];
+  const selectedNotes = selected ? getEmailNotes(selected.id) : [];
 
   return (
     <div className={`min-h-screen ${theme.bgGradient} ${theme.text} transition-colors`}>
@@ -582,7 +726,7 @@ export default function DashboardPage() {
               {label.icon} {label.label} {label.isFolder ? '📁' : '🏷️'}
             </button>
           ))}
-          {customLabels.length === 0 && <p className={`px-4 py-2 text-xs ${theme.textDim}`}>No folders or labels yet</p>}
+          {customLabels.length === 0 && <p className={`px-4 py-2 text-xs ${theme.textDim}`}>No folders yet</p>}
           <div className={`border-t ${theme.cardBorder} mt-1`} />
           <button onClick={() => moveToTrash(contextMenu.emailId)}
             className={`w-full px-4 py-2 text-sm text-left ${theme.hover} flex items-center gap-2 text-red-400`}>
@@ -604,19 +748,12 @@ export default function DashboardPage() {
               <button onClick={() => setShowCompose(false)} className={`${theme.textDim} hover:text-white text-lg`}>✕</button>
             </div>
             <div className="p-4 space-y-3">
-              <input value={composeTo} onChange={e => setComposeTo(e.target.value)} placeholder="To"
-                className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              <input value={composeSubject} onChange={e => setComposeSubject(e.target.value)} placeholder="Subject"
-                className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              <textarea value={composeBody} onChange={e => setComposeBody(e.target.value)} placeholder="Write your message..." rows={8}
-                className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF] resize-none`} />
+              <input value={composeTo} onChange={e => setComposeTo(e.target.value)} placeholder="To" className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
+              <input value={composeSubject} onChange={e => setComposeSubject(e.target.value)} placeholder="Subject" className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
+              <textarea value={composeBody} onChange={e => setComposeBody(e.target.value)} placeholder="Write your message..." rows={8} className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF] resize-none`} />
               <div className="flex gap-3">
-                <button onClick={sendCompose} disabled={sending}
-                  className="flex-1 py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
-                  {sending ? 'Sending...' : 'Send'}
-                </button>
-                <button onClick={() => setShowCompose(false)}
-                  className={`px-4 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm`}>Discard</button>
+                <button onClick={sendCompose} disabled={sending} className="flex-1 py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">{sending ? 'Sending...' : 'Send'}</button>
+                <button onClick={() => setShowCompose(false)} className={`px-4 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm`}>Discard</button>
               </div>
             </div>
           </div>
@@ -634,33 +771,24 @@ export default function DashboardPage() {
               </h3>
               <button onClick={() => setShowCreateLabel(false)} className={`${theme.textDim} hover:text-white text-lg`}>✕</button>
             </div>
-
             <div className={`flex gap-1 p-1 mx-5 mt-4 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl`}>
-              <button onClick={() => setCreateMode('folder')}
-                className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${createMode === 'folder' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
-                <Icon name="Dashboard_new_folder" className="w-4 h-4" style={createMode === 'folder' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
-                Folder
+              <button onClick={() => setCreateMode('folder')} className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${createMode === 'folder' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
+                <Icon name="Dashboard_new_folder" className="w-4 h-4" style={createMode === 'folder' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} /> Folder
               </button>
-              <button onClick={() => setCreateMode('label')}
-                className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${createMode === 'label' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
-                <Icon name="Dashboard_new_label" className="w-4 h-4" style={createMode === 'label' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
-                Label
+              <button onClick={() => setCreateMode('label')} className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${createMode === 'label' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
+                <Icon name="Dashboard_new_label" className="w-4 h-4" style={createMode === 'label' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} /> Label
               </button>
             </div>
-
             <div className="p-5 space-y-4">
               <input value={newLabelName} onChange={e => setNewLabelName(e.target.value)}
-                placeholder={createMode === 'folder' ? 'Folder name (e.g. Done, Archive)' : 'Label name (e.g. Urgent, VIP)'}
+                placeholder={createMode === 'folder' ? 'Folder name (e.g. Done, Archive)' : 'Label name (e.g. VIP, Urgent)'}
                 className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}
                 onKeyDown={e => e.key === 'Enter' && createLabel()} autoFocus />
               <div>
                 <p className={`text-xs ${theme.textDim} mb-2`}>Icon</p>
                 <div className="flex flex-wrap gap-2">
                   {LABEL_ICONS.map(icon => (
-                    <button key={icon} onClick={() => setNewLabelIcon(icon)}
-                      className={`w-8 h-8 rounded-lg text-lg flex items-center justify-center transition ${newLabelIcon === icon ? 'bg-[#5200FF]/30 border border-[#5200FF]' : theme.hover}`}>
-                      {icon}
-                    </button>
+                    <button key={icon} onClick={() => setNewLabelIcon(icon)} className={`w-8 h-8 rounded-lg text-lg flex items-center justify-center transition ${newLabelIcon === icon ? 'bg-[#5200FF]/30 border border-[#5200FF]' : theme.hover}`}>{icon}</button>
                   ))}
                 </div>
               </div>
@@ -668,10 +796,7 @@ export default function DashboardPage() {
                 <p className={`text-xs ${theme.textDim} mb-2`}>Color</p>
                 <div className="flex flex-wrap gap-2">
                   {LABEL_COLORS.map(color => (
-                    <button key={color.name} onClick={() => setNewLabelColor(color)}
-                      className={`px-3 py-1 rounded-full text-xs border transition ${color.value} ${newLabelColor.name === color.name ? 'border-[#5200FF] bg-[#5200FF]/20' : `${theme.cardBorder} ${color.bg}`}`}>
-                      {color.name}
-                    </button>
+                    <button key={color.name} onClick={() => setNewLabelColor(color)} className={`px-3 py-1 rounded-full text-xs border transition ${color.value} ${newLabelColor.name === color.name ? 'border-[#5200FF] bg-[#5200FF]/20' : `${theme.cardBorder} ${color.bg}`}`}>{color.name}</button>
                   ))}
                 </div>
               </div>
@@ -679,11 +804,10 @@ export default function DashboardPage() {
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${newLabelColor.bg} border ${theme.cardBorder}`}>
                   <span>{newLabelIcon}</span>
                   <span className={`text-sm font-medium ${newLabelColor.value}`}>{newLabelName}</span>
-                  <span className={`text-xs ${theme.textDim} ml-auto`}>{createMode === 'folder' ? '📁 Folder' : '🏷️ Label'}</span>
+                  <span className={`text-xs ${theme.textDim} ml-auto`}>{createMode === 'folder' ? '📁' : '🏷️'}</span>
                 </div>
               )}
-              <button onClick={createLabel} disabled={!newLabelName.trim()}
-                className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
+              <button onClick={createLabel} disabled={!newLabelName.trim()} className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
                 {createMode === 'folder' ? 'Create Folder' : 'Create Label'}
               </button>
             </div>
@@ -697,7 +821,6 @@ export default function DashboardPage() {
           <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
           <span className="text-base font-bold">FreightWizard</span>
         </Link>
-
         <div className="flex items-center gap-2">
           {NAV_ITEMS.map(item => (
             <Link key={item.href} href={`${item.href}?session=${session}`}
@@ -710,33 +833,22 @@ export default function DashboardPage() {
               {item.label[language]}
             </Link>
           ))}
-
           <div className={`w-px h-5 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
-
           <div className="relative">
-            <button onClick={() => setLangMenuOpen(!langMenuOpen)}
-              className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover} flex items-center gap-1`}>
+            <button onClick={() => setLangMenuOpen(!langMenuOpen)} className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover} flex items-center gap-1`}>
               {langLabels[language]} <span className="text-xs">▼</span>
             </button>
             {langMenuOpen && (
               <div className={`absolute top-full right-0 mt-2 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-xl z-50 overflow-hidden`}>
                 {(['en', 'pt', 'nl'] as Language[]).map(l => (
-                  <button key={l} onClick={() => changeLang(l)}
-                    className={`w-full px-4 py-2 text-left text-sm ${theme.hover} ${language === l ? 'text-[#9E14FB] font-medium' : theme.textMuted}`}>
-                    {langLabels[l]}
-                  </button>
+                  <button key={l} onClick={() => changeLang(l)} className={`w-full px-4 py-2 text-left text-sm ${theme.hover} ${language === l ? 'text-[#9E14FB] font-medium' : theme.textMuted}`}>{langLabels[l]}</button>
                 ))}
               </div>
             )}
           </div>
-
           <button onClick={toggleTheme} className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
-            {darkMode
-              ? <Icon name="Dashboard_sun_light_mode" className="w-4 h-4" style={theme.iconFilter} />
-              : <Icon name="Dashboard_moon_dark_mode" className="w-4 h-4" style={theme.iconFilter} />
-            }
+            {darkMode ? <Icon name="Dashboard_sun_light_mode" className="w-4 h-4" style={theme.iconFilter} /> : <Icon name="Dashboard_moon_dark_mode" className="w-4 h-4" style={theme.iconFilter} />}
           </button>
-
           {user && (
             <>
               <span className={`text-sm ${theme.textMuted} hidden lg:block max-w-36 truncate`}>{user.email}</span>
@@ -759,11 +871,9 @@ export default function DashboardPage() {
               <p className={`${theme.textMuted} mb-8`}>{t.connectDesc}</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button onClick={connect} className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full font-medium text-white shadow-lg hover:scale-105 transition-transform">
-                  <Icon name="login_page_google logo" className="w-5 h-5" />
-                  {t.connectGmail}
+                  <Icon name="login_page_google logo" className="w-5 h-5" />{t.connectGmail}
                 </button>
-                <button onClick={() => window.location.href = `${API_URL}/auth/outlook`}
-                  className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[#0078D4] to-[#00BCF2] rounded-full font-medium text-white shadow-lg hover:scale-105 transition-transform">
+                <button onClick={() => window.location.href = `${API_URL}/auth/outlook`} className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[#0078D4] to-[#00BCF2] rounded-full font-medium text-white shadow-lg hover:scale-105 transition-transform">
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M7.88 12.04q0 .45-.11.87-.1.41-.33.74-.22.33-.58.52-.37.2-.87.2t-.85-.2q-.35-.21-.57-.55-.22-.33-.33-.75-.1-.42-.1-.86t.1-.87q.1-.43.34-.76.22-.34.59-.54.36-.2.87-.2t.86.2q.35.21.57.55.22.34.31.77.1.43.1.88zM24 12v9.38q0 .46-.33.8-.33.32-.8.32H7.13q-.46 0-.8-.33-.32-.33-.32-.8V18H1q-.41 0-.7-.3-.3-.29-.3-.7V7q0-.41.3-.7Q.58 6 1 6h6.5V2.55q0-.44.3-.75.3-.3.75-.3h12.9q.44 0 .75.3.3.3.3.75V12zm-6-8.25v3h3v-3zm0 4.5v3h3v-3zm0 4.5v1.83l3.05-1.83zm-5.25-9v3h3.75v-3zm0 4.5v3h3.75v-3zm0 4.5v2.03l2.41 1.5 1.34-.8v-2.73zM9 3.75V6h2l.13.01.12.04v-2.3zM5.98 15.98q.9 0 1.6-.3.7-.32 1.19-.86.48-.55.73-1.28.25-.74.25-1.61 0-.83-.25-1.55-.24-.71-.71-1.24t-1.15-.83q-.68-.3-1.55-.3-.92 0-1.64.3-.71.3-1.2.85-.5.54-.75 1.3-.25.74-.25 1.63 0 .85.26 1.56.26.72.74 1.23.48.52 1.17.81.69.3 1.56.3zM7.5 21h12.39L12 16.08V17q0 .41-.3.7-.29.3-.7.3H7.5zm15-.13v-7.24l-5.9 3.54Z"/></svg>
                   {t.connectOutlook}
                 </button>
@@ -777,8 +887,7 @@ export default function DashboardPage() {
             <div style={{ width: sidebarWidth, flexShrink: 0 }} className="flex flex-col transition-none">
               <div className={`${theme.sidebar} border ${theme.cardBorder} rounded-2xl h-full overflow-y-auto flex flex-col`}>
                 <div className="p-2 pt-3 flex-shrink-0">
-                  <button onClick={() => setShowCompose(true)}
-                    className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2">
+                  <button onClick={() => setShowCompose(true)} className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2">
                     <Icon name="Dashboard_compose" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
                     {!isNarrow && t.compose}
                   </button>
@@ -796,27 +905,17 @@ export default function DashboardPage() {
                         const isDragTarget = dragOverFolder === folder.key;
                         return (
                           <button key={folder.key} onClick={() => setActiveFolder(folder.key)}
-                            onDragOver={(e) => onDragOver(e, folder.key)}
-                            onDrop={(e) => onDrop(e, folder.key)}
-                            onDragLeave={() => setDragOverFolder(null)}
-                            className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm transition mb-0.5 ${
-                              isDragTarget ? 'border-2 border-[#5200FF] bg-[#5200FF]/20 scale-105' :
-                              isActive ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/30' :
-                              theme.hover}`}
+                            onDragOver={(e) => onDragOver(e, folder.key)} onDrop={(e) => onDrop(e, folder.key)} onDragLeave={() => setDragOverFolder(null)}
+                            className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm transition mb-0.5 ${isDragTarget ? 'border-2 border-[#5200FF] bg-[#5200FF]/20 scale-105' : isActive ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/30' : theme.hover}`}
                             title={isNarrow ? folder.label : ''}>
-                            <Icon name={folder.icon} className="w-4 h-4 flex-shrink-0"
-                              style={getFolderIconStyle(folder, isActive)} />
+                            <Icon name={folder.icon} className="w-4 h-4 flex-shrink-0" style={getFolderIconStyle(folder)} />
                             {!isNarrow && (
                               <>
-                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : ''} ${
-                                  folder.group === 'priority' ? (folder.color || '') : (darkMode ? '!text-white' : '!text-[#7C0BFD]')
-                                }`}>
+                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : ''} ${folder.group === 'priority' ? (folder.color || '') : (darkMode ? '!text-white' : '!text-[#7C0BFD]')}`}>
                                   {folder.label}
                                 </span>
                                 {count > 0 && (
-                                  <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#5200FF]/30 text-[#9E14FB]' : darkMode ? 'bg-white/10 text-gray-400' : 'bg-slate-200 text-slate-500'}`}>
-                                    {count}
-                                  </span>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#5200FF]/30 text-[#9E14FB]' : darkMode ? 'bg-white/10 text-gray-400' : 'bg-slate-200 text-slate-500'}`}>{count}</span>
                                 )}
                               </>
                             )}
@@ -827,7 +926,6 @@ export default function DashboardPage() {
                     </div>
                   ))}
 
-                  {/* Custom Folders & Labels */}
                   {!isNarrow && (
                     <div className="mt-2">
                       <div className="flex items-center justify-between px-2 mb-1">
@@ -840,60 +938,37 @@ export default function DashboardPage() {
                         return (
                           <div key={label.key} className="group relative">
                             <button onClick={() => setActiveFolder(label.key)}
-                              onDragOver={(e) => onDragOver(e, label.key)}
-                              onDrop={(e) => onDrop(e, label.key)}
-                              onDragLeave={() => setDragOverFolder(null)}
-                              className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm transition mb-0.5 ${
-                                isDragTarget ? 'border-2 border-[#5200FF] bg-[#5200FF]/20 scale-105' :
-                                isActive ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/30' :
-                                theme.hover}`}>
+                              onDragOver={(e) => onDragOver(e, label.key)} onDrop={(e) => onDrop(e, label.key)} onDragLeave={() => setDragOverFolder(null)}
+                              className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm transition mb-0.5 ${isDragTarget ? 'border-2 border-[#5200FF] bg-[#5200FF]/20 scale-105' : isActive ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/30' : theme.hover}`}>
                               <span className="text-base flex-shrink-0">{label.icon}</span>
                               <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : ''} ${label.color}`}>{label.label}</span>
                               {label.isFolder && <span className={`text-xs ${theme.textDim}`}>📁</span>}
-                              {count > 0 && (
-                                <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#5200FF]/30 text-[#9E14FB]' : darkMode ? 'bg-white/10 text-gray-400' : 'bg-slate-200 text-slate-500'}`}>{count}</span>
-                              )}
+                              {count > 0 && <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#5200FF]/30 text-[#9E14FB]' : darkMode ? 'bg-white/10 text-gray-400' : 'bg-slate-200 text-slate-500'}`}>{count}</span>}
                             </button>
-                            <button onClick={() => deleteLabel(label.key)}
-                              className={`absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition ${darkMode ? 'bg-white/10 hover:bg-red-500/20 text-gray-400 hover:text-red-400' : 'bg-slate-200 hover:bg-red-100 text-slate-400 hover:text-red-500'}`}>
-                              ✕
-                            </button>
+                            <button onClick={() => deleteLabel(label.key)} className={`absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition ${darkMode ? 'bg-white/10 hover:bg-red-500/20 text-gray-400 hover:text-red-400' : 'bg-slate-200 hover:bg-red-100 text-slate-400 hover:text-red-500'}`}>✕</button>
                           </div>
                         );
                       })}
                       <div className="flex gap-1 mt-1">
-                        <button onClick={() => { setCreateMode('folder'); setShowCreateLabel(true); }}
-                          className={`flex-1 flex items-center gap-1.5 px-2 py-2 rounded-xl text-xs ${theme.textDim} ${theme.hover} transition border border-dashed ${theme.cardBorder}`}>
-                          <Icon name="Dashboard_new_folder" className="w-3.5 h-3.5" style={theme.iconFilter} />
-                          New Folder
+                        <button onClick={() => { setCreateMode('folder'); setShowCreateLabel(true); }} className={`flex-1 flex items-center gap-1.5 px-2 py-2 rounded-xl text-xs ${theme.textDim} ${theme.hover} transition border border-dashed ${theme.cardBorder}`}>
+                          <Icon name="Dashboard_new_folder" className="w-3.5 h-3.5" style={theme.iconFilter} /> New Folder
                         </button>
-                        <button onClick={() => { setCreateMode('label'); setShowCreateLabel(true); }}
-                          className={`flex-1 flex items-center gap-1.5 px-2 py-2 rounded-xl text-xs ${theme.textDim} ${theme.hover} transition border border-dashed ${theme.cardBorder}`}>
-                          <Icon name="Dashboard_new_label" className="w-3.5 h-3.5" style={theme.iconFilter} />
-                          New Label
+                        <button onClick={() => { setCreateMode('label'); setShowCreateLabel(true); }} className={`flex-1 flex items-center gap-1.5 px-2 py-2 rounded-xl text-xs ${theme.textDim} ${theme.hover} transition border border-dashed ${theme.cardBorder}`}>
+                          <Icon name="Dashboard_new_label" className="w-3.5 h-3.5" style={theme.iconFilter} /> New Label
                         </button>
                       </div>
                     </div>
                   )}
 
-                  {/* Trash */}
                   <div className={`border-t ${theme.cardBorder} mt-3 pt-2`}>
                     <button onClick={() => setActiveFolder('trash')}
-                      onDragOver={(e) => onDragOver(e, 'trash')}
-                      onDrop={(e) => onDrop(e, 'trash')}
-                      onDragLeave={() => setDragOverFolder(null)}
-                      className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm transition ${
-                        dragOverFolder === 'trash' ? 'border-2 border-red-500 bg-red-500/20 scale-105' :
-                        activeFolder === 'trash' ? 'bg-red-500/10 border border-red-500/30' :
-                        theme.hover}`}>
-                      <Icon name="Dashboard_trash" className="w-4 h-4 flex-shrink-0"
-                        style={{ filter: activeFolder === 'trash' ? 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' : (darkMode ? 'brightness(0) invert(1)' : 'brightness(0) saturate(100%) invert(19%) sepia(96%) saturate(5765%) hue-rotate(268deg) brightness(102%) contrast(101%)') }} />
+                      onDragOver={(e) => onDragOver(e, 'trash')} onDrop={(e) => onDrop(e, 'trash')} onDragLeave={() => setDragOverFolder(null)}
+                      className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm transition ${dragOverFolder === 'trash' ? 'border-2 border-red-500 bg-red-500/20 scale-105' : activeFolder === 'trash' ? 'bg-red-500/10 border border-red-500/30' : theme.hover}`}>
+                      <Icon name="Dashboard_trash" className="w-4 h-4 flex-shrink-0" style={{ filter: activeFolder === 'trash' ? 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' : (darkMode ? 'brightness(0) invert(1)' : 'brightness(0) saturate(100%) invert(19%) sepia(96%) saturate(5765%) hue-rotate(268deg) brightness(102%) contrast(101%)') }} />
                       {!isNarrow && (
                         <>
                           <span className={`flex-1 text-left ${activeFolder === 'trash' ? 'font-medium text-red-400' : (darkMode ? 'text-white' : 'text-[#7C0BFD]')}`}>{t.trash}</span>
-                          {trashedEmails.size > 0 && (
-                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">{trashedEmails.size}</span>
-                          )}
+                          {trashedEmails.size > 0 && <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">{trashedEmails.size}</span>}
                         </>
                       )}
                     </button>
@@ -903,15 +978,13 @@ export default function DashboardPage() {
             </div>
 
             {/* Sidebar resize handle */}
-            <div onMouseDown={startSidebarResize}
-              className={`w-1.5 mx-1 rounded-full cursor-col-resize ${theme.divider} transition-colors flex-shrink-0 self-stretch`} />
+            <div onMouseDown={startSidebarResize} className={`w-1.5 mx-1 rounded-full cursor-col-resize ${theme.divider} transition-colors flex-shrink-0 self-stretch`} />
 
             {/* MIDDLE: Email List */}
             <div style={{ width: emailListWidth, flexShrink: 0 }} className="flex flex-col gap-2 transition-none">
               <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl px-4 py-3 flex items-center gap-3 flex-shrink-0`}>
                 <Icon name="Dashboard_search_emails" className="w-4 h-4 flex-shrink-0" style={theme.iconFilter} />
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t.search} className={`flex-1 bg-transparent text-sm focus:outline-none ${theme.text}`} />
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t.search} className={`flex-1 bg-transparent text-sm focus:outline-none ${theme.text}`} />
                 {searchQuery && <button onClick={() => setSearchQuery('')} className={`text-xs ${theme.textDim}`}>✕</button>}
               </div>
 
@@ -920,10 +993,7 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="text-sm font-semibold flex items-center gap-1.5">
-                        {currentFolder && (
-                          <Icon name={currentFolder.icon} className="w-4 h-4"
-                            style={getFolderIconStyle(currentFolder as FolderDef, true)} />
-                        )}
+                        {currentFolder && <Icon name={currentFolder.icon} className="w-4 h-4" style={getFolderIconStyle(currentFolder as FolderDef)} />}
                         {currentFolder?.label}
                       </p>
                       <p className={`text-xs ${theme.textDim}`}>{filteredEmails.length} emails</p>
@@ -932,8 +1002,7 @@ export default function DashboardPage() {
                       {activeFolder === 'trash' && trashedEmails.size > 0 && (
                         <button onClick={emptyTrash} className="text-xs text-red-400 border border-red-400/30 px-2 py-1 rounded-lg hover:bg-red-400/10">Empty</button>
                       )}
-                      <button onClick={() => session && loadEmails(session)}
-                        className={`text-xs ${theme.textMuted} ${theme.hover} px-2 py-1 border ${theme.cardBorder} rounded-lg`}>↻</button>
+                      <button onClick={() => session && loadEmails(session)} className={`text-xs ${theme.textMuted} ${theme.hover} px-2 py-1 border ${theme.cardBorder} rounded-lg`}>↻</button>
                     </div>
                   </div>
                   {activeFolder !== 'trash' && (
@@ -951,18 +1020,15 @@ export default function DashboardPage() {
                 <div className="overflow-y-auto flex-1">
                   {filteredEmails.length === 0 ? (
                     <div className={`p-8 text-center ${theme.textDim}`}>
-                      {activeFolder === 'trash' ? (
-                        <p className="text-3xl mb-2">🗑️</p>
-                      ) : (
-                        <div className="w-16 h-16 mx-auto mb-3">
-                          <Icon name="Dashboard_no_emails_here" className="w-full h-full" style={theme.iconFilter} />
-                        </div>
-                      )}
+                      {activeFolder === 'trash' ? <p className="text-3xl mb-2">🗑️</p> : <div className="w-16 h-16 mx-auto mb-3"><Icon name="Dashboard_no_emails_here" className="w-full h-full" style={theme.iconFilter} /></div>}
                       <p className="text-sm">{activeFolder === 'trash' ? t.trashEmpty : 'No emails here'}</p>
                     </div>
                   ) : filteredEmails.map(email => {
                     const isInTrash = trashedEmails.has(email.id);
                     const emailLabel = manualFolders[email.id] ? customLabels.find(l => l.key === manualFolders[email.id]) : null;
+                    const emailStatus = workflowStatuses[email.id];
+                    const emailStatusDef = emailStatus ? WORKFLOW_STATUSES.find(s => s.key === emailStatus) : null;
+                    const emailAssignee = assignments[email.id];
                     return (
                       <div key={email.id} draggable={!isInTrash} onDragStart={(e) => onDragStart(e, email.id)}
                         onClick={() => { setSelected(email); setIsEditing(false); }}
@@ -974,9 +1040,7 @@ export default function DashboardPage() {
                             {email.isAnalyzing && <div className="w-3 h-3 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin"></div>}
                             {email.analysis && <span className={`text-[9px] px-1.5 py-0.5 rounded-full text-white ${getPriorityColor(email.analysis.priority)}`}>{email.analysis.priority}</span>}
                             {!isInTrash && (
-                              <button onClick={(e) => { e.stopPropagation(); moveToTrash(email.id); }}
-                                className="w-5 h-5 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition"
-                                title="Move to trash">
+                              <button onClick={(e) => { e.stopPropagation(); moveToTrash(email.id); }} className="w-5 h-5 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition" title="Trash">
                                 <Icon name="Dashboard_trash" className="w-3 h-3" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} />
                               </button>
                             )}
@@ -985,17 +1049,11 @@ export default function DashboardPage() {
                         <p className={`text-xs ${darkMode ? 'text-gray-300' : 'text-slate-700'} truncate mb-1`}>{email.subject}</p>
                         <p className={`text-xs ${theme.textDim} truncate`}>{email.snippet}</p>
                         <div className="flex items-center gap-1 mt-1 flex-wrap">
-                          {email.analysis && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]">
-                              {email.analysis.intent?.replace(/_/g, ' ')}
-                            </span>
-                          )}
-                          {emailLabel && (
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${emailLabel.color} bg-white/5`}>
-                              {emailLabel.icon} {emailLabel.label}
-                            </span>
-                          )}
-                          {isInTrash && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">🗑️ Trash</span>}
+                          {email.analysis && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]">{email.analysis.intent?.replace(/_/g, ' ')}</span>}
+                          {emailStatusDef && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${emailStatusDef.bg} ${emailStatusDef.color}`}>{emailStatusDef.label}</span>}
+                          {emailAssignee && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-white/10 text-gray-300' : 'bg-slate-100 text-slate-500'}`}>👤 {emailAssignee.split(' ')[0]}</span>}
+                          {emailLabel && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${emailLabel.color} bg-white/5`}>{emailLabel.icon} {emailLabel.label}</span>}
+                          {isInTrash && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">🗑️</span>}
                         </div>
                         {isInTrash && (
                           <div className="flex gap-2 mt-2" onClick={e => e.stopPropagation()}>
@@ -1011,124 +1069,225 @@ export default function DashboardPage() {
             </div>
 
             {/* List resize handle */}
-            <div onMouseDown={startListResize}
-              className={`w-1.5 mx-1 rounded-full cursor-col-resize ${theme.divider} transition-colors flex-shrink-0 self-stretch`} />
+            <div onMouseDown={startListResize} className={`w-1.5 mx-1 rounded-full cursor-col-resize ${theme.divider} transition-colors flex-shrink-0 self-stretch`} />
 
             {/* RIGHT: Email Detail */}
             <div className={`flex-1 min-w-0 ${theme.card} rounded-2xl border ${theme.cardBorder} overflow-hidden flex flex-col`}>
               {selected ? (
                 <>
                   <div className="flex-1 overflow-y-auto">
-                    <div className={`p-5 border-b ${theme.cardBorder} sticky top-0 ${theme.card} z-10`}>
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h2 className="text-lg font-semibold mb-1">{selected.subject}</h2>
-                          <p className={`text-sm ${theme.textMuted}`}>{t.from}: {selected.from}</p>
+                    {/* Email Header */}
+                    <div className={`p-4 border-b ${theme.cardBorder} sticky top-0 ${theme.card} z-10`}>
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="min-w-0">
+                          <h2 className="text-base font-semibold mb-0.5 truncate">{selected.subject}</h2>
+                          <p className={`text-xs ${theme.textMuted}`}>{selected.from}</p>
                           <p className={`text-xs ${theme.textDim}`}>{selected.date}</p>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
+                          {!trashedEmails.has(selected.id) && !selected.analysis && !selected.isAnalyzing && (
+                            <button onClick={() => analyzeEmail(selected)} className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-xs font-medium text-white">
+                              <Icon name="Dashboard_email_Analyze all bottom" className="w-3.5 h-3.5" style={{ filter: 'brightness(0) invert(1)' }} /> {t.analyze}
+                            </button>
+                          )}
+                          {selected.isAnalyzing && <div className="flex items-center gap-1.5 text-[#1BA1FF] text-xs"><div className="w-3 h-3 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin"></div> Analyzing...</div>}
                           {!trashedEmails.has(selected.id) && (
-                            <button onClick={() => moveToTrash(selected.id)}
-                              className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-400 border border-red-400/30 rounded-full hover:bg-red-400/10 transition">
-                              <Icon name="Dashboard_trash" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} />
-                              Delete
+                            <button onClick={() => moveToTrash(selected.id)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-red-400 border border-red-400/30 rounded-full hover:bg-red-400/10">
+                              <Icon name="Dashboard_trash" className="w-3 h-3" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} /> Delete
                             </button>
-                          )}
-                          {!selected.analysis && !selected.isAnalyzing && !trashedEmails.has(selected.id) && (
-                            <button onClick={() => analyzeEmail(selected)}
-                              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
-                              <Icon name="Dashboard_email_Analyze all bottom" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
-                              {t.analyze}
-                            </button>
-                          )}
-                          {selected.isAnalyzing && (
-                            <div className="flex items-center gap-2 text-[#1BA1FF]">
-                              <div className="w-4 h-4 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin"></div>
-                              {t.analyzing}...
-                            </div>
                           )}
                         </div>
                       </div>
+
+                      {/* Workflow Status + Assignment row */}
+                      {!trashedEmails.has(selected.id) && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Workflow Status */}
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {WORKFLOW_STATUSES.map(s => (
+                              <button key={s.key} onClick={() => setWorkflowStatus(selected.id, s.key)}
+                                className={`text-[10px] px-2 py-1 rounded-full border transition ${selectedWorkflow === s.key ? `${s.bg} ${s.color} border-current` : `${darkMode ? 'border-white/10 text-gray-500 hover:border-white/20' : 'border-slate-200 text-slate-400 hover:border-slate-300'}`}`}>
+                                {s.label}
+                              </button>
+                            ))}
+                          </div>
+                          {/* Assignment */}
+                          <div className="flex items-center gap-1 ml-auto">
+                            <span className={`text-xs ${theme.textDim}`}>👤</span>
+                            <input
+                              value={selectedAssignee}
+                              onChange={e => setAssignment(selected.id, e.target.value)}
+                              placeholder="Assign to..."
+                              className={`text-xs px-2 py-1 rounded-lg border ${darkMode ? 'bg-white/5 border-white/10 text-white placeholder-gray-600' : 'bg-slate-50 border-slate-200 text-slate-700 placeholder-slate-400'} focus:outline-none focus:border-[#5200FF] w-28`}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="p-5 space-y-4">
-                      {selected.analysis && (
-                        <div className={`${darkMode ? 'bg-gradient-to-r from-[#9E14FB]/10 via-[#5200FF]/10 to-[#1BA1FF]/10' : 'bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50'} rounded-xl p-4 border ${theme.cardBorder}`}>
-                          <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
-                            <Icon name="Dashboard_analyrtics_AI Insights" className="w-4 h-4" style={theme.iconFilter} />
-                            {t.aiAnalysis}
-                          </h3>
-                          <div className="grid grid-cols-2 gap-3 mb-3">
-                            <div>
-                              <p className={`text-xs ${theme.textDim}`}>{t.intent}</p>
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]">{selected.analysis.intent?.replace(/_/g, ' ')}</span>
-                            </div>
-                            <div>
-                              <p className={`text-xs ${theme.textDim}`}>{t.priority}</p>
-                              <span className={`text-xs px-2 py-0.5 rounded-full text-white ${getPriorityColor(selected.analysis.priority)}`}>{selected.analysis.priority}</span>
-                            </div>
-                            {selected.analysis.mode && <div><p className={`text-xs ${theme.textDim}`}>{t.mode}</p><p className="text-sm">{selected.analysis.mode}</p></div>}
-                            {selected.analysis.pol && <div><p className={`text-xs ${theme.textDim}`}>{t.route}</p><p className="text-sm">{selected.analysis.pol} → {selected.analysis.pod}</p></div>}
-                          </div>
-                          {selected.analysis.summary && (
-                            <div className="mb-3">
-                              <p className={`text-xs ${theme.textDim} mb-1`}>{t.summary}</p>
-                              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>{selected.analysis.summary}</p>
+                    {/* Detail Tabs */}
+                    <div className={`flex gap-0 border-b ${theme.cardBorder} px-4 pt-2`}>
+                      {[
+                        { key: 'analysis', label: '🤖 Analysis' },
+                        { key: 'timeline', label: `⏱ Timeline (${selectedTimeline.length})` },
+                        { key: 'notes', label: `📝 Notes (${selectedNotes.length})` },
+                        { key: 'actions', label: '⚡ AI Actions' },
+                      ].map(tab => (
+                        <button key={tab.key} onClick={() => setActiveDetailTab(tab.key as any)}
+                          className={`px-3 py-2 text-xs font-medium border-b-2 transition whitespace-nowrap ${activeDetailTab === tab.key ? 'border-[#9E14FB] text-[#9E14FB]' : `border-transparent ${theme.textDim} hover:${theme.textMuted}`}`}>
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="p-4 space-y-4">
+
+                      {/* ANALYSIS TAB */}
+                      {activeDetailTab === 'analysis' && (
+                        <>
+                          {selected.analysis && (
+                            <div className={`${darkMode ? 'bg-gradient-to-r from-[#9E14FB]/10 via-[#5200FF]/10 to-[#1BA1FF]/10' : 'bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50'} rounded-xl p-4 border ${theme.cardBorder}`}>
+                              <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+                                <Icon name="Dashboard_analyrtics_AI Insights" className="w-4 h-4" style={theme.iconFilter} /> {t.aiAnalysis}
+                              </h3>
+                              <div className="grid grid-cols-2 gap-3 mb-3">
+                                <div><p className={`text-xs ${theme.textDim}`}>{t.intent}</p><span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]">{selected.analysis.intent?.replace(/_/g, ' ')}</span></div>
+                                <div><p className={`text-xs ${theme.textDim}`}>{t.priority}</p><span className={`text-xs px-2 py-0.5 rounded-full text-white ${getPriorityColor(selected.analysis.priority)}`}>{selected.analysis.priority}</span></div>
+                                {selected.analysis.mode && <div><p className={`text-xs ${theme.textDim}`}>{t.mode}</p><p className="text-sm">{selected.analysis.mode}</p></div>}
+                                {selected.analysis.pol && <div><p className={`text-xs ${theme.textDim}`}>{t.route}</p><p className="text-sm">{selected.analysis.pol} → {selected.analysis.pod}</p></div>}
+                              </div>
+                              {selected.analysis.summary && <div className="mb-3"><p className={`text-xs ${theme.textDim} mb-1`}>{t.summary}</p><p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>{selected.analysis.summary}</p></div>}
+                              {selected.analysis.missing_info?.length > 0 && (
+                                <div><p className={`text-xs ${theme.textDim} mb-1`}>{t.missingInfo}</p>
+                                  <div className="flex flex-wrap gap-1">{selected.analysis.missing_info.map((info: string, i: number) => <span key={i} className="text-xs px-2 py-0.5 bg-red-500/20 text-red-500 rounded-full">{info}</span>)}</div>
+                                </div>
+                              )}
                             </div>
                           )}
-                          {selected.analysis.missing_info?.length > 0 && (
+                          <div className={`rounded-xl p-4 ${darkMode ? 'bg-white/5' : 'bg-slate-50'}`}>
+                            <pre className={`whitespace-pre-wrap font-sans text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'} leading-relaxed`}>{selected.body || selected.snippet}</pre>
+                          </div>
+                          {selected.analysis?.suggested_reply && !trashedEmails.has(selected.id) && (
                             <div>
-                              <p className={`text-xs ${theme.textDim} mb-1`}>{t.missingInfo}</p>
-                              <div className="flex flex-wrap gap-1">
-                                {selected.analysis.missing_info.map((info: string, i: number) => (
-                                  <span key={i} className="text-xs px-2 py-0.5 bg-red-500/20 text-red-500 rounded-full">{info}</span>
-                                ))}
+                              <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+                                <Icon name="Dashboard_email_Suggested Reply" className="w-4 h-4" style={theme.iconFilter} /> {t.suggestedReply}
+                              </h3>
+                              <div className={`${theme.card} rounded-xl p-4 border ${theme.cardBorder}`}>
+                                {isEditing
+                                  ? <textarea value={editedReply} onChange={(e) => setEditedReply(e.target.value)} rows={8} className={`w-full bg-transparent text-sm resize-none focus:outline-none ${darkMode ? 'text-gray-300' : 'text-slate-700'}`} />
+                                  : <pre className={`whitespace-pre-wrap font-sans text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>{selected.analysis.suggested_reply}</pre>
+                                }
                               </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* TIMELINE TAB */}
+                      {activeDetailTab === 'timeline' && (
+                        <div className="space-y-2">
+                          <h3 className="font-semibold text-sm mb-3">Thread Timeline</h3>
+                          {selectedTimeline.length === 0 ? (
+                            <p className={`text-sm ${theme.textDim}`}>No events yet. Analyze the email to start tracking.</p>
+                          ) : (
+                            <div className="relative">
+                              <div className={`absolute left-4 top-0 bottom-0 w-px ${darkMode ? 'bg-white/10' : 'bg-slate-200'}`} />
+                              {selectedTimeline.map((event, i) => (
+                                <div key={i} className="flex items-start gap-3 mb-4 relative">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 z-10 text-base ${darkMode ? 'bg-[#0f0f1f]' : 'bg-white'} border ${theme.cardBorder}`}>
+                                    {event.icon}
+                                  </div>
+                                  <div className="flex-1 pt-1">
+                                    <p className="text-sm font-medium">{event.label}</p>
+                                    <p className={`text-xs ${theme.textDim}`}>{new Date(event.time).toLocaleString()}</p>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           )}
                         </div>
                       )}
 
-                      <div className={`rounded-xl p-4 ${darkMode ? 'bg-white/5' : 'bg-slate-50'}`}>
-                        <pre className={`whitespace-pre-wrap font-sans text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'} leading-relaxed`}>
-                          {selected.body || selected.snippet}
-                        </pre>
-                      </div>
-
-                      {selected.analysis?.suggested_reply && !trashedEmails.has(selected.id) && (
-                        <div>
-                          <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
-                            <Icon name="Dashboard_email_Suggested Reply" className="w-4 h-4" style={theme.iconFilter} />
-                            {t.suggestedReply}
-                          </h3>
-                          <div className={`${theme.card} rounded-xl p-4 border ${theme.cardBorder}`}>
-                            {isEditing ? (
-                              <textarea value={editedReply} onChange={(e) => setEditedReply(e.target.value)} rows={8}
-                                className={`w-full bg-transparent text-sm resize-none focus:outline-none ${darkMode ? 'text-gray-300' : 'text-slate-700'}`} />
-                            ) : (
-                              <pre className={`whitespace-pre-wrap font-sans text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>{selected.analysis.suggested_reply}</pre>
-                            )}
+                      {/* NOTES TAB */}
+                      {activeDetailTab === 'notes' && (
+                        <div className="space-y-3">
+                          <h3 className="font-semibold text-sm">Internal Notes</h3>
+                          <p className={`text-xs ${theme.textDim}`}>Only visible to your team — not sent to customers.</p>
+                          <div className="flex gap-2">
+                            <input value={newNote} onChange={e => setNewNote(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && addNote()}
+                              placeholder="Add a note... (e.g. 'Use carrier X for this lane')"
+                              className={`flex-1 px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
+                            <button onClick={addNote} disabled={!newNote.trim()}
+                              className="px-4 py-2 bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] rounded-xl text-white text-sm disabled:opacity-50">Add</button>
                           </div>
+                          {selectedNotes.length === 0 ? (
+                            <div className={`p-6 text-center ${theme.textDim} text-sm`}>No notes yet. Add context for your team!</div>
+                          ) : (
+                            <div className="space-y-2">
+                              {selectedNotes.map(note => (
+                                <div key={note.id} className={`${darkMode ? 'bg-white/5' : 'bg-amber-50'} border ${darkMode ? 'border-white/10' : 'border-amber-200'} rounded-xl p-3 group`}>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'} flex-1`}>{note.text}</p>
+                                    <button onClick={() => deleteNote(note.id)} className={`opacity-0 group-hover:opacity-100 text-xs ${theme.textDim} hover:text-red-400 transition flex-shrink-0`}>✕</button>
+                                  </div>
+                                  <p className={`text-xs ${theme.textDim} mt-1`}>👤 {note.author} · {new Date(note.createdAt).toLocaleString()}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* AI ACTIONS TAB */}
+                      {activeDetailTab === 'actions' && (
+                        <div className="space-y-3">
+                          <h3 className="font-semibold text-sm">One-click AI Actions</h3>
+                          <div className="grid grid-cols-1 gap-2">
+                            {AI_ACTIONS.map(action => (
+                              <button key={action.key} onClick={() => runAiAction(action)} disabled={!!aiActionLoading}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-left transition ${
+                                  aiActionLoading === action.key ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40' :
+                                  `${darkMode ? 'bg-white/5 hover:bg-white/10 border-white/5' : 'bg-slate-50 hover:bg-slate-100 border-slate-200'} border`
+                                } disabled:opacity-50`}>
+                                <span className="text-xl flex-shrink-0">{action.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium">{action.label}</p>
+                                </div>
+                                {aiActionLoading === action.key && <div className="w-4 h-4 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin flex-shrink-0"></div>}
+                              </button>
+                            ))}
+                          </div>
+
+                          {aiActionResult && (
+                            <div className={`mt-4 ${darkMode ? 'bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10 border-[#5200FF]/30' : 'bg-blue-50 border-blue-200'} border rounded-xl p-4`}>
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-xs font-semibold text-[#9E14FB]">AI Result</p>
+                                <div className="flex gap-2">
+                                  <button onClick={copyAiResult} className={`text-xs px-2 py-1 rounded-lg ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'}`}>Copy</button>
+                                  <button onClick={useAiResultAsReply} className="text-xs px-2 py-1 rounded-lg bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white">Use as Reply</button>
+                                </div>
+                              </div>
+                              <pre className={`whitespace-pre-wrap font-sans text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'} max-h-64 overflow-y-auto`}>{aiActionResult}</pre>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
                   </div>
 
+                  {/* Sticky Reply Bar */}
                   {selected.analysis?.suggested_reply && !trashedEmails.has(selected.id) && (
-                    <div className={`flex-shrink-0 px-5 py-4 border-t ${theme.cardBorder} ${theme.card} flex gap-2 flex-wrap items-center`}>
+                    <div className={`flex-shrink-0 px-5 py-3 border-t ${theme.cardBorder} ${theme.card} flex gap-2 flex-wrap items-center`}>
                       <button onClick={sendReply} disabled={sending}
                         className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white disabled:opacity-50">
                         {sending ? t.sending : t.sendReply}
                       </button>
-                      {!isEditing ? (
-                        <button onClick={() => { setEditedReply(selected.analysis?.suggested_reply || ''); setIsEditing(true); }}
-                          className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-full text-sm`}>{t.editReply}</button>
-                      ) : (
-                        <button onClick={() => setIsEditing(false)}
-                          className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-full text-sm`}>{t.cancel}</button>
-                      )}
-                      <button onClick={saveDraft} disabled={savingDraft}
-                        className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-full text-sm disabled:opacity-50`}>
+                      {!isEditing
+                        ? <button onClick={() => { setEditedReply(selected.analysis?.suggested_reply || ''); setIsEditing(true); setActiveDetailTab('analysis'); }} className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-full text-sm`}>{t.editReply}</button>
+                        : <button onClick={() => setIsEditing(false)} className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-full text-sm`}>{t.cancel}</button>
+                      }
+                      <button onClick={saveDraft} disabled={savingDraft} className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-full text-sm disabled:opacity-50`}>
                         {savingDraft ? t.saving : t.saveDraft}
                       </button>
                     </div>
