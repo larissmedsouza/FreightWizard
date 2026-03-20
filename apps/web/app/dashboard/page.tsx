@@ -441,7 +441,8 @@ const [createMode, setCreateMode] = useState<'folder' | 'label'>('folder');
     const assignedKey = manualFolders[e.id];
     if (!assignedKey) return true;
     const assigned = customLabels.find(l => l.key === assignedKey);
-    return !assigned?.isFolder;
+    if (!assigned) return true;
+    return assigned.isFolder !== true;
   });
 }
 
