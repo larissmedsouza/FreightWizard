@@ -27,6 +27,7 @@ interface CustomLabel {
   label: string;
   color: string;
   icon: string;
+  isFolder?: boolean;
 }
 
 const LABEL_COLORS = [
@@ -162,6 +163,7 @@ export default function DashboardPage() {
   const [trashedEmails, setTrashedEmails] = useState<Set<string>>(new Set());
   const [customLabels, setCustomLabels] = useState<CustomLabel[]>([]);
   const [showCreateLabel, setShowCreateLabel] = useState(false);
+const [createMode, setCreateMode] = useState<'folder' | 'label'>('folder');
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
   const [newLabelIcon, setNewLabelIcon] = useState(LABEL_ICONS[0]);
@@ -379,7 +381,7 @@ export default function DashboardPage() {
   const createLabel = () => {
     if (!newLabelName.trim()) return;
     const key = `label_${Date.now()}`;
-    const newLabel: CustomLabel = { key, label: newLabelName.trim(), color: newLabelColor.value, icon: newLabelIcon };
+    const newLabel: CustomLabel = { key, label: newLabelName.trim(), color: newLabelColor.value, icon: newLabelIcon, isFolder: createMode === 'folder' };
     setCustomLabels(prev => [...prev, newLabel]);
     setNewLabelName(''); setNewLabelIcon(LABEL_ICONS[0]); setNewLabelColor(LABEL_COLORS[0]);
     setShowCreateLabel(false);
@@ -434,34 +436,26 @@ export default function DashboardPage() {
       const q = searchQuery.toLowerCase();
       result = result.filter(e => e.subject?.toLowerCase().includes(q) || e.from?.toLowerCase().includes(q) || e.snippet?.toLowerCase().includes(q) || e.analysis?.summary?.toLowerCase().includes(q));
     }
-    if (activeFolder !== 'all') {
-      const isCustomLabel = customLabels.some(l => l.key === activeFolder);
-      if (isCustomLabel) return result.filter(e => manualFolders[e.id] === activeFolder);
-      result = result.filter(e => {
-        if (manualFolders[e.id] === activeFolder) return true;
-        if (manualFolders[e.id] && manualFolders[e.id] !== activeFolder) return false;
-        const a = e.analysis;
-        switch (activeFolder) {
-          case 'urgent': return a?.priority?.toLowerCase() === 'urgent';
-          case 'high': return a?.priority?.toLowerCase() === 'high';
-          case 'medium': return a?.priority?.toLowerCase() === 'medium';
-          case 'low': return a?.priority?.toLowerCase() === 'low';
-          case 'replied': return a?.replied_at != null;
-          case 'not_replied': return a && !a.replied_at;
-          case 'ocean': return a?.mode?.toLowerCase() === 'ocean';
-          case 'air': return a?.mode?.toLowerCase() === 'air';
-          case 'road': return a?.mode?.toLowerCase() === 'road';
-          case 'rail': return a?.mode?.toLowerCase() === 'rail';
-          case 'quote_request': return a?.intent === 'quote_request';
-          case 'booking_confirmation': return a?.intent === 'booking_confirmation';
-          case 'tracking_inquiry': return a?.intent === 'tracking_inquiry';
-          case 'documentation_request': return a?.intent === 'documentation_request';
-          default: return false;
-        }
-      });
-    }
-    return result;
-  }, [emails, searchQuery, activeFolder, manualFolders, trashedEmails, customLabels]);
+    if (activeFolder === 'all') {
+  result = result.filter(e => {
+    const assignedKey = manualFolders[e.id];
+    if (!assignedKey) return true;
+    const assigned = customLabels.find(l => l.key === assignedKey);
+    return !assigned?.isFolder;
+  });
+}
+
+if (activeFolder === 'all') {
+  result = result.filter(e => {
+    const assignedKey = manualFolders[e.id];
+    if (!assignedKey) return true;
+    const assigned = customLabels.find(l => l.key === assignedKey);
+    return !assigned?.isFolder;
+  });
+}
+
+}, [emails, searchQuery, activeFolder, manualFolders, trashedEmails, customLabels]);
+
 
   const folderCounts = useMemo(() => {
     const nonTrashed = emails.filter(e => !trashedEmails.has(e.id));
@@ -505,7 +499,7 @@ export default function DashboardPage() {
   const toggleTheme = () => { setDarkMode(!darkMode); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); };
   const changeLang = (l: Language) => { setLanguage(l); localStorage.setItem('fw_lang', l); setLangMenuOpen(false); };
   const langLabels: Record<Language, string> = { en: 'EN', pt: 'PT', nl: 'NL' };
-  const unanalyzedCount = filteredEmails.filter(e => !e.analysis && !e.isAnalyzing).length;
+  const unanalyzedCount = (filteredEmails ?? []).filter(e => !e.analysis && !e.isAnalyzing).length;
   const isNarrow = sidebarWidth < 100;
 
   const groups = [
@@ -600,10 +594,26 @@ export default function DashboardPage() {
             <div className={`flex items-center justify-between px-5 py-4 border-b ${theme.cardBorder}`}>
               <h3 className="font-semibold flex items-center gap-2">
                 <Icon name="Dashboard_new_label" className="w-5 h-5" style={theme.iconFilter} />
-                Create New Folder / Label
+                {createMode === 'folder' ? 'Create New Folder' : 'Create New Label'}
               </h3>
               <button onClick={() => setShowCreateLabel(false)} className={`${theme.textDim} hover:text-white text-lg`}>✕</button>
             </div>
+            </div>
+
+<div className={`flex gap-1 p-1 mx-5 mt-3 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl`}>
+  <button onClick={() => setCreateMode('folder')}
+    className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${createMode === 'folder' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
+    <Icon name="Dashboard_new_folder" className="w-4 h-4" style={createMode === 'folder' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
+    Folder
+  </button>
+  <button onClick={() => setCreateMode('label')}
+    className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${createMode === 'label' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
+    <Icon name="Dashboard_new_label" className="w-4 h-4" style={createMode === 'label' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
+    Label
+  </button>
+</div>
+
+<div className="p-4 space-y-4">
             <div className="p-4 space-y-4">
               <input value={newLabelName} onChange={e => setNewLabelName(e.target.value)}
                 placeholder="Folder name (e.g. Others, Done, Follow up)"
@@ -639,7 +649,7 @@ export default function DashboardPage() {
               )}
               <button onClick={createLabel} disabled={!newLabelName.trim()}
                 className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
-                Create Folder
+                {createMode === 'folder' ? 'Create Folder' : 'Create Label'}
               </button>
             </div>
           </div>
@@ -900,7 +910,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="overflow-y-auto flex-1">
-                  {filteredEmails.length === 0 ? (
+                  {(filteredEmails ?? []).length === 0 ? (
                     <div className={`p-8 text-center ${theme.textDim}`}>
                       {activeFolder === 'trash' ? (
   <p className="text-3xl mb-2">🗑️</p>
@@ -911,7 +921,7 @@ export default function DashboardPage() {
 )}
 <p className="text-sm">{activeFolder === 'trash' ? t.trashEmpty : 'No emails here'}</p>
                     </div>
-                  ) : filteredEmails.map(email => {
+                  ) : (filteredEmails ?? []).map(email => {
                     const isInTrash = trashedEmails.has(email.id);
                     const emailLabel = manualFolders[email.id] ? customLabels.find(l => l.key === manualFolders[email.id]) : null;
                     return (
