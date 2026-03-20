@@ -291,7 +291,7 @@ const [createMode, setCreateMode] = useState<'folder' | 'label'>('folder');
   };
 
   const analyzeAll = async () => {
-    const toAnalyze = filteredEmails.filter(e => !e.analysis && !e.isAnalyzing);
+    const toAnalyze = (filteredEmails ?? []).filter(e => !e.analysis && !e.isAnalyzing);
     if (!toAnalyze.length) return;
     setAnalyzing(true); setProgress({ current: 0, total: toAnalyze.length });
     for (let i = 0; i < toAnalyze.length; i++) {
@@ -887,7 +887,7 @@ if (activeFolder === 'all') {
                         )}
                         {currentFolder?.label}
                       </p>
-                      <p className={`text-xs ${theme.textDim}`}>{filteredEmails.length} emails</p>
+                      <p className={`text-xs ${theme.textDim}`}>{(filteredEmails ?? []).length} emails</p>
                     </div>
                     <div className="flex gap-1">
                       {activeFolder === 'trash' && trashedEmails.size > 0 && (
