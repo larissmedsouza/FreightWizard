@@ -817,6 +817,11 @@ export default function DashboardPage() {
                         className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm ${theme.textDim} ${theme.hover} transition mt-1 border border-dashed ${theme.cardBorder}`}>
                         <Icon name="Dashboard_new_label" className="w-4 h-4" style={theme.iconFilter} />
                         <span className="text-xs">{t.createLabel}</span>
+                        </button>
+                        <button onClick={() => setShowCreateLabel(true)}
+                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm ${theme.textDim} ${theme.hover} transition mt-1 border border-dashed ${theme.cardBorder}`}>
+                          <Icon name="Dashboard_new_folder" className="w-4 h-4" style={theme.iconFilter} />
+                          <span className="text-xs">+ New Folder</span>
                       </button>
                     </div>
                   )}
@@ -897,8 +902,14 @@ export default function DashboardPage() {
                 <div className="overflow-y-auto flex-1">
                   {filteredEmails.length === 0 ? (
                     <div className={`p-8 text-center ${theme.textDim}`}>
-                      <p className="text-3xl mb-2">{activeFolder === 'trash' ? '🗑️' : '📭'}</p>
-                      <p className="text-sm">{activeFolder === 'trash' ? t.trashEmpty : 'No emails here'}</p>
+                      {activeFolder === 'trash' ? (
+  <p className="text-3xl mb-2">🗑️</p>
+) : (
+  <div className="w-16 h-16 mx-auto mb-3">
+    <Icon name="Dashboard_no_emails_here" className="w-full h-full" style={theme.iconFilter} />
+  </div>
+)}
+<p className="text-sm">{activeFolder === 'trash' ? t.trashEmpty : 'No emails here'}</p>
                     </div>
                   ) : filteredEmails.map(email => {
                     const isInTrash = trashedEmails.has(email.id);
