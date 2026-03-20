@@ -600,7 +600,7 @@ export default function DashboardPage() {
             <div className={`flex items-center justify-between px-5 py-4 border-b ${theme.cardBorder}`}>
               <h3 className="font-semibold flex items-center gap-2">
                 <Icon name="Dashboard_new_label" className="w-5 h-5" style={theme.iconFilter} />
-                Create New Label
+                Create New Folder / Label
               </h3>
               <button onClick={() => setShowCreateLabel(false)} className={`${theme.textDim} hover:text-white text-lg`}>✕</button>
             </div>
@@ -639,7 +639,7 @@ export default function DashboardPage() {
               )}
               <button onClick={createLabel} disabled={!newLabelName.trim()}
                 className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
-                Create Label
+                Create Folder
               </button>
             </div>
           </div>
