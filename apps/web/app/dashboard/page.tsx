@@ -383,8 +383,8 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
             <button onClick={() => insertFormat('bold')} className={`w-6 h-6 rounded text-xs font-bold ${theme.hover} ${theme.textMuted} transition`}>B</button>
             <button onClick={() => insertFormat('italic')} className={`w-6 h-6 rounded text-xs italic ${theme.hover} ${theme.textMuted} transition`}>I</button>
             <div className={`w-px h-3 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
-            <button onClick={() => setReplyText(t => t + '\n• ')} className={`w-6 h-6 rounded text-xs ${theme.hover} ${theme.textMuted} transition`}>☰</button>
-            <button onClick={() => setReplyText(t => t + '\n1. ')} className={`w-6 h-6 rounded text-xs ${theme.hover} ${theme.textMuted} transition`}>#</button>
+<button onClick={() => setReplyText((prev: string) => prev + '\n• ')} className={`w-6 h-6 rounded text-xs ${theme.hover} ${theme.textMuted} transition`}>☰</button>
+<button onClick={() => setReplyText((prev: string) => prev + '\n1. ')} className={`w-6 h-6 rounded text-xs ${theme.hover} ${theme.textMuted} transition`}>#</button>
             <div className={`w-px h-3 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
             <button className={`w-6 h-6 rounded text-xs ${theme.hover} ${theme.textMuted} transition`} title="Attach (coming soon)" onClick={() => alert('File attachment coming soon!')}>📎</button>
             <button onClick={() => setShowSignatureEditor(!showSignatureEditor)}
