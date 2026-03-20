@@ -210,7 +210,15 @@ export default function DashboardPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [newNote, setNewNote] = useState('');
   const [workflowStatuses, setWorkflowStatuses] = useState<Record<string, WorkflowStatus>>({});
-  const [assignments, setAssignments] = useState<Record<string, string>>({});
+  interface Assignment {
+  owner: string;
+  watchers: string[];
+  queue: string;
+}
+const [assignments, setAssignments] = useState<Record<string, Assignment>>({});
+const [showAssignPanel, setShowAssignPanel] = useState(false);
+const [assignRole, setAssignRole] = useState<'owner' | 'watcher' | 'queue'>('owner');
+const [assignInput, setAssignInput] = useState('');
   const [activeDetailTab, setActiveDetailTab] = useState<'analysis' | 'timeline' | 'notes' | 'actions'>('analysis');
   const [aiActionLoading, setAiActionLoading] = useState<string | null>(null);
   const [aiActionResult, setAiActionResult] = useState<string | null>(null);
@@ -272,6 +280,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const close = () => setContextMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, []);
+
+  useEffect(() => {
+    const close = () => setShowAssignPanel(false);
     window.addEventListener('click', close);
     return () => window.removeEventListener('click', close);
   }, []);
@@ -417,11 +431,28 @@ export default function DashboardPage() {
     notify('success', 'Status updated!');
   };
 
-  const setAssignment = (emailId: string, assignee: string) => {
-    setAssignments(prev => ({ ...prev, [emailId]: assignee }));
-    addTimelineEvent(emailId, 'assigned', `Assigned to ${assignee}`);
-    notify('success', `Assigned to ${assignee}!`);
-  };
+const updateAssignment = (emailId: string, role: 'owner' | 'watcher' | 'queue', value: string) => {
+  if (!value.trim()) return;
+  setAssignments(prev => {
+    const current = prev[emailId] || { owner: '', watchers: [], queue: '' };
+    if (role === 'owner') return { ...prev, [emailId]: { ...current, owner: value.trim() } };
+    if (role === 'watcher') return { ...prev, [emailId]: { ...current, watchers: [...current.watchers.filter(w => w !== value.trim()), value.trim()] } };
+    if (role === 'queue') return { ...prev, [emailId]: { ...current, queue: value.trim() } };
+    return prev;
+  });
+  const labels = { owner: 'Owner', watcher: 'Watcher', queue: 'Queue' };
+  addTimelineEvent(emailId, 'assigned', `${labels[role]}: ${value.trim()}`);
+  notify('success', `${labels[role]} set to ${value.trim()}!`);
+  setAssignInput('');
+};
+
+const removeWatcher = (emailId: string, watcher: string) => {
+  setAssignments(prev => {
+    const current = prev[emailId];
+    if (!current) return prev;
+    return { ...prev, [emailId]: { ...current, watchers: current.watchers.filter(w => w !== watcher) } };
+  });
+};
 
   const runAiAction = async (action: typeof AI_ACTIONS[0]) => {
     if (!selected || !session) return;
@@ -703,7 +734,6 @@ export default function DashboardPage() {
 
   const selectedWorkflow = selected ? (workflowStatuses[selected.id] || 'new') : 'new';
   const selectedWorkflowDef = WORKFLOW_STATUSES.find(s => s.key === selectedWorkflow);
-  const selectedAssignee = selected ? (assignments[selected.id] || '') : '';
   const selectedTimeline = selected ? getThreadTimeline(selected.id) : [];
   const selectedNotes = selected ? getEmailNotes(selected.id) : [];
 
@@ -1051,7 +1081,8 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-1 mt-1 flex-wrap">
                           {email.analysis && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]">{email.analysis.intent?.replace(/_/g, ' ')}</span>}
                           {emailStatusDef && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${emailStatusDef.bg} ${emailStatusDef.color}`}>{emailStatusDef.label}</span>}
-                          {emailAssignee && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-white/10 text-gray-300' : 'bg-slate-100 text-slate-500'}`}>👤 {emailAssignee.split(' ')[0]}</span>}
+                          {assignments[email.id]?.owner && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-white/10 text-gray-300' : 'bg-slate-100 text-slate-500'}`}>👑 {assignments[email.id].owner.split('@')[0]}</span>}
+{assignments[email.id]?.queue && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-purple-500/20 text-purple-400' : 'bg-purple-50 text-purple-600'}`}>📋 {assignments[email.id].queue}</span>}
                           {emailLabel && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${emailLabel.color} bg-white/5`}>{emailLabel.icon} {emailLabel.label}</span>}
                           {isInTrash && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">🗑️</span>}
                         </div>
@@ -1111,16 +1142,85 @@ export default function DashboardPage() {
                               </button>
                             ))}
                           </div>
-                          {/* Assignment */}
-                          <div className="flex items-center gap-1 ml-auto">
-                            <span className={`text-xs ${theme.textDim}`}>👤</span>
-                            <input
-                              value={selectedAssignee}
-                              onChange={e => setAssignment(selected.id, e.target.value)}
-                              placeholder="Assign to..."
-                              className={`text-xs px-2 py-1 rounded-lg border ${darkMode ? 'bg-white/5 border-white/10 text-white placeholder-gray-600' : 'bg-slate-50 border-slate-200 text-slate-700 placeholder-slate-400'} focus:outline-none focus:border-[#5200FF] w-28`}
-                            />
-                          </div>
+                          {/* Assignment Panel Toggle */}
+<div className="relative ml-auto">
+  <button onClick={() => setShowAssignPanel(!showAssignPanel)}
+    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition ${showAssignPanel ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border-[#5200FF]/40' : `${darkMode ? 'border-white/10 hover:border-white/20' : 'border-slate-200 hover:border-slate-300'}`}`}>
+    👤 {assignments[selected.id]?.owner ? assignments[selected.id].owner.split('@')[0] : 'Assign'}
+    {(assignments[selected.id]?.watchers?.length > 0 || assignments[selected.id]?.queue) && (
+      <span className="w-1.5 h-1.5 rounded-full bg-[#9E14FB]" />
+    )}
+  </button>
+
+  {showAssignPanel && (
+    <div className={`absolute top-full right-0 mt-2 w-72 ${theme.card} border ${theme.cardBorder} rounded-2xl shadow-2xl z-50 p-4`}
+      onClick={e => e.stopPropagation()}>
+      <p className="text-sm font-semibold mb-3">Assignment</p>
+
+      {/* Role selector */}
+      <div className={`flex gap-1 p-1 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl mb-3`}>
+        {(['owner', 'watcher', 'queue'] as const).map(role => (
+          <button key={role} onClick={() => setAssignRole(role)}
+            className={`flex-1 py-1.5 text-xs rounded-lg transition capitalize ${assignRole === role ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
+            {role === 'owner' ? '👑 Owner' : role === 'watcher' ? '👁 Watcher' : '📋 Queue'}
+          </button>
+        ))}
+      </div>
+
+      {/* Input */}
+      <div className="flex gap-2 mb-3">
+        <input value={assignInput} onChange={e => setAssignInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && updateAssignment(selected.id, assignRole, assignInput)}
+          placeholder={assignRole === 'queue' ? 'Queue name (e.g. Rotterdam)' : 'Email or name'}
+          className={`flex-1 px-3 py-2 rounded-xl border ${theme.input} text-xs focus:outline-none focus:border-[#5200FF]`} />
+        <button onClick={() => updateAssignment(selected.id, assignRole, assignInput)} disabled={!assignInput.trim()}
+          className="px-3 py-2 bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] rounded-xl text-white text-xs disabled:opacity-50">Add</button>
+      </div>
+
+      {/* Current assignments */}
+      <div className="space-y-2">
+        {/* Owner */}
+        <div className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-2.5`}>
+          <p className={`text-xs font-medium ${theme.textDim} mb-1`}>👑 Owner</p>
+          {assignments[selected.id]?.owner ? (
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">{assignments[selected.id].owner}</span>
+              <button onClick={() => setAssignments(prev => ({ ...prev, [selected.id]: { ...prev[selected.id], owner: '' } }))}
+                className={`text-xs ${theme.textDim} hover:text-red-400`}>✕</button>
+            </div>
+          ) : <p className={`text-xs ${theme.textDim}`}>No owner assigned</p>}
+        </div>
+
+        {/* Watchers */}
+        <div className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-2.5`}>
+          <p className={`text-xs font-medium ${theme.textDim} mb-1`}>👁 Watchers</p>
+          {assignments[selected.id]?.watchers?.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {assignments[selected.id].watchers.map(w => (
+                <span key={w} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${darkMode ? 'bg-white/10' : 'bg-slate-200'}`}>
+                  {w.split('@')[0]}
+                  <button onClick={() => removeWatcher(selected.id, w)} className="hover:text-red-400 text-[10px]">✕</button>
+                </span>
+              ))}
+            </div>
+          ) : <p className={`text-xs ${theme.textDim}`}>No watchers</p>}
+        </div>
+
+        {/* Queue */}
+        <div className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-2.5`}>
+          <p className={`text-xs font-medium ${theme.textDim} mb-1`}>📋 Team Queue</p>
+          {assignments[selected.id]?.queue ? (
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">{assignments[selected.id].queue}</span>
+              <button onClick={() => setAssignments(prev => ({ ...prev, [selected.id]: { ...prev[selected.id], queue: '' } }))}
+                className={`text-xs ${theme.textDim} hover:text-red-400`}>✕</button>
+            </div>
+          ) : <p className={`text-xs ${theme.textDim}`}>Not in any queue</p>}
+        </div>
+      </div>
+    </div>
+  )}
+</div>
                         </div>
                       )}
                     </div>
