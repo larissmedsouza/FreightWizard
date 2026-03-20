@@ -107,7 +107,6 @@ const NAV_ITEMS = [
   { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
 ];
 
-// Priority icon filters
 const PRIORITY_FILTERS: Record<string, string> = {
   urgent: 'brightness(0) saturate(100%) invert(29%) sepia(96%) saturate(2000%) hue-rotate(340deg)',
   high: 'brightness(0) saturate(100%) invert(60%) sepia(80%) saturate(800%) hue-rotate(5deg)',
@@ -121,17 +120,17 @@ const SYSTEM_FOLDERS: FolderDef[] = [
   { key: 'high', label: 'High', icon: 'Dashboard_priority', iconStyle: { filter: PRIORITY_FILTERS.high }, group: 'priority', color: 'text-orange-400' },
   { key: 'medium', label: 'Medium', icon: 'Dashboard_priority', iconStyle: { filter: PRIORITY_FILTERS.medium }, group: 'priority', color: 'text-yellow-400' },
   { key: 'low', label: 'Low', icon: 'Dashboard_priority', iconStyle: { filter: PRIORITY_FILTERS.low }, group: 'priority', color: 'text-green-400' },
-  { key: 'not_replied', label: 'Not Replied', icon: 'Dashboad_not_replied', group: 'status', color: 'text-blue-400' },
-  { key: 'replied', label: 'Replied', icon: 'Dashboard_replied', group: 'status', color: 'text-green-400' },
-  { key: 'draft_saved', label: 'Drafts', icon: 'Dashboard_draft', group: 'status', color: 'text-gray-400' },
-  { key: 'ocean', label: 'Ocean', icon: 'Dashboard_ocean', group: 'transport', color: 'text-blue-400' },
-  { key: 'air', label: 'Air', icon: 'Dashboard_air', group: 'transport', color: 'text-sky-400' },
-  { key: 'road', label: 'Road', icon: 'Dashboard_road', group: 'transport', color: 'text-yellow-400' },
-  { key: 'rail', label: 'Rail', icon: 'Dashboard_rail', group: 'transport', color: 'text-purple-400' },
-  { key: 'quote_request', label: 'Quote Requests', icon: 'Dashboard_quotation', group: 'intent', color: 'text-yellow-400' },
-  { key: 'booking_confirmation', label: 'Bookings', icon: 'Dashboard_booking', group: 'intent', color: 'text-green-400' },
-  { key: 'tracking_inquiry', label: 'Tracking', icon: 'Dashboard_tracking', group: 'intent', color: 'text-blue-400' },
-  { key: 'documentation_request', label: 'Documents', icon: 'Dashboard_documents', group: 'intent', color: 'text-purple-400' },
+  { key: 'not_replied', label: 'Not Replied', icon: 'Dashboad_not_replied', group: 'status' },
+  { key: 'replied', label: 'Replied', icon: 'Dashboard_replied', group: 'status' },
+  { key: 'draft_saved', label: 'Drafts', icon: 'Dashboard_draft', group: 'status' },
+  { key: 'ocean', label: 'Ocean', icon: 'Dashboard_ocean', group: 'transport' },
+  { key: 'air', label: 'Air', icon: 'Dashboard_air', group: 'transport' },
+  { key: 'road', label: 'Road', icon: 'Dashboard_road', group: 'transport' },
+  { key: 'rail', label: 'Rail', icon: 'Dashboard_rail', group: 'transport' },
+  { key: 'quote_request', label: 'Quote Requests', icon: 'Dashboard_quotation', group: 'intent' },
+  { key: 'booking_confirmation', label: 'Bookings', icon: 'Dashboard_booking', group: 'intent' },
+  { key: 'tracking_inquiry', label: 'Tracking', icon: 'Dashboard_tracking', group: 'intent' },
+  { key: 'documentation_request', label: 'Documents', icon: 'Dashboard_documents', group: 'intent' },
 ];
 
 export default function DashboardPage() {
@@ -163,12 +162,11 @@ export default function DashboardPage() {
   const [trashedEmails, setTrashedEmails] = useState<Set<string>>(new Set());
   const [customLabels, setCustomLabels] = useState<CustomLabel[]>([]);
   const [showCreateLabel, setShowCreateLabel] = useState(false);
-const [createMode, setCreateMode] = useState<'folder' | 'label'>('folder');
+  const [createMode, setCreateMode] = useState<'folder' | 'label'>('folder');
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
   const [newLabelIcon, setNewLabelIcon] = useState(LABEL_ICONS[0]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; emailId: string } | null>(null);
-
   const [sidebarWidth, setSidebarWidth] = useState(210);
   const [emailListWidth, setEmailListWidth] = useState(300);
   const sidebarResizing = useRef(false);
@@ -243,9 +241,9 @@ const [createMode, setCreateMode] = useState<'folder' | 'label'>('folder');
     const savedTrash = localStorage.getItem('fw_trash');
     if (savedTheme) setDarkMode(savedTheme === 'dark');
     if (savedLang) setLanguage(savedLang);
-    if (savedLabels) setCustomLabels(JSON.parse(savedLabels));
-    if (savedManual) setManualFolders(JSON.parse(savedManual));
-    if (savedTrash) setTrashedEmails(new Set(JSON.parse(savedTrash)));
+    if (savedLabels) try { setCustomLabels(JSON.parse(savedLabels)); } catch {}
+    if (savedManual) try { setManualFolders(JSON.parse(savedManual)); } catch {}
+    if (savedTrash) try { setTrashedEmails(new Set(JSON.parse(savedTrash))); } catch {}
     const sid = searchParams.get('session') || localStorage.getItem('fw_session');
     if (sid) { localStorage.setItem('fw_session', sid); setSession(sid); checkAuth(sid); }
     else setLoading(false);
@@ -291,7 +289,7 @@ const [createMode, setCreateMode] = useState<'folder' | 'label'>('folder');
   };
 
   const analyzeAll = async () => {
-    const toAnalyze = (filteredEmails ?? []).filter(e => !e.analysis && !e.isAnalyzing);
+    const toAnalyze = filteredEmails.filter(e => !e.analysis && !e.isAnalyzing);
     if (!toAnalyze.length) return;
     setAnalyzing(true); setProgress({ current: 0, total: toAnalyze.length });
     for (let i = 0; i < toAnalyze.length; i++) {
@@ -385,7 +383,7 @@ const [createMode, setCreateMode] = useState<'folder' | 'label'>('folder');
     setCustomLabels(prev => [...prev, newLabel]);
     setNewLabelName(''); setNewLabelIcon(LABEL_ICONS[0]); setNewLabelColor(LABEL_COLORS[0]);
     setShowCreateLabel(false);
-    notify('success', `Label "${newLabel.label}" created!`);
+    notify('success', `${createMode === 'folder' ? 'Folder' : 'Label'} "${newLabel.label}" created!`);
   };
 
   const deleteLabel = (key: string) => {
@@ -397,7 +395,7 @@ const [createMode, setCreateMode] = useState<'folder' | 'label'>('folder');
   const applyLabel = (emailId: string, labelKey: FolderKey) => {
     setManualFolders(prev => ({ ...prev, [emailId]: labelKey }));
     setContextMenu(null);
-    notify('success', 'Label applied!');
+    notify('success', 'Applied!');
   };
 
   const onDragStart = (e: React.DragEvent, emailId: string) => {
@@ -429,38 +427,77 @@ const [createMode, setCreateMode] = useState<'folder' | 'label'>('folder');
   };
 
   const filteredEmails = useMemo(() => {
+    if (!emails || emails.length === 0) return [];
     let result = [...emails];
+
     if (activeFolder === 'trash') return result.filter(e => trashedEmails.has(e.id));
+
     result = result.filter(e => !trashedEmails.has(e.id));
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(e => e.subject?.toLowerCase().includes(q) || e.from?.toLowerCase().includes(q) || e.snippet?.toLowerCase().includes(q) || e.analysis?.summary?.toLowerCase().includes(q));
+      result = result.filter(e =>
+        e.subject?.toLowerCase().includes(q) ||
+        e.from?.toLowerCase().includes(q) ||
+        e.snippet?.toLowerCase().includes(q) ||
+        e.analysis?.summary?.toLowerCase().includes(q)
+      );
     }
+
     if (activeFolder === 'all') {
-  result = result.filter(e => {
-    const assignedKey = manualFolders[e.id];
-    if (!assignedKey) return true;
-    const assigned = customLabels.find(l => l.key === assignedKey);
-    if (!assigned) return true;
-    return assigned.isFolder !== true;
-  });
-}
+      // Hide emails assigned to a folder (not labels) from All Mail
+      result = result.filter(e => {
+        const assignedKey = manualFolders[e.id];
+        if (!assignedKey) return true;
+        const assigned = customLabels.find(l => l.key === assignedKey);
+        if (!assigned) return true;
+        return assigned.isFolder !== true;
+      });
+      return result;
+    }
 
-if (activeFolder === 'all') {
-  result = result.filter(e => {
-    const assignedKey = manualFolders[e.id];
-    if (!assignedKey) return true;
-    const assigned = customLabels.find(l => l.key === assignedKey);
-    return !assigned?.isFolder;
-  });
-}
+    // Custom folder/label
+    const isCustom = customLabels.some(l => l.key === activeFolder);
+    if (isCustom) return result.filter(e => manualFolders[e.id] === activeFolder);
 
-}, [emails, searchQuery, activeFolder, manualFolders, trashedEmails, customLabels]);
+    // System folders
+    result = result.filter(e => {
+      if (manualFolders[e.id] === activeFolder) return true;
+      if (manualFolders[e.id] && manualFolders[e.id] !== activeFolder) return false;
+      const a = e.analysis;
+      switch (activeFolder) {
+        case 'urgent': return a?.priority?.toLowerCase() === 'urgent';
+        case 'high': return a?.priority?.toLowerCase() === 'high';
+        case 'medium': return a?.priority?.toLowerCase() === 'medium';
+        case 'low': return a?.priority?.toLowerCase() === 'low';
+        case 'replied': return a?.replied_at != null;
+        case 'not_replied': return a && !a.replied_at;
+        case 'draft_saved': return a?.draft_saved === true;
+        case 'ocean': return a?.mode?.toLowerCase() === 'ocean';
+        case 'air': return a?.mode?.toLowerCase() === 'air';
+        case 'road': return a?.mode?.toLowerCase() === 'road';
+        case 'rail': return a?.mode?.toLowerCase() === 'rail';
+        case 'quote_request': return a?.intent === 'quote_request';
+        case 'booking_confirmation': return a?.intent === 'booking_confirmation';
+        case 'tracking_inquiry': return a?.intent === 'tracking_inquiry';
+        case 'documentation_request': return a?.intent === 'documentation_request';
+        default: return false;
+      }
+    });
 
+    return result;
+  }, [emails, searchQuery, activeFolder, manualFolders, trashedEmails, customLabels]);
 
   const folderCounts = useMemo(() => {
     const nonTrashed = emails.filter(e => !trashedEmails.has(e.id));
-    const counts: Record<string, number> = { all: nonTrashed.length, trash: trashedEmails.size };
+    const counts: Record<string, number> = { all: nonTrashed.filter(e => {
+      const assignedKey = manualFolders[e.id];
+      if (!assignedKey) return true;
+      const assigned = customLabels.find(l => l.key === assignedKey);
+      if (!assigned) return true;
+      return assigned.isFolder !== true;
+    }).length, trash: trashedEmails.size };
+
     SYSTEM_FOLDERS.forEach(f => {
       if (f.key === 'all' || f.key === 'trash') return;
       counts[f.key] = nonTrashed.filter(e => {
@@ -500,7 +537,7 @@ if (activeFolder === 'all') {
   const toggleTheme = () => { setDarkMode(!darkMode); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); };
   const changeLang = (l: Language) => { setLanguage(l); localStorage.setItem('fw_lang', l); setLangMenuOpen(false); };
   const langLabels: Record<Language, string> = { en: 'EN', pt: 'PT', nl: 'NL' };
-  const unanalyzedCount = (filteredEmails ?? []).filter(e => !e.analysis && !e.isAnalyzing).length;
+  const unanalyzedCount = filteredEmails.filter(e => !e.analysis && !e.isAnalyzing).length;
   const isNarrow = sidebarWidth < 100;
 
   const groups = [
@@ -511,12 +548,10 @@ if (activeFolder === 'all') {
     { label: 'Intent', folders: SYSTEM_FOLDERS.filter(f => f.group === 'intent') },
   ];
 
-  const currentFolder = [...SYSTEM_FOLDERS, ...customLabels.map(l => ({ key: l.key, label: l.label, icon: l.icon }))].find(f => f.key === activeFolder);
+  const currentFolder = [...SYSTEM_FOLDERS, ...customLabels.map(l => ({ key: l.key, label: l.label, icon: l.icon, group: 'custom', iconStyle: undefined }))].find(f => f.key === activeFolder);
 
-  // Determine icon filter for sidebar folders in light mode
   const getFolderIconStyle = (folder: FolderDef, isActive: boolean): React.CSSProperties => {
-    if (folder.iconStyle) return folder.iconStyle; // priority icons keep their color
-    if (isActive) return darkMode ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter;
+    if (folder.iconStyle) return folder.iconStyle;
     return theme.iconFilter;
   };
 
@@ -540,14 +575,14 @@ if (activeFolder === 'all') {
       {contextMenu && (
         <div className={`fixed z-50 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-2xl py-1 min-w-48`}
           style={{ left: contextMenu.x, top: contextMenu.y }} onClick={e => e.stopPropagation()}>
-          <p className={`px-4 py-2 text-xs font-semibold ${theme.textDim} uppercase tracking-wider border-b ${theme.cardBorder}`}>Apply Label</p>
+          <p className={`px-4 py-2 text-xs font-semibold ${theme.textDim} uppercase tracking-wider border-b ${theme.cardBorder}`}>Move to</p>
           {customLabels.map(label => (
             <button key={label.key} onClick={() => applyLabel(contextMenu.emailId, label.key)}
               className={`w-full px-4 py-2 text-sm text-left ${theme.hover} flex items-center gap-2 ${label.color}`}>
-              {label.icon} {label.label}
+              {label.icon} {label.label} {label.isFolder ? '📁' : '🏷️'}
             </button>
           ))}
-          {customLabels.length === 0 && <p className={`px-4 py-2 text-xs ${theme.textDim}`}>No labels yet</p>}
+          {customLabels.length === 0 && <p className={`px-4 py-2 text-xs ${theme.textDim}`}>No folders or labels yet</p>}
           <div className={`border-t ${theme.cardBorder} mt-1`} />
           <button onClick={() => moveToTrash(contextMenu.emailId)}
             className={`w-full px-4 py-2 text-sm text-left ${theme.hover} flex items-center gap-2 text-red-400`}>
@@ -588,36 +623,34 @@ if (activeFolder === 'all') {
         </div>
       )}
 
-      {/* Create Label Modal */}
+      {/* Create Folder / Label Modal */}
       {showCreateLabel && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
           <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-sm shadow-2xl`}>
             <div className={`flex items-center justify-between px-5 py-4 border-b ${theme.cardBorder}`}>
               <h3 className="font-semibold flex items-center gap-2">
-                <Icon name="Dashboard_new_label" className="w-5 h-5" style={theme.iconFilter} />
+                <Icon name={createMode === 'folder' ? 'Dashboard_new_folder' : 'Dashboard_new_label'} className="w-5 h-5" style={theme.iconFilter} />
                 {createMode === 'folder' ? 'Create New Folder' : 'Create New Label'}
               </h3>
               <button onClick={() => setShowCreateLabel(false)} className={`${theme.textDim} hover:text-white text-lg`}>✕</button>
             </div>
+
+            <div className={`flex gap-1 p-1 mx-5 mt-4 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl`}>
+              <button onClick={() => setCreateMode('folder')}
+                className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${createMode === 'folder' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
+                <Icon name="Dashboard_new_folder" className="w-4 h-4" style={createMode === 'folder' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
+                Folder
+              </button>
+              <button onClick={() => setCreateMode('label')}
+                className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${createMode === 'label' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
+                <Icon name="Dashboard_new_label" className="w-4 h-4" style={createMode === 'label' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
+                Label
+              </button>
             </div>
 
-<div className={`flex gap-1 p-1 mx-5 mt-3 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl`}>
-  <button onClick={() => setCreateMode('folder')}
-    className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${createMode === 'folder' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
-    <Icon name="Dashboard_new_folder" className="w-4 h-4" style={createMode === 'folder' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
-    Folder
-  </button>
-  <button onClick={() => setCreateMode('label')}
-    className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${createMode === 'label' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
-    <Icon name="Dashboard_new_label" className="w-4 h-4" style={createMode === 'label' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
-    Label
-  </button>
-</div>
-
-<div className="p-4 space-y-4">
-            <div className="p-4 space-y-4">
+            <div className="p-5 space-y-4">
               <input value={newLabelName} onChange={e => setNewLabelName(e.target.value)}
-                placeholder="Folder name (e.g. Others, Done, Follow up)"
+                placeholder={createMode === 'folder' ? 'Folder name (e.g. Done, Archive)' : 'Label name (e.g. Urgent, VIP)'}
                 className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}
                 onKeyDown={e => e.key === 'Enter' && createLabel()} autoFocus />
               <div>
@@ -646,6 +679,7 @@ if (activeFolder === 'all') {
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${newLabelColor.bg} border ${theme.cardBorder}`}>
                   <span>{newLabelIcon}</span>
                   <span className={`text-sm font-medium ${newLabelColor.value}`}>{newLabelName}</span>
+                  <span className={`text-xs ${theme.textDim} ml-auto`}>{createMode === 'folder' ? '📁 Folder' : '🏷️ Label'}</span>
                 </div>
               )}
               <button onClick={createLabel} disabled={!newLabelName.trim()}
@@ -697,7 +731,10 @@ if (activeFolder === 'all') {
           </div>
 
           <button onClick={toggleTheme} className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
-            {darkMode ? <Icon name="Dashboard_sun_light_mode" className="w-4 h-4" style={theme.iconFilter} /> : <Icon name="Dashboard_moon_dark_mode" className="w-4 h-4" style={theme.iconFilter} />}
+            {darkMode
+              ? <Icon name="Dashboard_sun_light_mode" className="w-4 h-4" style={theme.iconFilter} />
+              : <Icon name="Dashboard_moon_dark_mode" className="w-4 h-4" style={theme.iconFilter} />
+            }
           </button>
 
           {user && (
@@ -725,7 +762,8 @@ if (activeFolder === 'all') {
                   <Icon name="login_page_google logo" className="w-5 h-5" />
                   {t.connectGmail}
                 </button>
-                <button onClick={() => window.location.href = `${API_URL}/auth/outlook`} className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[#0078D4] to-[#00BCF2] rounded-full font-medium text-white shadow-lg hover:scale-105 transition-transform">
+                <button onClick={() => window.location.href = `${API_URL}/auth/outlook`}
+                  className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[#0078D4] to-[#00BCF2] rounded-full font-medium text-white shadow-lg hover:scale-105 transition-transform">
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M7.88 12.04q0 .45-.11.87-.1.41-.33.74-.22.33-.58.52-.37.2-.87.2t-.85-.2q-.35-.21-.57-.55-.22-.33-.33-.75-.1-.42-.1-.86t.1-.87q.1-.43.34-.76.22-.34.59-.54.36-.2.87-.2t.86.2q.35.21.57.55.22.34.31.77.1.43.1.88zM24 12v9.38q0 .46-.33.8-.33.32-.8.32H7.13q-.46 0-.8-.33-.32-.33-.32-.8V18H1q-.41 0-.7-.3-.3-.29-.3-.7V7q0-.41.3-.7Q.58 6 1 6h6.5V2.55q0-.44.3-.75.3-.3.75-.3h12.9q.44 0 .75.3.3.3.3.75V12zm-6-8.25v3h3v-3zm0 4.5v3h3v-3zm0 4.5v1.83l3.05-1.83zm-5.25-9v3h3.75v-3zm0 4.5v3h3.75v-3zm0 4.5v2.03l2.41 1.5 1.34-.8v-2.73zM9 3.75V6h2l.13.01.12.04v-2.3zM5.98 15.98q.9 0 1.6-.3.7-.32 1.19-.86.48-.55.73-1.28.25-.74.25-1.61 0-.83-.25-1.55-.24-.71-.71-1.24t-1.15-.83q-.68-.3-1.55-.3-.92 0-1.64.3-.71.3-1.2.85-.5.54-.75 1.3-.25.74-.25 1.63 0 .85.26 1.56.26.72.74 1.23.48.52 1.17.81.69.3 1.56.3zM7.5 21h12.39L12 16.08V17q0 .41-.3.7-.29.3-.7.3H7.5zm15-.13v-7.24l-5.9 3.54Z"/></svg>
                   {t.connectOutlook}
                 </button>
@@ -738,7 +776,6 @@ if (activeFolder === 'all') {
             {/* LEFT SIDEBAR */}
             <div style={{ width: sidebarWidth, flexShrink: 0 }} className="flex flex-col transition-none">
               <div className={`${theme.sidebar} border ${theme.cardBorder} rounded-2xl h-full overflow-y-auto flex flex-col`}>
-                {/* Compose */}
                 <div className="p-2 pt-3 flex-shrink-0">
                   <button onClick={() => setShowCompose(true)}
                     className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2">
@@ -771,7 +808,9 @@ if (activeFolder === 'all') {
                               style={getFolderIconStyle(folder, isActive)} />
                             {!isNarrow && (
                               <>
-                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : ''} ${folder.group === 'priority' ? folder.color : (darkMode ? '!text-white' : '!text-[#7C0BFD]')}`}>
+                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : ''} ${
+                                  folder.group === 'priority' ? (folder.color || '') : (darkMode ? '!text-white' : '!text-[#7C0BFD]')
+                                }`}>
                                   {folder.label}
                                 </span>
                                 {count > 0 && (
@@ -788,14 +827,11 @@ if (activeFolder === 'all') {
                     </div>
                   ))}
 
-                  {/* Custom Labels */}
+                  {/* Custom Folders & Labels */}
                   {!isNarrow && (
                     <div className="mt-2">
                       <div className="flex items-center justify-between px-2 mb-1">
-                        <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider`}>{t.labels}</p>
-                        <button onClick={() => setShowCreateLabel(true)} className={`text-xs ${theme.textDim} hover:text-[#9E14FB] transition`} title="Create label">
-                          <Icon name="Dashboard_new_label" className="w-4 h-4" style={theme.iconFilter} />
-                        </button>
+                        <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider`}>Folders & Labels</p>
                       </div>
                       {customLabels.map(label => {
                         const count = folderCounts[label.key] || 0;
@@ -813,6 +849,7 @@ if (activeFolder === 'all') {
                                 theme.hover}`}>
                               <span className="text-base flex-shrink-0">{label.icon}</span>
                               <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : ''} ${label.color}`}>{label.label}</span>
+                              {label.isFolder && <span className={`text-xs ${theme.textDim}`}>📁</span>}
                               {count > 0 && (
                                 <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#5200FF]/30 text-[#9E14FB]' : darkMode ? 'bg-white/10 text-gray-400' : 'bg-slate-200 text-slate-500'}`}>{count}</span>
                               )}
@@ -824,16 +861,18 @@ if (activeFolder === 'all') {
                           </div>
                         );
                       })}
-                      <button onClick={() => setShowCreateLabel(true)}
-                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm ${theme.textDim} ${theme.hover} transition mt-1 border border-dashed ${theme.cardBorder}`}>
-                        <Icon name="Dashboard_new_label" className="w-4 h-4" style={theme.iconFilter} />
-                        <span className="text-xs">{t.createLabel}</span>
+                      <div className="flex gap-1 mt-1">
+                        <button onClick={() => { setCreateMode('folder'); setShowCreateLabel(true); }}
+                          className={`flex-1 flex items-center gap-1.5 px-2 py-2 rounded-xl text-xs ${theme.textDim} ${theme.hover} transition border border-dashed ${theme.cardBorder}`}>
+                          <Icon name="Dashboard_new_folder" className="w-3.5 h-3.5" style={theme.iconFilter} />
+                          New Folder
                         </button>
-                        <button onClick={() => setShowCreateLabel(true)}
-                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-sm ${theme.textDim} ${theme.hover} transition mt-1 border border-dashed ${theme.cardBorder}`}>
-                          <Icon name="Dashboard_new_folder" className="w-4 h-4" style={theme.iconFilter} />
-                          <span className="text-xs">+ New Folder</span>
-                      </button>
+                        <button onClick={() => { setCreateMode('label'); setShowCreateLabel(true); }}
+                          className={`flex-1 flex items-center gap-1.5 px-2 py-2 rounded-xl text-xs ${theme.textDim} ${theme.hover} transition border border-dashed ${theme.cardBorder}`}>
+                          <Icon name="Dashboard_new_label" className="w-3.5 h-3.5" style={theme.iconFilter} />
+                          New Label
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -848,10 +887,10 @@ if (activeFolder === 'all') {
                         activeFolder === 'trash' ? 'bg-red-500/10 border border-red-500/30' :
                         theme.hover}`}>
                       <Icon name="Dashboard_trash" className="w-4 h-4 flex-shrink-0"
-                        style={{ filter: activeFolder === 'trash' ? 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' : theme.iconFilter.filter }} />
+                        style={{ filter: activeFolder === 'trash' ? 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' : (darkMode ? 'brightness(0) invert(1)' : 'brightness(0) saturate(100%) invert(19%) sepia(96%) saturate(5765%) hue-rotate(268deg) brightness(102%) contrast(101%)') }} />
                       {!isNarrow && (
                         <>
-                          <span className={`flex-1 text-left ${activeFolder === 'trash' ? 'font-medium text-red-400' : theme.textMuted}`}>{t.trash}</span>
+                          <span className={`flex-1 text-left ${activeFolder === 'trash' ? 'font-medium text-red-400' : (darkMode ? 'text-white' : 'text-[#7C0BFD]')}`}>{t.trash}</span>
                           {trashedEmails.size > 0 && (
                             <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">{trashedEmails.size}</span>
                           )}
@@ -869,7 +908,6 @@ if (activeFolder === 'all') {
 
             {/* MIDDLE: Email List */}
             <div style={{ width: emailListWidth, flexShrink: 0 }} className="flex flex-col gap-2 transition-none">
-              {/* Search */}
               <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl px-4 py-3 flex items-center gap-3 flex-shrink-0`}>
                 <Icon name="Dashboard_search_emails" className="w-4 h-4 flex-shrink-0" style={theme.iconFilter} />
                 <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
@@ -882,13 +920,13 @@ if (activeFolder === 'all') {
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="text-sm font-semibold flex items-center gap-1.5">
-                        {currentFolder && 'icon' in currentFolder && (
-                          <Icon name={(currentFolder as FolderDef).icon} className="w-4 h-4"
+                        {currentFolder && (
+                          <Icon name={currentFolder.icon} className="w-4 h-4"
                             style={getFolderIconStyle(currentFolder as FolderDef, true)} />
                         )}
                         {currentFolder?.label}
                       </p>
-                      <p className={`text-xs ${theme.textDim}`}>{(filteredEmails ?? []).length} emails</p>
+                      <p className={`text-xs ${theme.textDim}`}>{filteredEmails.length} emails</p>
                     </div>
                     <div className="flex gap-1">
                       {activeFolder === 'trash' && trashedEmails.size > 0 && (
@@ -911,18 +949,18 @@ if (activeFolder === 'all') {
                 </div>
 
                 <div className="overflow-y-auto flex-1">
-                  {(filteredEmails ?? []).length === 0 ? (
+                  {filteredEmails.length === 0 ? (
                     <div className={`p-8 text-center ${theme.textDim}`}>
                       {activeFolder === 'trash' ? (
-  <p className="text-3xl mb-2">🗑️</p>
-) : (
-  <div className="w-16 h-16 mx-auto mb-3">
-    <Icon name="Dashboard_no_emails_here" className="w-full h-full" style={theme.iconFilter} />
-  </div>
-)}
-<p className="text-sm">{activeFolder === 'trash' ? t.trashEmpty : 'No emails here'}</p>
+                        <p className="text-3xl mb-2">🗑️</p>
+                      ) : (
+                        <div className="w-16 h-16 mx-auto mb-3">
+                          <Icon name="Dashboard_no_emails_here" className="w-full h-full" style={theme.iconFilter} />
+                        </div>
+                      )}
+                      <p className="text-sm">{activeFolder === 'trash' ? t.trashEmpty : 'No emails here'}</p>
                     </div>
-                  ) : (filteredEmails ?? []).map(email => {
+                  ) : filteredEmails.map(email => {
                     const isInTrash = trashedEmails.has(email.id);
                     const emailLabel = manualFolders[email.id] ? customLabels.find(l => l.key === manualFolders[email.id]) : null;
                     return (
@@ -937,7 +975,7 @@ if (activeFolder === 'all') {
                             {email.analysis && <span className={`text-[9px] px-1.5 py-0.5 rounded-full text-white ${getPriorityColor(email.analysis.priority)}`}>{email.analysis.priority}</span>}
                             {!isInTrash && (
                               <button onClick={(e) => { e.stopPropagation(); moveToTrash(email.id); }}
-                                className={`w-5 h-5 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition`}
+                                className="w-5 h-5 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition"
                                 title="Move to trash">
                                 <Icon name="Dashboard_trash" className="w-3 h-3" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} />
                               </button>
@@ -1021,24 +1059,32 @@ if (activeFolder === 'all') {
                             {t.aiAnalysis}
                           </h3>
                           <div className="grid grid-cols-2 gap-3 mb-3">
-                            <div><p className={`text-xs ${theme.textDim}`}>{t.intent}</p>
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]">{selected.analysis.intent?.replace(/_/g, ' ')}</span></div>
-                            <div><p className={`text-xs ${theme.textDim}`}>{t.priority}</p>
-                              <span className={`text-xs px-2 py-0.5 rounded-full text-white ${getPriorityColor(selected.analysis.priority)}`}>{selected.analysis.priority}</span></div>
+                            <div>
+                              <p className={`text-xs ${theme.textDim}`}>{t.intent}</p>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]">{selected.analysis.intent?.replace(/_/g, ' ')}</span>
+                            </div>
+                            <div>
+                              <p className={`text-xs ${theme.textDim}`}>{t.priority}</p>
+                              <span className={`text-xs px-2 py-0.5 rounded-full text-white ${getPriorityColor(selected.analysis.priority)}`}>{selected.analysis.priority}</span>
+                            </div>
                             {selected.analysis.mode && <div><p className={`text-xs ${theme.textDim}`}>{t.mode}</p><p className="text-sm">{selected.analysis.mode}</p></div>}
                             {selected.analysis.pol && <div><p className={`text-xs ${theme.textDim}`}>{t.route}</p><p className="text-sm">{selected.analysis.pol} → {selected.analysis.pod}</p></div>}
                           </div>
                           {selected.analysis.summary && (
-                            <div className="mb-3"><p className={`text-xs ${theme.textDim} mb-1`}>{t.summary}</p>
-                              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>{selected.analysis.summary}</p></div>
+                            <div className="mb-3">
+                              <p className={`text-xs ${theme.textDim} mb-1`}>{t.summary}</p>
+                              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>{selected.analysis.summary}</p>
+                            </div>
                           )}
                           {selected.analysis.missing_info?.length > 0 && (
-                            <div><p className={`text-xs ${theme.textDim} mb-1`}>{t.missingInfo}</p>
+                            <div>
+                              <p className={`text-xs ${theme.textDim} mb-1`}>{t.missingInfo}</p>
                               <div className="flex flex-wrap gap-1">
                                 {selected.analysis.missing_info.map((info: string, i: number) => (
                                   <span key={i} className="text-xs px-2 py-0.5 bg-red-500/20 text-red-500 rounded-full">{info}</span>
                                 ))}
-                              </div></div>
+                              </div>
+                            </div>
                           )}
                         </div>
                       )}
@@ -1068,7 +1114,6 @@ if (activeFolder === 'all') {
                     </div>
                   </div>
 
-                  {/* Sticky Reply Bar */}
                   {selected.analysis?.suggested_reply && !trashedEmails.has(selected.id) && (
                     <div className={`flex-shrink-0 px-5 py-4 border-t ${theme.cardBorder} ${theme.card} flex gap-2 flex-wrap items-center`}>
                       <button onClick={sendReply} disabled={sending}
