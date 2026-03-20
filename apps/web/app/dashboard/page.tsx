@@ -606,7 +606,7 @@ export default function DashboardPage() {
             </div>
             <div className="p-4 space-y-4">
               <input value={newLabelName} onChange={e => setNewLabelName(e.target.value)}
-                placeholder="Label name (e.g. Others, Done, Follow up)"
+                placeholder="Folder name (e.g. Others, Done, Follow up)"
                 className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}
                 onKeyDown={e => e.key === 'Enter' && createLabel()} autoFocus />
               <div>
