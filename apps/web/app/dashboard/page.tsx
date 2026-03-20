@@ -760,7 +760,7 @@ export default function DashboardPage() {
                               style={getFolderIconStyle(folder, isActive)} />
                             {!isNarrow && (
                               <>
-                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : ''} ${folder.color ? folder.color : (darkMode ? 'text-white' : theme.textMuted)}`}>
+                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : ''} ${folder.group === 'priority' ? folder.color : (darkMode ? '!text-white' : '!text-[#7C0BFD]')}`}>
                                   {folder.label}
                                 </span>
                                 {count > 0 && (
