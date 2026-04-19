@@ -506,17 +506,27 @@ app.post('/api/analyze', async (req, res) => {
         role: 'user',
         content: `You are FreightWizard AI, an expert freight forwarding email analyst.
 IMPORTANT: Respond with summary and suggested_reply in ${language === 'pt' ? 'Brazilian Portuguese' : language === 'nl' ? 'Dutch' : 'English'}. Keep intent, priority, mode, pol, pod values in English always.
-        
+
 Analyze this freight email and extract:
-1. Intent: quote_request, booking_confirmation, tracking_inquiry, documentation_request, rate_inquiry, status_update, complaint, general_inquiry
+1. Intent — choose the MOST specific match:
+   Standard: quote_request, booking_confirmation, tracking_inquiry, documentation_request, rate_inquiry, status_update, complaint, general_inquiry
+   CE Mercante (Brazilian maritime): ce_mercante_consulta (asking for CE number/status/location), afrmm_status_check (asking about AFRMM tax payment), cargo_release_followup (asking if cargo released in system), manifesto_consulta (asking about vessel manifest/CE), pendencia_documental_mercante (asking about pending documents in Mercante system)
+   Mercante trigger patterns: "CE Mercante", "AFRMM", "conhecimento eletrônico", "Sistema Mercante", "BL no Mercante", "carga liberada", "manifesto", "cargo release status", "advise if AFRMM", "CE number for shipment", "Please confirm CE"
 2. Priority: urgent, high, medium, low
+   NOTE: cargo_release_followup and afrmm_status_check → always high; other Mercante intents → medium
 3. Transport mode: ocean, air, road, rail, multimodal
 4. POL (Port of Loading) and POD (Port of Discharge)
 5. Incoterm if mentioned
 6. Cargo type, container type, container count
 7. Missing information needed to proceed
-8. Brief summary
-9. Professional reply draft
+   For Mercante intents also check: CE Mercante number, BL / MBL / HBL number, Manifesto reference, CNPJ / Importer, Discharge port, Carrier / Armador, AFRMM payment proof, Expected arrival date
+8. Brief summary — for Mercante intents: state what client is asking, what data was found/not found, operational implication, next action
+9. Professional reply draft — for Mercante intents use context-aware template:
+   If data missing: ask client for BL/CE/CNPJ to query Sistema Mercante
+   If CE found + AFRMM pending: inform client and request payment proof
+   If CE found + AFRMM paid: confirm cargo release status
+10. Mercante entity extraction (fill if email is Mercante-related, null otherwise):
+    ce_number (9-15 digit numeric), bl_number (alphanumeric BL/MBL/HBL), container_number (4 letters + 7 digits), vessel_name, voyage, discharge_port, origin_port, carrier/armador, importer_cnpj (Brazilian CNPJ), shipment_date
 
 Email Subject: ${subject}
 From: ${from}
@@ -535,7 +545,19 @@ Respond in JSON format:
   "container_count": null,
   "missing_info": [],
   "summary": "",
-  "suggested_reply": ""
+  "suggested_reply": "",
+  "mercante_entities": {
+    "ce_number": null,
+    "bl_number": null,
+    "container_number": null,
+    "vessel_name": null,
+    "voyage": null,
+    "discharge_port": null,
+    "origin_port": null,
+    "carrier": null,
+    "importer_cnpj": null,
+    "shipment_date": null
+  }
 }`
       }]
     });
@@ -1339,6 +1361,169 @@ app.post('/api/extract-text', async (req, res) => {
   } catch (error) {
     console.error('Extract text error:', error);
     res.status(500).json({ error: 'Failed to extract text' });
+  }
+});
+
+// ============================================
+// MERCANTE CONNECTOR SERVICE (MOCK)
+// ============================================
+
+interface MercanteEntities {
+  ce_number: string | null;
+  bl_number: string | null;
+  container_number: string | null;
+  vessel_name: string | null;
+  voyage: string | null;
+  discharge_port: string | null;
+  origin_port: string | null;
+  carrier: string | null;
+  importer_cnpj: string | null;
+  shipment_date: string | null;
+}
+
+interface MercanteResult {
+  ce_number: string | null;
+  bl_number: string | null;
+  manifesto: string | null;
+  vessel_name: string | null;
+  voyage: string | null;
+  discharge_port: string | null;
+  afrmm_status: 'paid' | 'pending' | 'unknown';
+  operational_status: string;
+  pending_items: string[];
+  last_checked: string;
+  response_confidence: 'high' | 'medium' | 'low';
+  suggested_action: string;
+  source: string;
+  error?: string;
+}
+
+interface AfrmmResult {
+  ce_number: string | null;
+  afrmm_status: 'paid' | 'pending' | 'unknown';
+  payment_date: string | null;
+  amount_due: string | null;
+  source: string;
+  error?: string;
+}
+
+interface ManifestResult {
+  ce_number: string | null;
+  manifesto: string | null;
+  bl_number: string | null;
+  vessel_name: string | null;
+  voyage: string | null;
+  linked: boolean;
+  source: string;
+  error?: string;
+}
+
+const mercanteConnector = {
+  // TODO: replace with real Sistema Mercante API integration
+  async getCeByBL(bl: string): Promise<MercanteResult> {
+    await new Promise(r => setTimeout(r, 400));
+    if (!bl) return { ce_number: null, bl_number: bl, manifesto: null, vessel_name: null, voyage: null, discharge_port: null, afrmm_status: 'unknown', operational_status: 'BL not found', pending_items: ['BL number'], last_checked: new Date().toISOString(), response_confidence: 'low', suggested_action: 'Request valid BL from client', source: 'Sistema Mercante (simulated)', error: 'BL not found in Mercante' };
+    const ceNum = `${Math.floor(100000000 + Math.random() * 900000000)}`;
+    return { ce_number: ceNum, bl_number: bl, manifesto: `MAN-2026-${Math.floor(10000 + Math.random() * 90000)}`, vessel_name: 'MSC ANNA', voyage: 'V.004W', discharge_port: 'Belém, Pará', afrmm_status: Math.random() > 0.4 ? 'pending' : 'paid', operational_status: 'awaiting financial regularization', pending_items: ['AFRMM', 'document verification'], last_checked: new Date().toISOString(), response_confidence: 'high', suggested_action: 'Check AFRMM payment status and inform client', source: 'Sistema Mercante (simulated)' };
+  },
+
+  // TODO: replace with real Sistema Mercante API integration
+  async getCeStatus(ce: string): Promise<MercanteResult> {
+    await new Promise(r => setTimeout(r, 400));
+    if (!ce) return { ce_number: null, bl_number: null, manifesto: null, vessel_name: null, voyage: null, discharge_port: null, afrmm_status: 'unknown', operational_status: 'CE not found', pending_items: ['CE number'], last_checked: new Date().toISOString(), response_confidence: 'low', suggested_action: 'Request CE number from client', source: 'Sistema Mercante (simulated)', error: 'CE not found' };
+    const statuses: Array<'paid' | 'pending' | 'unknown'> = ['paid', 'pending', 'unknown'];
+    const afrmm = statuses[Math.floor(Math.random() * statuses.length)];
+    return { ce_number: ce, bl_number: `MSCU${Math.floor(1000000 + Math.random() * 9000000)}`, manifesto: `MAN-2026-${Math.floor(10000 + Math.random() * 90000)}`, vessel_name: 'MSC ANNA', voyage: 'V.004W', discharge_port: 'Belém, Pará', afrmm_status: afrmm, operational_status: afrmm === 'paid' ? 'cargo released' : 'awaiting financial regularization', pending_items: afrmm === 'paid' ? [] : ['AFRMM', 'document verification'], last_checked: new Date().toISOString(), response_confidence: 'high', suggested_action: afrmm === 'paid' ? 'CE located — send confirmation to client' : 'Request payment proof / re-check in 2h', source: 'Sistema Mercante (simulated)' };
+  },
+
+  // TODO: replace with real Sistema Mercante API integration
+  async getAfrmmStatus(ce: string): Promise<AfrmmResult> {
+    await new Promise(r => setTimeout(r, 300));
+    const paid = Math.random() > 0.5;
+    return { ce_number: ce, afrmm_status: paid ? 'paid' : 'pending', payment_date: paid ? new Date(Date.now() - 86400000 * 2).toISOString() : null, amount_due: paid ? null : 'BRL 3,240.00', source: 'Sistema Mercante (simulated)' };
+  },
+
+  // TODO: replace with real Sistema Mercante API integration
+  async getManifestByCe(ce: string): Promise<ManifestResult> {
+    await new Promise(r => setTimeout(r, 300));
+    return { ce_number: ce, manifesto: `MAN-2026-${Math.floor(10000 + Math.random() * 90000)}`, bl_number: `MSCU${Math.floor(1000000 + Math.random() * 9000000)}`, vessel_name: 'MSC ANNA', voyage: 'V.004W', linked: true, source: 'Sistema Mercante (simulated)' };
+  },
+
+  // TODO: replace with real Sistema Mercante API integration
+  async refreshMercanteData(shipmentId: string): Promise<MercanteResult> {
+    await new Promise(r => setTimeout(r, 500));
+    return mercanteConnector.getCeStatus(shipmentId);
+  },
+};
+
+// Rules engine: evaluate Mercante constraints before returning query result
+function applyMercanteRules(entities: MercanteEntities, result: MercanteResult | null): { blocked: boolean; alerts: string[]; suggestedAction: string } {
+  const alerts: string[] = [];
+  let blocked = false;
+  let suggestedAction = '';
+
+  if (!entities.ce_number && !entities.bl_number) {
+    blocked = true;
+    alerts.push('critical_pending: CE number and BL number are both missing');
+    suggestedAction = 'Request CE or BL from client';
+  }
+
+  if (result?.afrmm_status === 'pending') {
+    alerts.push('financial_alert: AFRMM payment is pending');
+    suggestedAction = suggestedAction || 'Inform client and request payment proof';
+  }
+
+  if (result && result.ce_number && !result.bl_number) {
+    alerts.push('consistency_alert: CE found but not linked to any BL — manual review required');
+    suggestedAction = suggestedAction || 'Manual review required';
+  }
+
+  if (result?.last_checked) {
+    const ageHours = (Date.now() - new Date(result.last_checked).getTime()) / 3600000;
+    if (ageHours > 4) {
+      alerts.push('stale_data: Last Mercante check is older than 4 hours — recommend re-querying');
+      suggestedAction = suggestedAction || 'Refresh Mercante data';
+    }
+  }
+
+  return { blocked, alerts, suggestedAction: suggestedAction || result?.suggested_action || '' };
+}
+
+// Mercante query endpoint
+app.post('/api/mercante/query', async (req, res) => {
+  const { entities, action } = req.body as { entities: MercanteEntities; action?: string };
+  try {
+    let result: MercanteResult | null = null;
+
+    if (action === 'afrmm') {
+      const ce = entities.ce_number || '';
+      const afrmm = await mercanteConnector.getAfrmmStatus(ce);
+      return res.json({ afrmm, rules: applyMercanteRules(entities, null) });
+    }
+
+    if (action === 'manifest') {
+      const ce = entities.ce_number || '';
+      const manifest = await mercanteConnector.getManifestByCe(ce);
+      return res.json({ manifest, rules: applyMercanteRules(entities, null) });
+    }
+
+    if (action === 'refresh') {
+      const id = entities.ce_number || entities.bl_number || '';
+      result = await mercanteConnector.refreshMercanteData(id);
+    } else if (entities.ce_number) {
+      result = await mercanteConnector.getCeStatus(entities.ce_number);
+    } else if (entities.bl_number) {
+      result = await mercanteConnector.getCeByBL(entities.bl_number);
+    } else {
+      const rules = applyMercanteRules(entities, null);
+      return res.json({ result: null, rules, error: 'Cannot query CE Mercante: missing CE number or linked BL. Suggested action: request data from client.' });
+    }
+
+    const rules = applyMercanteRules(entities, result);
+    res.json({ result, rules });
+  } catch (error) {
+    console.error('Mercante query error:', error);
+    res.status(500).json({ error: 'Mercante query unavailable — manual check required' });
   }
 });
 
