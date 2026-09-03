@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 
-const API_URL = 'https://freightwizard-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
 const Icon = ({ name, className = "w-6 h-6", style }: { name: string; className?: string; style?: React.CSSProperties }) => (
   <img src={`/icons/${name}.svg`} alt={name} className={className} style={style} />
@@ -28,6 +28,55 @@ interface CustomLabel {
   color: string;
   icon: string;
   isFolder?: boolean;
+}
+
+interface MercanteEntities {
+  ce_number: string | null;
+  bl_number: string | null;
+  container_number: string | null;
+  vessel_name: string | null;
+  voyage: string | null;
+  discharge_port: string | null;
+  origin_port: string | null;
+  carrier: string | null;
+  importer_cnpj: string | null;
+  shipment_date: string | null;
+}
+
+interface MercanteResult {
+  // tier & source (new 3-tier fields)
+  tier?: 'restricted' | 'public' | 'mock' | 'missing_info';
+  source?: 'serpro_integracomex' | 'siscomex_public' | 'mock' | 'none';
+  // core fields
+  ce_number: string | null;
+  bl_number: string | null;
+  manifesto: string | null;
+  vessel_name: string | null;
+  vessel?: string | null;
+  voyage: string | null;
+  discharge_port: string | null;
+  carrier?: string | null;
+  afrmm_status: 'paid' | 'pending' | 'unknown';
+  afrmm_value?: number | null;
+  cargo_situation?: string | null;
+  operational_status?: string;
+  pending_items: string[];
+  last_checked: string;
+  last_modified?: string | null;
+  response_confidence?: 'high' | 'medium' | 'low';
+  confidence?: 'high' | 'medium' | 'low';
+  suggested_action: string;
+  missingFields?: string[];
+  note?: string;
+  error?: string;
+}
+
+interface MercanteState {
+  result: MercanteResult | null;
+  rules: { blocked: boolean; alerts: string[]; suggestedAction: string } | null;
+  loading: boolean;
+  error: string | null;
+  lastAction: string | null;
 }
 
 interface Note {
@@ -80,13 +129,47 @@ const LABEL_COLORS = [
 const LABEL_ICONS = ['🏷️', '📌', '⭐', '🔖', '📎', '🗂️', '✅', '🔔', '💼', '🌟'];
 
 const translations = {
-  en: { inbox: 'Inbox', analyzeAll: 'Analyze All', analyzing: 'Analyzing', selectEmail: 'Select an email to view details', connect: 'Connect Your Email', connectDesc: 'Connect your Gmail or Outlook to analyze freight emails with AI', connectGmail: 'Connect Gmail', connectOutlook: 'Connect Outlook', disconnect: 'Disconnect', analyze: 'Analyze with AI', from: 'From', aiAnalysis: 'AI Analysis', intent: 'Intent', priority: 'Priority', mode: 'Mode', route: 'Route', summary: 'Summary', missingInfo: 'Missing Info', suggestedReply: 'Suggested Reply', sendReply: 'Send', editReply: 'Edit', saveDraft: 'Save Draft', cancel: 'Cancel', sending: 'Sending...', saving: 'Saving...', search: 'Search emails...', allMail: 'All Mail', compose: 'Compose', trash: 'Trash', restore: 'Restore', deleteForever: 'Delete Forever', trashEmpty: 'Trash is empty' },
-  pt: { inbox: 'Caixa de Entrada', analyzeAll: 'Analisar Todos', analyzing: 'Analisando', selectEmail: 'Selecione um email para ver detalhes', connect: 'Conectar Seu Email', connectDesc: 'Conecte seu Gmail ou Outlook para analisar emails de frete com IA', connectGmail: 'Conectar Gmail', connectOutlook: 'Conectar Outlook', disconnect: 'Desconectar', analyze: 'Analisar com IA', from: 'De', aiAnalysis: 'Análise de IA', intent: 'Intenção', priority: 'Prioridade', mode: 'Modo', route: 'Rota', summary: 'Resumo', missingInfo: 'Info Faltando', suggestedReply: 'Resposta Sugerida', sendReply: 'Enviar', editReply: 'Editar', saveDraft: 'Salvar Rascunho', cancel: 'Cancelar', sending: 'Enviando...', saving: 'Salvando...', search: 'Buscar emails...', allMail: 'Todos', compose: 'Escrever', trash: 'Lixeira', restore: 'Restaurar', deleteForever: 'Apagar', trashEmpty: 'Lixeira vazia' },
-  nl: { inbox: 'Inbox', analyzeAll: 'Analyseer Alles', analyzing: 'Analyseren', selectEmail: 'Selecteer een email', connect: 'Verbind Je Email', connectDesc: 'Verbind je Gmail of Outlook', connectGmail: 'Gmail Verbinden', connectOutlook: 'Outlook Verbinden', disconnect: 'Ontkoppelen', analyze: 'Analyseer met AI', from: 'Van', aiAnalysis: 'AI Analyse', intent: 'Intentie', priority: 'Prioriteit', mode: 'Modus', route: 'Route', summary: 'Samenvatting', missingInfo: 'Ontbrekende Info', suggestedReply: 'Voorgesteld Antwoord', sendReply: 'Verstuur', editReply: 'Bewerk', saveDraft: 'Concept Opslaan', cancel: 'Annuleren', sending: 'Versturen...', saving: 'Opslaan...', search: 'Emails zoeken...', allMail: 'Alle mail', compose: 'Opstellen', trash: 'Prullenbak', restore: 'Herstellen', deleteForever: 'Verwijderen', trashEmpty: 'Prullenbak leeg' },
+  en: { inbox: 'Inbox', analyzeAll: 'Analyze All', analyzing: 'Analyzing', selectEmail: 'Select an email to view details', connect: 'Connect Your Email', connectDesc: 'Connect your Gmail or Outlook to analyze freight emails with AI', connectGmail: 'Connect Gmail', connectOutlook: 'Connect Outlook', disconnect: 'Disconnect', analyze: 'Analyze with AI', from: 'From', aiAnalysis: 'AI Analysis', intent: 'Intent', priority: 'Priority', mode: 'Mode', route: 'Route', summary: 'Summary', missingInfo: 'Missing Info', suggestedReply: 'Suggested Reply', sendReply: 'Send', editReply: 'Edit', saveDraft: 'Save Draft', cancel: 'Cancel', sending: 'Sending...', saving: 'Saving...', search: 'Search emails...', allMail: 'All Mail', compose: 'Compose', trash: 'Trash', restore: 'Restore', deleteForever: 'Delete Forever', trashEmpty: 'Trash is empty',
+    groupPriority: 'PRIORITY', groupStatus: 'STATUS', groupTransport: 'TRANSPORT', groupIntent: 'INTENT',
+    foldersLabels: 'Folders & Labels', folderBtn: 'Folder', labelBtn: 'Label',
+    mercanteStatus: 'Mercante Status', mercanteCannotQuery: 'Cannot query CE Mercante: missing CE number or linked BL.', mercanteSuggestedAction: 'Suggested action: request data from client.', mercanteRequestMissing: '📋 Request Missing Data from Client',
+    mercanteTierFull: '🔒 Full Data — SERPRO', mercanteTierBasic: '📡 Basic Data — Siscomex', mercanteTierMock: '⚙️ Dev Mock', mercanteTierNoData: '⚠️ No Data',
+    mercanteUpgradePrompt: 'Configure SERPRO credentials for full AFRMM status and cargo release data.', mercanteSetUp: 'Set up →',
+    mercanteMissingDesc: 'Missing data required to query Sistema Mercante:', mercanteRequestClient: '📋 Request from Client',
+    mercanteNotLocated: 'Not Located', mercanteQueryPrompt: 'Query Sistema Mercante to get CE status', mercanteConsult: '🔍 Consult CE Mercante',
+    fieldCE: 'CE Mercante', fieldBL: 'BL / MBL / HBL', fieldManifesto: 'Manifesto', fieldVessel: 'Vessel / Voyage', fieldDischargePort: 'Discharge Port', fieldCarrier: 'Carrier',
+    fieldAfrmmStatus: 'AFRMM Status', fieldAfrmmAvailSerpro: 'Available with SERPRO credentials', fieldAfrmmAmount: 'AFRMM Amount Due', fieldConfidence: 'Confidence', fieldLastChecked: 'Last Checked', fieldOperationalStatus: 'Operational Status', fieldPendingItems: 'Pending Items', fieldSuggestedAction: 'Suggested Action', fieldSource: 'Source:',
+    translateReply: 'Translate reply', translating: 'Translating...',
+  },
+  pt: { inbox: 'Caixa de Entrada', analyzeAll: 'Analisar Todos', analyzing: 'Analisando', selectEmail: 'Selecione um email para ver detalhes', connect: 'Conectar Seu Email', connectDesc: 'Conecte seu Gmail ou Outlook para analisar emails de frete com IA', connectGmail: 'Conectar Gmail', connectOutlook: 'Conectar Outlook', disconnect: 'Desconectar', analyze: 'Analisar com IA', from: 'De', aiAnalysis: 'Análise de IA', intent: 'Intenção', priority: 'Prioridade', mode: 'Modo', route: 'Rota', summary: 'Resumo', missingInfo: 'Info Faltando', suggestedReply: 'Resposta Sugerida', sendReply: 'Enviar', editReply: 'Editar', saveDraft: 'Salvar Rascunho', cancel: 'Cancelar', sending: 'Enviando...', saving: 'Salvando...', search: 'Buscar emails...', allMail: 'Todos', compose: 'Escrever', trash: 'Lixeira', restore: 'Restaurar', deleteForever: 'Apagar', trashEmpty: 'Lixeira vazia',
+    groupPriority: 'PRIORIDADE', groupStatus: 'STATUS', groupTransport: 'TRANSPORTE', groupIntent: 'INTENÇÃO',
+    foldersLabels: 'Pastas & Etiquetas', folderBtn: 'Pasta', labelBtn: 'Etiqueta',
+    mercanteStatus: 'Status Mercante', mercanteCannotQuery: 'Não é possível consultar o CE Mercante: número CE ou BL vinculado ausente.', mercanteSuggestedAction: 'Ação sugerida: solicitar dados ao cliente.', mercanteRequestMissing: '📋 Solicitar Dados Ausentes ao Cliente',
+    mercanteTierFull: '🔒 Dados Completos — SERPRO', mercanteTierBasic: '📡 Dados Básicos — Siscomex', mercanteTierMock: '⚙️ Mock Dev', mercanteTierNoData: '⚠️ Sem Dados',
+    mercanteUpgradePrompt: 'Configure credenciais SERPRO para status AFRMM completo e dados de liberação de carga.', mercanteSetUp: 'Configurar →',
+    mercanteMissingDesc: 'Dados necessários para consultar o Sistema Mercante ausentes:', mercanteRequestClient: '📋 Solicitar ao Cliente',
+    mercanteNotLocated: 'Não Localizado', mercanteQueryPrompt: 'Consultar Sistema Mercante para obter status do CE', mercanteConsult: '🔍 Consultar CE Mercante',
+    fieldCE: 'CE Mercante', fieldBL: 'BL / MBL / HBL', fieldManifesto: 'Manifesto', fieldVessel: 'Navio / Viagem', fieldDischargePort: 'Porto de Descarga', fieldCarrier: 'Armador',
+    fieldAfrmmStatus: 'Status AFRMM', fieldAfrmmAvailSerpro: 'Disponível com credenciais SERPRO', fieldAfrmmAmount: 'Valor AFRMM Devido', fieldConfidence: 'Confiança', fieldLastChecked: 'Última Verificação', fieldOperationalStatus: 'Status Operacional', fieldPendingItems: 'Itens Pendentes', fieldSuggestedAction: 'Ação Sugerida', fieldSource: 'Fonte:',
+    translateReply: 'Traduzir resposta', translating: 'Traduzindo...',
+  },
+  nl: { inbox: 'Inbox', analyzeAll: 'Analyseer Alles', analyzing: 'Analyseren', selectEmail: 'Selecteer een email', connect: 'Verbind Je Email', connectDesc: 'Verbind je Gmail of Outlook', connectGmail: 'Gmail Verbinden', connectOutlook: 'Outlook Verbinden', disconnect: 'Ontkoppelen', analyze: 'Analyseer met AI', from: 'Van', aiAnalysis: 'AI Analyse', intent: 'Intentie', priority: 'Prioriteit', mode: 'Modus', route: 'Route', summary: 'Samenvatting', missingInfo: 'Ontbrekende Info', suggestedReply: 'Voorgesteld Antwoord', sendReply: 'Verstuur', editReply: 'Bewerk', saveDraft: 'Concept Opslaan', cancel: 'Annuleren', sending: 'Versturen...', saving: 'Opslaan...', search: 'Emails zoeken...', allMail: 'Alle mail', compose: 'Opstellen', trash: 'Prullenbak', restore: 'Herstellen', deleteForever: 'Verwijderen', trashEmpty: 'Prullenbak leeg',
+    groupPriority: 'PRIORITEIT', groupStatus: 'STATUS', groupTransport: 'TRANSPORT', groupIntent: 'INTENTIE',
+    foldersLabels: 'Mappen & Labels', folderBtn: 'Map', labelBtn: 'Label',
+    mercanteStatus: 'Mercante Status', mercanteCannotQuery: 'Kan CE Mercante niet bevragen: CE-nummer of gekoppeld BL ontbreekt.', mercanteSuggestedAction: 'Aanbevolen actie: vraag gegevens op bij klant.', mercanteRequestMissing: '📋 Ontbrekende Gegevens Opvragen bij Klant',
+    mercanteTierFull: '🔒 Volledige Data — SERPRO', mercanteTierBasic: '📡 Basisdata — Siscomex', mercanteTierMock: '⚙️ Dev Mock', mercanteTierNoData: '⚠️ Geen Data',
+    mercanteUpgradePrompt: 'Configureer SERPRO-inloggegevens voor volledige AFRMM-status en vrachtgegevens.', mercanteSetUp: 'Instellen →',
+    mercanteMissingDesc: 'Ontbrekende gegevens voor het bevragen van Sistema Mercante:', mercanteRequestClient: '📋 Opvragen bij Klant',
+    mercanteNotLocated: 'Niet Gevonden', mercanteQueryPrompt: 'Bevraag Sistema Mercante voor CE-status', mercanteConsult: '🔍 CE Mercante Raadplegen',
+    fieldCE: 'CE Mercante', fieldBL: 'BL / MBL / HBL', fieldManifesto: 'Manifesto', fieldVessel: 'Schip / Reis', fieldDischargePort: 'Loshaven', fieldCarrier: 'Rederij',
+    fieldAfrmmStatus: 'AFRMM Status', fieldAfrmmAvailSerpro: 'Beschikbaar met SERPRO-inloggegevens', fieldAfrmmAmount: 'AFRMM Verschuldigd Bedrag', fieldConfidence: 'Betrouwbaarheid', fieldLastChecked: 'Laatste Controle', fieldOperationalStatus: 'Operationele Status', fieldPendingItems: 'Openstaande Punten', fieldSuggestedAction: 'Aanbevolen Actie', fieldSource: 'Bron:',
+    translateReply: 'Vertaal antwoord', translating: 'Vertalen...',
+  },
 };
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: { en: 'Inbox', pt: 'Inbox', nl: 'Inbox' }, icon: 'Dashboard_inbox' },
+  { href: '/shipments', label: { en: 'Shipments', pt: 'Embarques', nl: 'Zendingen' }, icon: 'Dashboard_tracking' },
   { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
   { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
   { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
@@ -124,6 +207,24 @@ const AI_ACTIONS = [
   { key: 'missing_quote', label: 'Ask for Missing Quote Info', icon: '❓', prompt: (e: Email) => `Write a professional email asking for missing info to provide a freight quote. Ask for: cargo type, weight, dimensions, incoterm, POL, POD, target date.\n\nBased on: ${e.subject}\n${e.body || e.snippet}` },
   { key: 'tracking_reply', label: 'Create Tracking Reply', icon: '📍', prompt: (e: Email) => `Write a professional reply to this tracking inquiry. Acknowledge it and explain what you need to check status.\n\n${e.subject}\n${e.body || e.snippet}` },
   { key: 'booking_confirm', label: 'Draft Booking Confirmation', icon: '✅', prompt: (e: Email) => `Draft a professional booking confirmation based on this request:\n\nSubject: ${e.subject}\nFrom: ${e.from}\n${e.body || e.snippet}` },
+];
+
+const MERCANTE_INTENTS = new Set([
+  'ce_mercante_consulta',
+  'afrmm_status_check',
+  'cargo_release_followup',
+  'manifesto_consulta',
+  'pendencia_documental_mercante',
+]);
+
+const MERCANTE_ACTIONS = [
+  { key: 'ce_consult', label: 'Consult CE Mercante', icon: '🔍', action: 'consult' },
+  { key: 'afrmm_check', label: 'Check AFRMM Status', icon: '💰', action: 'afrmm' },
+  { key: 'bl_validate', label: 'Validate Linked BL', icon: '🔗', action: 'manifest' },
+  { key: 'refresh', label: 'Refresh Mercante Data', icon: '🔄', action: 'refresh' },
+  { key: 'client_summary', label: 'Generate Client Summary', icon: '📄', action: 'summary' },
+  { key: 'request_missing', label: 'Request Missing Data', icon: '📋', action: 'missing' },
+  { key: 'escalate', label: 'Escalate to Operations', icon: '🚨', action: 'escalate' },
 ];
 
 // Gmail-like compose component
@@ -302,7 +403,26 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
   const [showSignatureEditor, setShowSignatureEditor] = useState(false);
   const [signature, setSignature] = useState(() => localStorage.getItem('fw_signature') || '');
   const [expanded, setExpanded] = useState(false);
+  const [replyLang, setReplyLang] = useState<Language>(language);
+  const [showLangPicker, setShowLangPicker] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const t = translations[language];
+
+  const translateReply = async (targetLang: Language) => {
+    if (targetLang === replyLang || !replyText.trim()) return;
+    setTranslating(true);
+    setShowLangPicker(false);
+    try {
+      const res = await fetch(`${API_URL}/api/translate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: replyText, targetLanguage: targetLang }),
+      });
+      const data = await res.json();
+      if (data.translated) { setReplyText(data.translated); setReplyLang(targetLang); }
+    } catch {}
+    setTranslating(false);
+  };
 
   useEffect(() => { setReplyText(email.analysis?.suggested_reply || ''); }, [email.analysis?.suggested_reply]);
 
@@ -389,6 +509,25 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
             <button className={`w-6 h-6 rounded text-xs ${theme.hover} ${theme.textMuted} transition`} title="Attach (coming soon)" onClick={() => alert('File attachment coming soon!')}>📎</button>
             <button onClick={() => setShowSignatureEditor(!showSignatureEditor)}
               className={`w-6 h-6 rounded text-xs ${showSignatureEditor ? 'text-[#9E14FB]' : `${theme.hover} ${theme.textMuted}`} transition`} title="Signature">✍️</button>
+            <div className={`w-px h-3 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
+            {/* Reply language picker */}
+            <div className="relative">
+              <button onClick={() => setShowLangPicker(p => !p)} disabled={translating}
+                title={t.translateReply}
+                className={`h-6 px-1.5 rounded text-[10px] font-semibold flex items-center gap-0.5 ${showLangPicker ? 'text-[#9E14FB] bg-[#9E14FB]/10' : `${theme.hover} ${theme.textMuted}`} transition disabled:opacity-50`}>
+                {translating ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin inline-block" /> : '🌐'} {replyLang.toUpperCase()}
+              </button>
+              {showLangPicker && (
+                <div className={`absolute bottom-full left-0 mb-1 ${darkMode ? 'bg-[#0a0a1a] border-white/10' : 'bg-white border-slate-200'} border rounded-xl shadow-xl z-50 overflow-hidden`}>
+                  {(['en', 'pt', 'nl'] as Language[]).map(l => (
+                    <button key={l} onClick={() => translateReply(l)}
+                      className={`w-full px-4 py-2 text-left text-xs ${theme.hover} ${replyLang === l ? 'text-[#9E14FB] font-semibold' : theme.textMuted}`}>
+                      {l === 'en' ? 'English' : l === 'pt' ? 'Português' : 'Nederlands'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {showSignatureEditor && (
@@ -472,6 +611,11 @@ export default function DashboardPage() {
   const [activeDetailTab, setActiveDetailTab] = useState<'analysis' | 'timeline' | 'notes' | 'actions'>('analysis');
   const [aiActionLoading, setAiActionLoading] = useState<string | null>(null);
   const [aiActionResult, setAiActionResult] = useState<string | null>(null);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderDate, setReminderDate] = useState("");
+  const [reminderTime, setReminderTime] = useState("");
+  const [mercanteStates, setMercanteStates] = useState<Record<string, MercanteState>>({});
+  const [mercanteCardOpen, setMercanteCardOpen] = useState<Record<string, boolean>>({});
 
   const t = translations[language];
 
@@ -615,10 +759,74 @@ export default function DashboardPage() {
     if (email) events.push({ type: 'received', label: 'Inquiry received', time: email.date, icon: '📨' });
     notes.filter(n => n.emailId === emailId && n.text.startsWith('__event__:')).forEach(n => {
       const parts = n.text.replace('__event__:', '').split(':');
-      const iconMap: Record<string, string> = { analyzed: '🤖', replied: '✉️', note: '📝', status: '🔄', assigned: '👤', received: '📨' };
+      const iconMap: Record<string, string> = {
+        analyzed: '🤖', replied: '✉️', note: '📝', status: '🔄', assigned: '👤', received: '📨',
+        ce_queried: '🔍', afrmm_checked: '💰', ce_located: '✅', afrmm_paid: '💚',
+        divergence: '⚠️', missing_data_requested: '📋', mercante_refreshed: '🔄',
+      };
       events.push({ type: parts[0], label: parts.slice(1).join(':'), time: n.createdAt, icon: iconMap[parts[0]] || '•' });
     });
     return events;
+  };
+
+  const isMercanteIntent = (intent: string | undefined) => !!intent && MERCANTE_INTENTS.has(intent);
+
+  const getMercanteEntities = (email: Email): MercanteEntities => {
+    const m = email.analysis?.mercante_entities;
+    return { ce_number: m?.ce_number || null, bl_number: m?.bl_number || null, container_number: m?.container_number || null, vessel_name: m?.vessel_name || null, voyage: m?.voyage || null, discharge_port: m?.discharge_port || null, origin_port: m?.origin_port || null, carrier: m?.carrier || null, importer_cnpj: m?.importer_cnpj || null, shipment_date: m?.shipment_date || null };
+  };
+
+  const queryMercante = async (email: Email, action: string) => {
+    const emailId = email.id;
+    const entities = getMercanteEntities(email);
+    setMercanteStates(prev => ({ ...prev, [emailId]: { ...prev[emailId], loading: true, error: null, lastAction: action, result: prev[emailId]?.result || null, rules: prev[emailId]?.rules || null } }));
+    setMercanteCardOpen(prev => ({ ...prev, [emailId]: true }));
+    try {
+      const res = await fetch(`${API_URL}/api/mercante/query?session=${session || ''}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entities, action }),
+      });
+      if (!res.ok) throw new Error('Mercante query unavailable — manual check required');
+      const data = await res.json();
+      setMercanteStates(prev => ({ ...prev, [emailId]: { result: data.result || null, rules: data.rules || null, loading: false, error: data.error || null, lastAction: action } }));
+
+      const eventMap: Record<string, { type: string; label: string }> = {
+        consult: { type: 'ce_queried', label: `CE Mercante queried${data.result?.ce_number ? ': ' + data.result.ce_number : ''}` },
+        afrmm: { type: 'afrmm_checked', label: `AFRMM status checked: ${data.afrmm?.afrmm_status || data.result?.afrmm_status || 'unknown'}` },
+        manifest: { type: 'ce_queried', label: `Manifest validated${data.manifest?.manifesto ? ': ' + data.manifest.manifesto : ''}` },
+        refresh: { type: 'mercante_refreshed', label: 'Mercante data refreshed' },
+        missing: { type: 'missing_data_requested', label: 'Missing data requested from client' },
+        escalate: { type: 'status', label: 'Escalated to Operations — marked high priority' },
+      };
+      const evt = eventMap[action];
+      if (evt) addTimelineEvent(emailId, evt.type, evt.label);
+      if (data.result?.afrmm_status === 'paid') addTimelineEvent(emailId, 'afrmm_paid', 'AFRMM confirmed as paid');
+      if (data.rules?.alerts?.some((a: string) => a.startsWith('consistency_alert'))) addTimelineEvent(emailId, 'divergence', 'Divergence detected: CE found but not linked to BL');
+    } catch (e: any) {
+      setMercanteStates(prev => ({ ...prev, [emailId]: { result: null, rules: null, loading: false, error: e.message || 'Mercante query unavailable', lastAction: action } }));
+      notify('error', 'Mercante query unavailable — manual check required');
+    }
+  };
+
+  const runMercanteAction = async (email: Email, action: typeof MERCANTE_ACTIONS[0]) => {
+    if (action.action === 'summary') {
+      runAiAction({ key: 'mercante_summary', label: 'Generate Client Summary', icon: '📄', prompt: (e: Email) => `Write a professional client status update email for this CE Mercante shipment inquiry. Include any CE number, AFRMM status, and operational status found. Subject: ${e.subject}\nFrom: ${e.from}\n${e.body || e.snippet}` });
+      return;
+    }
+    if (action.action === 'missing') {
+      runAiAction({ key: 'mercante_missing', label: 'Request Missing Data', icon: '📋', prompt: (e: Email) => `Write a professional reply asking the client for the CE Mercante number, BL/MBL/HBL number, and CNPJ of the importer so we can query Sistema Mercante.\n\nSubject: ${e.subject}\nFrom: ${e.from}\n${e.body || e.snippet}` });
+      addTimelineEvent(email.id, 'missing_data_requested', 'Missing data requested from client');
+      return;
+    }
+    if (action.action === 'escalate') {
+      setWorkflowStatus(email.id, 'pending_docs');
+      const currentAssignment = assignments[email.id] || { owner: '', watchers: [], queue: '' };
+      setAssignments(prev => ({ ...prev, [email.id]: { ...currentAssignment, queue: 'Operations' } }));
+      addTimelineEvent(email.id, 'status', 'Escalated to Operations — marked high priority');
+      notify('success', 'Escalated to Operations');
+      return;
+    }
+    await queryMercante(email, action.action);
   };
 
   const getEmailNotes = (emailId: string) => notes.filter(n => n.emailId === emailId && !n.text.startsWith('__event__:'));
@@ -657,7 +865,7 @@ export default function DashboardPage() {
     notify('success', 'Status updated!');
   };
 
-  const runAiAction = async (action: typeof AI_ACTIONS[0]) => {
+  const runAiAction = async (action: { key: string; label: string; icon: string; prompt: (e: Email) => string }) => {
     if (!selected || !session) return;
     setAiActionLoading(action.key); setAiActionResult(null);
     try {
@@ -778,10 +986,10 @@ export default function DashboardPage() {
 
   const groups = [
     { label: null, folders: SYSTEM_FOLDERS.filter(f => f.group === 'main') },
-    { label: 'PRIORITY', folders: SYSTEM_FOLDERS.filter(f => f.group === 'priority') },
-    { label: 'STATUS', folders: SYSTEM_FOLDERS.filter(f => f.group === 'status') },
-    { label: 'TRANSPORT', folders: SYSTEM_FOLDERS.filter(f => f.group === 'transport') },
-    { label: 'INTENT', folders: SYSTEM_FOLDERS.filter(f => f.group === 'intent') },
+    { label: t.groupPriority, folders: SYSTEM_FOLDERS.filter(f => f.group === 'priority') },
+    { label: t.groupStatus, folders: SYSTEM_FOLDERS.filter(f => f.group === 'status') },
+    { label: t.groupTransport, folders: SYSTEM_FOLDERS.filter(f => f.group === 'transport') },
+    { label: t.groupIntent, folders: SYSTEM_FOLDERS.filter(f => f.group === 'intent') },
   ];
 
   const currentFolder = [...SYSTEM_FOLDERS, ...customLabels.map(l => ({ key: l.key, label: l.label, icon: l.icon, group: 'custom', iconStyle: undefined, color: undefined }))].find(f => f.key === activeFolder);
@@ -895,6 +1103,16 @@ export default function DashboardPage() {
           <button onClick={toggleTheme} className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
             {darkMode ? <Icon name="Dashboard_sun_light_mode" className="w-4 h-4" style={theme.iconFilter} /> : <Icon name="Dashboard_moon_dark_mode" className="w-4 h-4" style={theme.iconFilter} />}
           </button>
+          {/* Settings gear icon */}
+          {user && session && (
+            <Link href={`/settings/integrations?session=${session}`} title="Settings"
+              className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder} transition`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${theme.textMuted}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </Link>
+          )}
           {user && (<><span className={`text-sm ${theme.textMuted} hidden lg:block max-w-36 truncate`}>{user.email}</span><button onClick={disconnect} className="text-sm text-red-400 border border-red-400/30 px-3 py-1.5 rounded-full hover:bg-red-400/10 transition">{language === 'pt' ? 'Desconectar' : language === 'nl' ? 'Ontkoppelen' : 'Disconnect'}</button></>)}
         </div>
       </header>
@@ -959,7 +1177,7 @@ export default function DashboardPage() {
 
                   {!isNarrow && (
                     <div className="mt-1.5">
-                      <p className={`text-[10px] font-semibold ${theme.textDim} uppercase tracking-wider px-2 mb-0.5 mt-2`}>Folders & Labels</p>
+                      <p className={`text-[10px] font-semibold ${theme.textDim} uppercase tracking-wider px-2 mb-0.5 mt-2`}>{t.foldersLabels}</p>
                       {customLabels.map(label => {
                         const count = folderCounts[label.key] || 0;
                         const isActive = activeFolder === label.key;
@@ -980,10 +1198,10 @@ export default function DashboardPage() {
                       })}
                       <div className="flex gap-1 mt-1">
                         <button onClick={() => { setCreateMode('folder'); setShowCreateLabel(true); }} className={`flex-1 flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] ${theme.textDim} ${theme.hover} transition border border-dashed ${theme.cardBorder}`}>
-                          <Icon name="Dashboard_new_folder" className="w-3 h-3" style={theme.iconFilter} /> Folder
+                          <Icon name="Dashboard_new_folder" className="w-3 h-3" style={theme.iconFilter} /> {t.folderBtn}
                         </button>
                         <button onClick={() => { setCreateMode('label'); setShowCreateLabel(true); }} className={`flex-1 flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] ${theme.textDim} ${theme.hover} transition border border-dashed ${theme.cardBorder}`}>
-                          <Icon name="Dashboard_new_label" className="w-3 h-3" style={theme.iconFilter} /> Label
+                          <Icon name="Dashboard_new_label" className="w-3 h-3" style={theme.iconFilter} /> {t.labelBtn}
                         </button>
                       </div>
                     </div>
@@ -1058,17 +1276,18 @@ export default function DashboardPage() {
                         onContextMenu={(e) => !isInTrash && handleContextMenu(e, email.id)}
                         className={`p-3 border-b ${theme.cardBorder} ${!isInTrash ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} transition-all ${isSelected ? `${theme.selected} shadow-sm` : theme.hover}`}>
                         <div className="flex items-center justify-between mb-1">
-                          <span className={`text-xs font-semibold truncate max-w-[120px] ${isSelected ? 'text-white' : ''}`}>{email.from.split('<')[0].trim()}</span>
+                          <span className={`text-xs font-semibold truncate max-w-[120px] ${isSelected ? (darkMode ? 'text-white' : 'text-slate-900') : ''}`}>{email.from.split('<')[0].trim()}</span>
                           <div className="flex items-center gap-1 flex-shrink-0">
                             {email.isAnalyzing && <div className="w-3 h-3 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin"></div>}
                             {email.analysis && <span className={`text-[9px] px-1.5 py-0.5 rounded-full text-white ${getPriorityColor(email.analysis.priority)}`}>{email.analysis.priority}</span>}
                             {!isInTrash && <button onClick={(e) => { e.stopPropagation(); moveToTrash(email.id); }} className="w-5 h-5 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition" title="Trash"><Icon name="Dashboard_trash" className="w-3 h-3" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} /></button>}
                           </div>
                         </div>
-                        <p className={`text-xs truncate mb-0.5 ${isSelected ? 'text-white font-medium' : (darkMode ? 'text-gray-300' : 'text-slate-700')}`}>{email.subject}</p>
-                        <p className={`text-xs truncate ${isSelected ? 'text-white/60' : theme.textDim}`}>{email.snippet}</p>
+                        <p className={`text-xs truncate mb-0.5 ${isSelected ? (darkMode ? 'text-white font-medium' : 'text-slate-900 font-medium') : (darkMode ? 'text-gray-300' : 'text-slate-700')}`}>{email.subject}</p>
+                        <p className={`text-xs truncate ${isSelected ? (darkMode ? 'text-white/60' : 'text-slate-600') : theme.textDim}`}>{email.snippet}</p>
                         <div className="flex items-center gap-1 mt-1 flex-wrap">
-                          {email.analysis && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]'}`}>{email.analysis.intent?.replace(/_/g, ' ')}</span>}
+                          {email.analysis && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${isSelected ? (darkMode ? 'bg-white/20 text-white' : 'bg-[#9E14FB]/20 text-[#9E14FB]') : 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]'}`}>{email.analysis.intent?.replace(/_/g, ' ')}</span>}
+                          {isMercanteIntent(email.analysis?.intent) && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 font-medium">🔗 Mercante</span>}
                           {emailStatusDef && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${emailStatusDef.bg} ${emailStatusDef.color}`}>{emailStatusDef.label}</span>}
                           {emailOwner && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-white/10 text-gray-300' : 'bg-slate-100 text-slate-500'}`}>👑 {emailOwner.split('@')[0]}</span>}
                           {emailLabel && <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${emailLabel.color} bg-white/5`}>{emailLabel.icon} {emailLabel.label}</span>}
@@ -1110,6 +1329,12 @@ export default function DashboardPage() {
                             </button>
                           )}
                           {selected.isAnalyzing && <div className="flex items-center gap-1.5 text-[#1BA1FF] text-xs"><div className="w-3 h-3 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin"></div> Analyzing...</div>}
+                          {/* Reminder Button */}
+                          {!trashedEmails.has(selected.id) && (
+                            <button onClick={() => setShowReminderModal(true)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-blue-500 border border-blue-400/30 rounded-full hover:bg-blue-100/40" title="Set Reminder">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </button>
+                          )}
                           {!trashedEmails.has(selected.id) && <button onClick={() => moveToTrash(selected.id)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-red-400 border border-red-400/30 rounded-full hover:bg-red-400/10"><Icon name="Dashboard_trash" className="w-3 h-3" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} /></button>}
                         </div>
                       </div>
@@ -1232,13 +1457,166 @@ export default function DashboardPage() {
                                 {selected.analysis.mode && <div><p className={`text-xs ${theme.textDim}`}>{t.mode}</p><p className="text-sm">{selected.analysis.mode}</p></div>}
                                 {selected.analysis.pol && <div><p className={`text-xs ${theme.textDim}`}>{t.route}</p><p className="text-sm">{selected.analysis.pol} → {selected.analysis.pod}</p></div>}
                               </div>
-                              {selected.analysis.summary && <div className="mb-3"><p className={`text-xs ${theme.textDim} mb-1`}>{t.summary}</p><p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>{selected.analysis.summary}</p></div>}
+                              {selected.analysis.summary && <div className="mb-3"><p className={`text-xs ${theme.textDim} mb-1`}>{t.summary}</p><p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-black'}`}>{selected.analysis.summary}</p></div>}
                               {selected.analysis.missing_info?.length > 0 && <div><p className={`text-xs ${theme.textDim} mb-1`}>{t.missingInfo}</p><div className="flex flex-wrap gap-1">{selected.analysis.missing_info.map((info: string, i: number) => <span key={i} className="text-xs px-2 py-0.5 bg-red-500/20 text-red-500 rounded-full">{info}</span>)}</div></div>}
+                              {isMercanteIntent(selected.analysis?.intent) && !selected.analysis.mercante_entities?.ce_number && !selected.analysis.mercante_entities?.bl_number && (
+                                <div className={`mt-3 p-3 rounded-lg border ${darkMode ? 'bg-orange-500/10 border-orange-500/30' : 'bg-orange-50 border-orange-200'}`}>
+                                  <p className="text-xs text-orange-400 font-medium mb-1">⚠️ {t.mercanteCannotQuery}</p>
+                                  <p className={`text-xs ${theme.textDim} mb-2`}>{t.mercanteSuggestedAction}</p>
+                                  <button onClick={() => selected && runMercanteAction(selected, MERCANTE_ACTIONS.find(a => a.action === 'missing')!)} className="text-xs px-3 py-1.5 rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition font-medium">{t.mercanteRequestMissing}</button>
+                                </div>
+                              )}
                             </div>
                           )}
+
+                          {/* MERCANTE STATUS CARD */}
+                          {selected && isMercanteIntent(selected.analysis?.intent) && (() => {
+                            const ms = mercanteStates[selected.id];
+                            const isOpen = mercanteCardOpen[selected.id] ?? !!ms?.result;
+                            const entities = getMercanteEntities(selected);
+                            const afrmmColor = ms?.result?.afrmm_status === 'paid' ? 'bg-green-500/20 text-green-400' : ms?.result?.afrmm_status === 'pending' ? 'bg-orange-500/20 text-orange-400' : 'bg-gray-500/20 text-gray-400';
+                            return (
+                              <div className={`rounded-xl border ${darkMode ? 'border-cyan-500/30 bg-cyan-500/5' : 'border-cyan-300 bg-cyan-50'}`}>
+                                {/* Card header */}
+                                <button onClick={() => setMercanteCardOpen(prev => ({ ...prev, [selected.id]: !isOpen }))} className="w-full flex items-center justify-between px-4 py-3">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm">🔗</span>
+                                    <span className="text-sm font-semibold text-cyan-400">{t.mercanteStatus}</span>
+                                    {ms?.loading && <div className="w-3 h-3 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>}
+                                    {/* Tier source badge */}
+                                    {ms?.result?.tier === 'restricted' && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400 font-medium">{t.mercanteTierFull}</span>}
+                                    {ms?.result?.tier === 'public' && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium">{t.mercanteTierBasic}</span>}
+                                    {ms?.result?.tier === 'mock' && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 font-medium">{t.mercanteTierMock}</span>}
+                                    {ms?.result?.tier === 'missing_info' && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-500/20 text-gray-400 font-medium">{t.mercanteTierNoData}</span>}
+                                    {ms?.result?.afrmm_status && ms.result.tier !== 'missing_info' && <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${afrmmColor}`}>AFRMM {ms.result.afrmm_status}</span>}
+                                    {ms?.error && !ms.result && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">{t.mercanteNotLocated}</span>}
+                                  </div>
+                                  <span className={`text-xs ${theme.textDim} flex-shrink-0`}>{isOpen ? '▲' : '▼'}</span>
+                                </button>
+                                {isOpen && (
+                                  <div className="px-4 pb-4 space-y-3">
+                                    {/* Tier 2 upgrade prompt */}
+                                    {ms?.result?.tier === 'public' && (
+                                      <div className={`p-2.5 rounded-lg border ${darkMode ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200'} flex items-center justify-between gap-2`}>
+                                        <p className="text-xs text-blue-400">{t.mercanteUpgradePrompt}</p>
+                                        <a href={`/settings/integrations?session=${session}`} className="text-xs text-[#9E14FB] font-medium hover:underline flex-shrink-0">{t.mercanteSetUp}</a>
+                                      </div>
+                                    )}
+                                    {/* Tier 3: missing info */}
+                                    {ms?.result?.tier === 'missing_info' && (
+                                      <div className={`p-3 rounded-lg border ${darkMode ? 'bg-gray-500/10 border-gray-500/20' : 'bg-gray-50 border-gray-200'}`}>
+                                        <p className={`text-xs ${theme.textDim} mb-2`}>{t.mercanteMissingDesc}</p>
+                                        <div className="flex flex-wrap gap-1 mb-3">
+                                          {(ms.result.missingFields || []).map((f, i) => <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">{f}</span>)}
+                                        </div>
+                                        <button onClick={() => selected && runMercanteAction(selected, MERCANTE_ACTIONS.find(a => a.action === 'missing')!)} className="text-xs px-3 py-1.5 rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition font-medium">{t.mercanteRequestClient}</button>
+                                      </div>
+                                    )}
+                                    {ms?.error && !ms.result && <p className={`text-xs ${darkMode ? 'text-red-400' : 'text-red-500'}`}>{ms.error}</p>}
+                                    {ms?.rules?.alerts && ms.rules.alerts.length > 0 && (
+                                      <div className="space-y-1">
+                                        {ms.rules.alerts.filter(a => !a.startsWith('info')).map((alert, i) => (
+                                          <div key={i} className={`text-xs px-2 py-1 rounded-lg ${alert.startsWith('critical') ? 'bg-red-500/20 text-red-400' : alert.startsWith('financial') ? 'bg-orange-500/20 text-orange-400' : 'bg-yellow-500/20 text-yellow-400'}`}>⚠️ {alert.replace(/^[^:]+: /, '')}</div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {/* Data fields — greyed for tier 2 */}
+                                    {ms?.result && ms.result.tier !== 'missing_info' && (
+                                      <>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                          {[
+                                            [t.fieldCE, ms.result.ce_number || entities.ce_number || '—'],
+                                            [t.fieldBL, ms.result.bl_number || entities.bl_number || '—'],
+                                            [t.fieldManifesto, ms.result.manifesto || '—'],
+                                            [t.fieldVessel, (ms.result.vessel || ms.result.vessel_name) && ms.result.voyage ? `${ms.result.vessel || ms.result.vessel_name} / ${ms.result.voyage}` : entities.vessel_name || '—'],
+                                            [t.fieldDischargePort, ms.result.discharge_port || entities.discharge_port || '—'],
+                                            [t.fieldCarrier, ms.result.carrier || entities.carrier || '—'],
+                                          ].map(([label, value]) => (
+                                            <div key={label}>
+                                              <p className={`text-[10px] ${theme.textDim}`}>{label}</p>
+                                              <p className="font-medium">{value}</p>
+                                            </div>
+                                          ))}
+                                        </div>
+                                        <div className="space-y-2">
+                                          <div className="flex items-center justify-between">
+                                            <span className={`text-[10px] ${theme.textDim}`}>{t.fieldAfrmmStatus}</span>
+                                            {ms.result.tier === 'public' ? (
+                                              <span className="text-xs text-gray-500 italic">{t.fieldAfrmmAvailSerpro}</span>
+                                            ) : (
+                                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${afrmmColor}`}>{ms.result.afrmm_status}</span>
+                                            )}
+                                          </div>
+                                          {ms.result.afrmm_value && ms.result.tier !== 'public' && (
+                                            <div className="flex items-center justify-between">
+                                              <span className={`text-[10px] ${theme.textDim}`}>{t.fieldAfrmmAmount}</span>
+                                              <span className="text-xs text-orange-400 font-medium">BRL {ms.result.afrmm_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                            </div>
+                                          )}
+                                          <div className="flex items-center justify-between">
+                                            <span className={`text-[10px] ${theme.textDim}`}>{t.fieldConfidence}</span>
+                                            {(() => { const c = ms.result.confidence || ms.result.response_confidence; return <span className={`text-xs px-2 py-0.5 rounded-full ${c === 'high' ? 'bg-green-500/20 text-green-400' : c === 'medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-500/20 text-gray-400'}`}>{c}</span>; })()}
+                                          </div>
+                                          <div className="flex items-center justify-between">
+                                            <span className={`text-[10px] ${theme.textDim}`}>{t.fieldLastChecked}</span>
+                                            <span className="text-xs">{new Date(ms.result.last_checked).toLocaleString()}</span>
+                                          </div>
+                                          {(ms.result.operational_status || ms.result.cargo_situation) && (
+                                            <div>
+                                              <p className={`text-[10px] ${theme.textDim}`}>{t.fieldOperationalStatus}</p>
+                                              <p className="text-xs font-medium">{ms.result.operational_status || ms.result.cargo_situation}</p>
+                                            </div>
+                                          )}
+                                          {ms.result.pending_items.length > 0 && (
+                                            <div>
+                                              <p className={`text-[10px] ${theme.textDim} mb-1`}>{t.fieldPendingItems}</p>
+                                              {ms.result.tier === 'public' ? (
+                                                <span className="text-xs text-gray-500 italic">{t.fieldAfrmmAvailSerpro}</span>
+                                              ) : (
+                                                <div className="flex flex-wrap gap-1">{ms.result.pending_items.map((item, i) => <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400">{item}</span>)}</div>
+                                              )}
+                                            </div>
+                                          )}
+                                          <div className={`p-2 rounded-lg ${darkMode ? 'bg-white/5' : 'bg-white/60'} border ${theme.cardBorder}`}>
+                                            <p className={`text-[10px] ${theme.textDim} mb-0.5`}>{t.fieldSuggestedAction}</p>
+                                            <p className="text-xs font-medium text-cyan-400">{ms.rules?.suggestedAction || ms.result.suggested_action}</p>
+                                          </div>
+                                          {ms.result.note && <p className={`text-[10px] ${theme.textDim} italic`}>{ms.result.note}</p>}
+                                          <p className={`text-[10px] ${theme.textDim}`}>{t.fieldSource} {ms.result.source || 'Sistema Mercante'}</p>
+                                        </div>
+                                      </>
+                                    )}
+                                    {!ms?.result && !ms?.loading && !ms?.error && (
+                                      <div className="text-center py-4">
+                                        <p className={`text-xs ${theme.textDim} mb-3`}>{t.mercanteQueryPrompt}</p>
+                                        <button onClick={() => queryMercante(selected, 'consult')} className="text-xs px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-400 border border-cyan-500/30 hover:from-cyan-500/30 hover:to-blue-500/30 transition font-medium">{t.mercanteConsult}</button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+
                           <div className={`rounded-xl p-4 ${darkMode ? 'bg-white/5' : 'bg-slate-50'}`}>
-                            <pre className={`whitespace-pre-wrap font-sans text-sm ${darkMode ? 'text-gray-300' : 'text-slate-700'} leading-relaxed`}>{selected.body || selected.snippet}</pre>
+                            <pre className={`whitespace-pre-wrap font-sans text-sm ${darkMode ? 'text-gray-300' : 'text-black'} leading-relaxed`}>{selected.body || selected.snippet}</pre>
                           </div>
+                        {/* Reminder Modal */}
+                        {showReminderModal && (
+                          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-xs flex flex-col gap-4">
+                              <h2 className="text-lg font-semibold text-slate-900 mb-2">Set Reminder</h2>
+                              <label className="text-xs text-slate-700">Date</label>
+                              <input type="date" value={reminderDate} onChange={e => setReminderDate(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" />
+                              <label className="text-xs text-slate-700">Time</label>
+                              <input type="time" value={reminderTime} onChange={e => setReminderTime(e.target.value)} className="border rounded-lg px-3 py-2 text-sm" />
+                              <div className="flex gap-2 mt-2">
+                                <button onClick={() => setShowReminderModal(false)} className="flex-1 py-2 rounded-lg bg-slate-200 text-slate-700">Cancel</button>
+                                <button onClick={() => { setShowReminderModal(false); notify('success', `Reminder set for ${reminderDate} ${reminderTime}`); }} disabled={!reminderDate || !reminderTime} className="flex-1 py-2 rounded-lg bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white disabled:opacity-50">Set Reminder</button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         </>
                       )}
 
@@ -1293,6 +1671,29 @@ export default function DashboardPage() {
                       {/* AI ACTIONS TAB */}
                       {activeDetailTab === 'actions' && (
                         <div className="space-y-3">
+                          {/* MERCANTE ACTIONS — shown only for Mercante intents */}
+                          {selected && isMercanteIntent(selected.analysis?.intent) && (
+                            <div>
+                              <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">🔗 CE Mercante Actions <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400">Brazil</span></h3>
+                              <div className="grid grid-cols-1 gap-2 mb-4">
+                                {MERCANTE_ACTIONS.map(action => {
+                                  const ms = mercanteStates[selected.id];
+                                  const isLoading = ms?.loading && ms?.lastAction === action.action;
+                                  return (
+                                    <button key={action.key}
+                                      onClick={() => runMercanteAction(selected, action)}
+                                      disabled={ms?.loading || !!aiActionLoading}
+                                      className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-left transition border ${isLoading ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-500/40' : `${darkMode ? 'bg-white/5 hover:bg-white/10 border-white/5' : 'bg-slate-50 hover:bg-slate-100 border-slate-200'}`} disabled:opacity-50`}>
+                                      <span className="text-xl">{action.icon}</span>
+                                      <span className="font-medium flex-1">{action.label}</span>
+                                      {isLoading && <div className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <div className={`h-px ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mb-3`} />
+                            </div>
+                          )}
                           <h3 className="font-semibold text-sm">One-click AI Actions</h3>
                           <div className="grid grid-cols-1 gap-2">
                             {AI_ACTIONS.map(action => (
