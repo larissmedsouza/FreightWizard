@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import TrialBanner from '../components/TrialBanner';
 import { usePathname } from 'next/navigation';
 
 const API_URL = 'https://freightwizard-production.up.railway.app';
@@ -143,6 +144,7 @@ export default function AnalyticsPage() {
   const [darkMode, setDarkMode] = useState(true);
   const [language, setLanguage] = useState<Language>('en');
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [billingUrgent, setBillingUrgent] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>('weekly');
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -246,6 +248,8 @@ export default function AnalyticsPage() {
     {[
       { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_analytics_total email' },
       { href: '/shipments', label: { en: 'Shipments', pt: 'Embarques', nl: 'Zendingen' }, icon: 'Dashboard_tracking' },
+      { href: '/quotes', label: { en: 'Quotes', pt: 'Cotações', nl: 'Offertes' }, icon: 'Dashboard_quotation' },
+      { href: '/rates', label: { en: 'Rates', pt: 'Tarifas', nl: 'Tarieven' }, icon: 'Dashboard_quotation' },
       { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
       { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
       { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
@@ -284,12 +288,20 @@ export default function AnalyticsPage() {
       {darkMode ? <Icon name="Dashboard_sun_light_mode" className="w-4 h-4" /> : <Icon name="Dashboard_moon_dark_mode" className="w-4 h-4" />}
     </button>
 
+    {/* Billing */}
+    <Link href={`/billing?session=${session}`} className={`relative px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full hover:bg-white/5`}>
+      Billing
+      {billingUrgent && <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
+    </Link>
+
     {/* Back */}
     <Link href={`/dashboard?session=${session}`} className={`px-4 py-2 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full hover:bg-white/5`}>
       ← {t.backToDashboard}
     </Link>
   </div>
 </header>
+
+<TrialBanner session={session} onSubscription={(sub) => setBillingUrgent(sub.plan === 'trial' && sub.trial_days_remaining < 3)} />
 
       <div className="max-w-7xl mx-auto p-6">
         {/* Page Title */}

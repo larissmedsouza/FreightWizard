@@ -1,7 +1,12 @@
 {
+  "/billing/page": "app/billing/page.js",
   "/dashboard/page": "app/dashboard/page.js",
+  "/quotes/page": "app/quotes/page.js",
+  "/shipments/page": "app/shipments/page.js",
+  "/rates/page": "app/rates/page.js",
   "/analytics/page": "app/analytics/page.js",
-  "/documents/compare/page": "app/documents/compare/page.js",
+  "/team/page": "app/team/page.js",
   "/documents/page": "app/documents/page.js",
-  "/team/page": "app/team/page.js"
+  "/billing/cancel/page": "app/billing/cancel/page.js",
+  "/billing/success/page": "app/billing/success/page.js"
 }

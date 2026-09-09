@@ -279,6 +279,8 @@ export default function ComparePage() {
     {[
       { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_analytics_total email' },
       { href: '/shipments', label: { en: 'Shipments', pt: 'Embarques', nl: 'Zendingen' }, icon: 'Dashboard_tracking' },
+      { href: '/quotes', label: { en: 'Quotes', pt: 'Cotações', nl: 'Offertes' }, icon: 'Dashboard_quotation' },
+      { href: '/rates', label: { en: 'Rates', pt: 'Tarifas', nl: 'Tarieven' }, icon: 'Dashboard_quotation' },
       { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
       { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
       { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },

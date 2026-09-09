@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
+
 const Icon = ({ name, className = "w-5 h-5", style }: { name: string; className?: string; style?: React.CSSProperties }) => (
   <img src={`/icons/${name}.svg`} alt={name} className={className} style={style} />
 );
@@ -32,6 +34,19 @@ const navItems = [
 export default function Header({ session, user, darkMode, language, onToggleTheme, onChangeLanguage, onDisconnect }: HeaderProps) {
   const pathname = usePathname();
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [integrationAlert, setIntegrationAlert] = useState(false);
+
+  useEffect(() => {
+    if (!session) return;
+    fetch(`${API_URL}/api/settings/integrations?session=${session}`)
+      .then(r => r.json())
+      .then(data => {
+        const s = data.integration?.serproStatus;
+        const expiry = data.integration?.serproCertExpiry;
+        const expiringSoon = expiry ? (new Date(expiry).getTime() - Date.now()) / 86400000 < 30 : false;
+        setIntegrationAlert((s === 'error') || (s === 'connected' && expiringSoon));
+      }).catch(() => {});
+  }, [session]);
 
   const theme = darkMode ? {
     card: 'bg-[#0a0a1a]',
@@ -111,6 +126,23 @@ export default function Header({ session, user, darkMode, language, onToggleThem
           <Icon name={darkMode ? 'Dashboard_sun_light_mode' : 'Dashboard_moon_dark_mode'} className="w-4 h-4"
             style={theme.iconFilter} />
         </button>
+
+        {/* Settings gear icon */}
+        {user && session && (
+          <Link
+            href={`/settings/integrations?session=${session}`}
+            title="Settings"
+            className={`relative p-2 rounded-full ${isActive('/settings/integrations') ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40' : `${theme.hover} border ${theme.cardBorder}`} transition`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${isActive('/settings/integrations') ? 'text-[#9E14FB]' : theme.textMuted}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            {integrationAlert && (
+              <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full" />
+            )}
+          </Link>
+        )}
 
         {/* User info + disconnect */}
         {user ? (

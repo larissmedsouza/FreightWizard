@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import TrialBanner from '../components/TrialBanner';
+import UpgradeModal from '../components/UpgradeModal';
 
 const API_URL = 'https://freightwizard-production.up.railway.app';
 
@@ -15,6 +17,8 @@ type Language = 'en' | 'pt' | 'nl';
 const NAV_ITEMS = [
   { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_analytics_total email' },
   { href: '/shipments', label: { en: 'Shipments', pt: 'Embarques', nl: 'Zendingen' }, icon: 'Dashboard_tracking' },
+  { href: '/quotes', label: { en: 'Quotes', pt: 'Cotações', nl: 'Offertes' }, icon: 'Dashboard_quotation' },
+  { href: '/rates', label: { en: 'Rates', pt: 'Tarifas', nl: 'Tarieven' }, icon: 'Dashboard_quotation' },
   { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
   { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
   { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
@@ -97,6 +101,8 @@ export default function DocumentsPage() {
   const [darkMode, setDarkMode] = useState(true);
   const [language, setLanguage] = useState<Language>('en');
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const [billingUrgent, setBillingUrgent] = useState(false);
+  const [documentsBlocked, setDocumentsBlocked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null);
   const [history, setHistory] = useState<SavedDocument[]>([]);
@@ -406,8 +412,21 @@ export default function DocumentsPage() {
             <Icon name="Dashboard_documents_Click_to_upload" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
             {language === 'pt' ? 'Comparar' : language === 'nl' ? 'Vergelijk' : 'Compare Docs'}
           </Link>
+
+          {/* Billing */}
+          <Link href={`/billing?session=${session}`} className={`relative px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover}`}>
+            Billing
+            {billingUrgent && <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
+          </Link>
         </div>
       </header>
+
+      <TrialBanner session={session} onSubscription={(sub) => {
+        setBillingUrgent(sub.plan === 'trial' && sub.trial_days_remaining < 3);
+        if (sub.plan === 'starter') setDocumentsBlocked(true);
+      }} />
+
+      {documentsBlocked && <UpgradeModal reason="documents_blocked" session={session} darkMode={darkMode} />}
 
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-8 flex items-start gap-2">

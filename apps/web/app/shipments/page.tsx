@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import TrialBanner from '../components/TrialBanner';
 
-const API_URL = 'https://freightwizard-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
 const Icon = ({ name, className = "w-6 h-6", style }: { name: string; className?: string; style?: React.CSSProperties }) => (
   <img src={`/icons/${name}.svg`} alt={name} className={className} style={style} />
@@ -44,11 +45,44 @@ interface Shipment {
   updatedAt: string;
   aiGenerated?: boolean;
   approved?: boolean;
+  updateTarget?: { id: string; reference: string; customer: string } | null;
+  containerNumber?: string;
+  t49TrackingActive?: boolean;
+  t49Status?: string | null;
+  t49Vessel?: string | null;
+  t49Voyage?: string | null;
+  t49PodEta?: string | null;
+  t49LastEvent?: string | null;
+  t49LastEventAt?: string | null;
 }
 
 interface PendingShipment extends Shipment {
   aiGenerated: true;
   approved: false;
+}
+
+interface ShipmentEvent {
+  id: string;
+  event_type: string;
+  description: string;
+  location: string | null;
+  event_at: string;
+}
+
+interface Portal {
+  id: string;
+  token: string;
+  shipment_id: string;
+  title: string;
+  show_carrier: boolean;
+  show_rate: boolean;
+  show_documents: boolean;
+  message: string | null;
+  is_active: boolean;
+  expires_at: string | null;
+  created_at: string;
+  url: string;
+  shipment?: { reference: string; customer: string; origin: string; destination: string } | null;
 }
 
 const STATUSES: { key: ShipmentStatus; label: string; color: string; bg: string; border: string }[] = [
@@ -69,16 +103,56 @@ const MODE_ICONS: Record<string, string> = {
 const NAV_ITEMS = [
   { href: '/dashboard',  label: { en: 'Inbox',      pt: 'Inbox',      nl: 'Inbox'      }, icon: 'Dashboard_inbox' },
   { href: '/shipments',  label: { en: 'Shipments',  pt: 'Embarques',  nl: 'Zendingen'  }, icon: 'Dashboard_tracking' },
+  { href: '/quotes',     label: { en: 'Quotes',     pt: 'Cotações',   nl: 'Offertes'   }, icon: 'Dashboard_quotation' },
+  { href: '/rates',      label: { en: 'Rates',      pt: 'Tarifas',    nl: 'Tarieven'   }, icon: 'Dashboard_quotation' },
   { href: '/analytics',  label: { en: 'Analytics',  pt: 'Analytics',  nl: 'Analytics'  }, icon: 'Dashboard_analyrtics_AI Insights' },
   { href: '/team',       label: { en: 'Team',       pt: 'Equipa',     nl: 'Team'       }, icon: 'Dashboard_email_team' },
   { href: '/documents',  label: { en: 'Documents',  pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
 ];
+
+// Carriers Terminal49 can resolve to a SCAC on our backend — matches CARRIER_SCAC in server.ts
+const CARRIERS = ['Maersk', 'MSC', 'CMA CGM', 'Hapag-Lloyd', 'COSCO', 'Evergreen', 'ONE', 'Yang Ming', 'HMM', 'ZIM', 'OOCL'];
 
 const EMPTY_FORM: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'> = {
   status: 'inquiry', reference: '', customer: '', origin: '', destination: '',
   mode: '', commodity: '', weight: '', container: '', incoterm: '', eta: '', etd: '',
   carrier: '', notes: '', aiGenerated: false, approved: true,
 };
+
+function mapApiShipment(row: any): Shipment {
+  return {
+    id: row.id,
+    status: row.status,
+    reference: row.reference || '',
+    customer: row.customer || '',
+    origin: row.origin || '',
+    destination: row.destination || '',
+    mode: row.mode || '',
+    commodity: row.commodity || '',
+    weight: row.weight || '',
+    container: row.container || '',
+    incoterm: row.incoterm || '',
+    eta: row.eta || '',
+    etd: row.etd || '',
+    carrier: row.carrier || '',
+    notes: row.notes || '',
+    emailId: row.email_id || undefined,
+    emailSubject: row.email_subject || undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    aiGenerated: !!row.ai_generated,
+    approved: !!row.approved,
+    updateTarget: row.updateTarget || null,
+    containerNumber: row.container_number || undefined,
+    t49TrackingActive: !!row.t49_tracking_active,
+    t49Status: row.t49_status || null,
+    t49Vessel: row.t49_vessel || null,
+    t49Voyage: row.t49_voyage || null,
+    t49PodEta: row.t49_pod_eta || null,
+    t49LastEvent: row.t49_last_event || null,
+    t49LastEventAt: row.t49_last_event_at || null,
+  };
+}
 
 export default function ShipmentsPage() {
   const searchParams = useSearchParams();
@@ -104,6 +178,29 @@ export default function ShipmentsPage() {
   const [filterMode, setFilterMode] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
 
+  const [portals, setPortals] = useState<Portal[]>([]);
+  const [shareShipment, setShareShipment] = useState<Shipment | null>(null);
+  const [sharePortal, setSharePortal] = useState<Portal | null>(null);
+  const [shareEmail, setShareEmail] = useState('');
+  const [shareSaving, setShareSaving] = useState(false);
+  const [shareSending, setShareSending] = useState(false);
+  const [billingUrgent, setBillingUrgent] = useState(false);
+
+  const [trackShipment, setTrackShipment] = useState<Shipment | null>(null);
+  const [trackContainerNumber, setTrackContainerNumber] = useState('');
+  const [trackBlNumber, setTrackBlNumber] = useState('');
+  const [trackCarrier, setTrackCarrier] = useState('');
+  const [trackSaving, setTrackSaving] = useState(false);
+  const [trackError, setTrackError] = useState<string | null>(null);
+  const [shipmentEvents, setShipmentEvents] = useState<Record<string, ShipmentEvent[]>>({});
+
+  const [refreshing, setRefreshing] = useState<Record<string, boolean>>({});
+  const [refreshError, setRefreshError] = useState<Record<string, string | null>>({});
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Record<string, number>>({});
+  const [justUpdated, setJustUpdated] = useState<Record<string, boolean>>({});
+  const [refreshCooldown, setRefreshCooldown] = useState<Record<string, boolean>>({});
+  const [now, setNow] = useState(() => Date.now());
+
   const theme = darkMode ? {
     bg: 'bg-gradient-to-br from-[#050510] via-[#0a0a1a] to-[#050510]',
     card: 'bg-[#0a0a1a]', cardBorder: 'border-white/5', text: 'text-white',
@@ -125,17 +222,13 @@ export default function ShipmentsPage() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // Load from localStorage
+  // Load theme/lang prefs + session
   useEffect(() => {
     const savedTheme = localStorage.getItem('fw_theme');
     const savedLang = localStorage.getItem('fw_lang') as Language;
-    const savedShipments = localStorage.getItem('fw_shipments');
-    const savedPending = localStorage.getItem('fw_shipments_pending');
     const savedAutoDetect = localStorage.getItem('fw_ai_autodetect');
     if (savedTheme) setDarkMode(savedTheme === 'dark');
     if (savedLang) setLanguage(savedLang);
-    if (savedShipments) try { setShipments(JSON.parse(savedShipments)); } catch {}
-    if (savedPending) try { setPending(JSON.parse(savedPending)); } catch {}
     if (savedAutoDetect !== null) setAiAutoDetect(savedAutoDetect === 'true');
 
     const sid = searchParams.get('session') || localStorage.getItem('fw_session');
@@ -149,8 +242,26 @@ export default function ShipmentsPage() {
     }
   }, [searchParams]);
 
-  useEffect(() => { localStorage.setItem('fw_shipments', JSON.stringify(shipments)); }, [shipments]);
-  useEffect(() => { localStorage.setItem('fw_shipments_pending', JSON.stringify(pending)); }, [pending]);
+  const loadShipments = useCallback((sid: string) => {
+    fetch(`${API_URL}/api/shipments?session=${sid}`)
+      .then(r => r.json())
+      .then(d => { if (d.shipments) setShipments(d.shipments.map(mapApiShipment)); })
+      .catch(() => {});
+    fetch(`${API_URL}/api/shipments/pending?session=${sid}`)
+      .then(r => r.json())
+      .then(d => { if (d.pending) setPending(d.pending.map(mapApiShipment) as PendingShipment[]); })
+      .catch(() => {});
+  }, []);
+
+  const loadPortals = useCallback((sid: string) => {
+    fetch(`${API_URL}/api/portals?session=${sid}`)
+      .then(r => r.json())
+      .then(d => { if (d.portals) setPortals(d.portals); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => { if (session) { loadShipments(session); loadPortals(session); } }, [session, loadShipments, loadPortals]);
+
   useEffect(() => { localStorage.setItem('fw_ai_autodetect', String(aiAutoDetect)); }, [aiAutoDetect]);
 
   const toggleTheme = () => { setDarkMode(!darkMode); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); };
@@ -158,20 +269,25 @@ export default function ShipmentsPage() {
   const langLabels: Record<Language, string> = { en: 'EN', pt: 'PT', nl: 'NL' };
 
   // Create or update shipment
-  const saveShipment = () => {
+  const saveShipment = async () => {
     if (!form.reference.trim() || !form.customer.trim()) {
       notify('error', 'Reference and Customer are required');
       return;
     }
-    const now = new Date().toISOString();
-    if (editingId) {
-      setShipments(prev => prev.map(s => s.id === editingId ? { ...s, ...form, updatedAt: now } : s));
-      notify('success', 'Shipment updated!');
-    } else {
-      const newShipment: Shipment = { ...form, id: `shp_${Date.now()}`, createdAt: now, updatedAt: now, approved: true };
-      setShipments(prev => [...prev, newShipment]);
-      notify('success', 'Shipment created!');
-    }
+    try {
+      if (editingId) {
+        await fetch(`${API_URL}/api/shipments/${editingId}?session=${session}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+        });
+        notify('success', 'Shipment updated!');
+      } else {
+        await fetch(`${API_URL}/api/shipments?session=${session}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+        });
+        notify('success', 'Shipment created!');
+      }
+      if (session) loadShipments(session);
+    } catch (e) { notify('error', 'Failed to save shipment'); }
     setShowForm(false);
     setEditingId(null);
     setForm({ ...EMPTY_FORM });
@@ -184,27 +300,208 @@ export default function ShipmentsPage() {
     setSelectedCard(null);
   };
 
-  const deleteShipment = (id: string) => {
+  const deleteShipment = async (id: string) => {
     setShipments(prev => prev.filter(s => s.id !== id));
     if (selectedCard?.id === id) setSelectedCard(null);
-    notify('success', 'Shipment deleted');
+    try {
+      await fetch(`${API_URL}/api/shipments/${id}?session=${session}`, { method: 'DELETE' });
+      notify('success', 'Shipment deleted');
+    } catch (e) { notify('error', 'Failed to delete shipment'); }
   };
 
-  const moveStatus = (id: string, newStatus: ShipmentStatus) => {
+  const moveStatus = async (id: string, newStatus: ShipmentStatus) => {
     setShipments(prev => prev.map(s => s.id === id ? { ...s, status: newStatus, updatedAt: new Date().toISOString() } : s));
+    try {
+      await fetch(`${API_URL}/api/shipments/${id}?session=${session}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus }),
+      });
+    } catch (e) { notify('error', 'Failed to update status'); }
   };
 
   // Approve pending AI shipment
-  const approvePending = (p: PendingShipment) => {
-    const approved: Shipment = { ...p, approved: true, updatedAt: new Date().toISOString() };
-    setShipments(prev => [...prev, approved]);
-    setPending(prev => prev.filter(x => x.id !== p.id));
-    notify('success', 'Shipment approved and added to tracker!');
+  const approvePending = async (p: PendingShipment) => {
+    try {
+      await fetch(`${API_URL}/api/shipments/${p.id}/approve?session=${session}`, { method: 'POST' });
+      setPending(prev => prev.filter(x => x.id !== p.id));
+      if (session) loadShipments(session);
+      notify('success', 'Shipment approved and added to tracker!');
+    } catch (e) { notify('error', 'Failed to approve shipment'); }
   };
 
-  const rejectPending = (id: string) => {
+  const rejectPending = async (id: string) => {
     setPending(prev => prev.filter(x => x.id !== id));
-    notify('success', 'Suggestion dismissed');
+    try {
+      await fetch(`${API_URL}/api/shipments/${id}?session=${session}`, { method: 'DELETE' });
+      notify('success', 'Suggestion dismissed');
+    } catch (e) { notify('error', 'Failed to dismiss suggestion'); }
+  };
+
+  // Customer portal sharing
+  const openShare = async (shipment: Shipment) => {
+    setShareShipment(shipment);
+    setSharePortal(null);
+    setShareEmail('');
+    try {
+      const res = await fetch(`${API_URL}/api/portals?session=${session}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shipment_id: shipment.id }),
+      });
+      const data = await res.json();
+      if (data.portal) {
+        setSharePortal({ ...data.portal, url: data.url });
+        if (session) loadPortals(session);
+      } else notify('error', 'Failed to create share link');
+    } catch (e) { notify('error', 'Failed to create share link'); }
+  };
+
+  const saveShareSettings = async () => {
+    if (!sharePortal) return;
+    setShareSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/api/portals/${sharePortal.id}?session=${session}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ show_carrier: sharePortal.show_carrier, show_rate: sharePortal.show_rate, message: sharePortal.message, expires_at: sharePortal.expires_at || null }),
+      });
+      const data = await res.json();
+      if (data.portal) { setSharePortal(data.portal); if (session) loadPortals(session); notify('success', 'Share settings saved!'); }
+    } catch (e) { notify('error', 'Failed to save settings'); }
+    setShareSaving(false);
+  };
+
+  const copyPortalLink = (url: string) => {
+    navigator.clipboard.writeText(url).then(() => notify('success', 'Link copied!')).catch(() => notify('error', 'Failed to copy link'));
+  };
+
+  const sendPortalByEmail = async () => {
+    if (!sharePortal || !shareEmail.trim()) { notify('error', 'Customer email is required'); return; }
+    setShareSending(true);
+    try {
+      const body = `Hi,\n\nYou can track your shipment here: ${sharePortal.url}\n${sharePortal.message ? `\n${sharePortal.message}\n` : ''}\nBest regards`;
+      const res = await fetch(`${API_URL}/api/send-reply?session=${session}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: shareEmail, subject: `Track your shipment${shareShipment?.reference ? ` — ${shareShipment.reference}` : ''}`, body }),
+      });
+      const data = await res.json();
+      if (data.success) notify('success', 'Tracking link sent!'); else notify('error', 'Failed to send email');
+    } catch (e) { notify('error', 'Failed to send email'); }
+    setShareSending(false);
+  };
+
+  const togglePortalActive = async (p: Portal) => {
+    setPortals(prev => prev.map(x => x.id === p.id ? { ...x, is_active: !x.is_active } : x));
+    try {
+      await fetch(`${API_URL}/api/portals/${p.id}?session=${session}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_active: !p.is_active }),
+      });
+    } catch (e) { notify('error', 'Failed to update portal'); }
+  };
+
+  const deletePortal = async (id: string) => {
+    setPortals(prev => prev.filter(p => p.id !== id));
+    try {
+      await fetch(`${API_URL}/api/portals/${id}?session=${session}`, { method: 'DELETE' });
+      notify('success', 'Portal removed');
+    } catch (e) { notify('error', 'Failed to remove portal'); }
+  };
+
+  // Container tracking (Terminal49)
+  const openTrack = (shipment: Shipment) => {
+    setTrackShipment(shipment);
+    setTrackContainerNumber(shipment.containerNumber || '');
+    setTrackBlNumber('');
+    setTrackCarrier(shipment.carrier && CARRIERS.includes(shipment.carrier) ? shipment.carrier : '');
+    setTrackError(null);
+  };
+
+  const startTracking = async () => {
+    if (!trackShipment) return;
+    setTrackSaving(true);
+    setTrackError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/shipments/${trackShipment.id}/track?session=${session}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ container_number: trackContainerNumber.toUpperCase().trim(), bl_number: trackBlNumber.trim(), carrier: trackCarrier }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.shipment) { setTrackError(data.error || 'Failed to start tracking'); setTrackSaving(false); return; }
+      const updated = mapApiShipment(data.shipment);
+      setShipments(prev => prev.map(s => s.id === updated.id ? updated : s));
+      if (selectedCard?.id === updated.id) setSelectedCard(updated);
+      notify('success', 'Live tracking started!');
+      setTrackShipment(null);
+    } catch (e) { setTrackError('Failed to start tracking'); }
+    setTrackSaving(false);
+  };
+
+  const stopTracking = async (shipment: Shipment) => {
+    try {
+      const res = await fetch(`${API_URL}/api/shipments/${shipment.id}/track?session=${session}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.shipment) {
+        const updated = mapApiShipment(data.shipment);
+        setShipments(prev => prev.map(s => s.id === updated.id ? updated : s));
+        if (selectedCard?.id === updated.id) setSelectedCard(updated);
+        notify('success', 'Tracking stopped');
+      }
+    } catch (e) { notify('error', 'Failed to stop tracking'); }
+  };
+
+  const loadShipmentEvents = useCallback(async (shipmentId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/shipments/${shipmentId}/events?session=${session}`);
+      const data = await res.json();
+      if (data.events) setShipmentEvents(prev => ({ ...prev, [shipmentId]: data.events }));
+    } catch (e) {}
+  }, [session]);
+
+  // Refresh live tracking (manual button + auto-refresh on panel open).
+  // Always fetches live from Terminal49 regardless of cooldown state — the
+  // cooldown only disables the *button* on the frontend to prevent spamming.
+  const refreshTracking = useCallback(async (shipmentId: string) => {
+    setRefreshing(prev => ({ ...prev, [shipmentId]: true }));
+    setRefreshError(prev => ({ ...prev, [shipmentId]: null }));
+    try {
+      const res = await fetch(`${API_URL}/api/shipments/${shipmentId}/refresh-tracking?session=${session}`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        setRefreshError(prev => ({ ...prev, [shipmentId]: data.error || 'Failed to refresh tracking' }));
+      } else if (data.shipment) {
+        const updated = mapApiShipment(data.shipment);
+        setShipments(prev => prev.map(s => s.id === updated.id ? updated : s));
+        setSelectedCard(prev => (prev && prev.id === updated.id ? updated : prev));
+        setLastRefreshedAt(prev => ({ ...prev, [shipmentId]: Date.now() }));
+        setJustUpdated(prev => ({ ...prev, [shipmentId]: true }));
+        setTimeout(() => setJustUpdated(prev => ({ ...prev, [shipmentId]: false })), 5000);
+        loadShipmentEvents(shipmentId);
+      }
+    } catch (e) {
+      setRefreshError(prev => ({ ...prev, [shipmentId]: 'Failed to refresh tracking' }));
+    }
+    setRefreshing(prev => ({ ...prev, [shipmentId]: false }));
+    setRefreshCooldown(prev => ({ ...prev, [shipmentId]: true }));
+    setTimeout(() => setRefreshCooldown(prev => ({ ...prev, [shipmentId]: false })), 10000);
+  }, [session, loadShipmentEvents]);
+
+  // Auto-refresh once when a live-tracked shipment is opened — keyed only on
+  // the id so it fires on selection change, not on every re-render.
+  useEffect(() => {
+    if (selectedCard?.t49TrackingActive) refreshTracking(selectedCard.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCard?.id]);
+
+  // Relative "Last refreshed" / "Last updated" timestamps tick every 30s.
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const timeAgo = (ts: number) => {
+    const mins = Math.floor((now - ts) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
   };
 
   // Drag and drop
@@ -231,36 +528,6 @@ export default function ShipmentsPage() {
   const byStatus = (status: ShipmentStatus) => filtered.filter(s => s.status === status);
 
   const totalActive = shipments.filter(s => !['delivered', 'closed', 'cancelled'].includes(s.status)).length;
-
-  // Simulate AI detection from emails (demo button)
-  const simulateAiDetection = () => {
-    if (!aiAutoDetect) { notify('error', 'AI auto-detection is disabled. Enable the toggle first.'); return; }
-    const demo: PendingShipment = {
-      id: `pending_${Date.now()}`,
-      status: 'inquiry',
-      reference: `FW-${Math.floor(Math.random() * 9000) + 1000}`,
-      customer: 'Demo Customer Ltda',
-      origin: 'Santos, BR',
-      destination: 'Rotterdam, NL',
-      mode: 'ocean',
-      commodity: 'General Cargo',
-      weight: '12,500 KG',
-      container: '1x40HC',
-      incoterm: 'FOB',
-      eta: '',
-      etd: '',
-      carrier: '',
-      notes: 'Detected from email: Quotation Santos x Rotterdam',
-      emailId: 'demo_email_001',
-      emailSubject: 'Quotation request Santos x Rotterdam 40HC',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      aiGenerated: true,
-      approved: false,
-    };
-    setPending(prev => [...prev, demo]);
-    notify('success', 'AI detected a new shipment from your emails — review it below!');
-  };
 
   return (
     <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors`}>
@@ -316,9 +583,17 @@ export default function ShipmentsPage() {
             }
           </button>
 
+          {user && (
+            <Link href={`/billing?session=${session}`} className={`relative text-sm ${theme.textMuted} border ${theme.cardBorder} px-3 py-1.5 rounded-full ${theme.hover} transition`}>
+              Billing
+              {billingUrgent && <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
+            </Link>
+          )}
           {user && <span className={`text-sm ${theme.textMuted} hidden lg:block max-w-36 truncate`}>{user.email}</span>}
         </div>
       </header>
+
+      <TrialBanner session={session} onSubscription={(sub) => setBillingUrgent(sub.plan === 'trial' && sub.trial_days_remaining < 3)} />
 
       <div className="p-4">
         {/* Page header */}
@@ -353,20 +628,11 @@ export default function ShipmentsPage() {
             {/* AI Auto-detect toggle */}
             <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${theme.cardBorder} ${theme.card}`}>
               <span className={`text-xs ${theme.textMuted}`}>🤖 AI auto-detect</span>
-              <button onClick={() => setAiAutoDetect(!aiAutoDetect)}
-                className={`relative w-9 h-5 rounded-full transition-colors ${aiAutoDetect ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF]' : (darkMode ? 'bg-white/20' : 'bg-slate-300')}`}>
-                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${aiAutoDetect ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              <button onClick={() => setAiAutoDetect(!aiAutoDetect)} type="button"
+                className={`relative flex-shrink-0 w-9 h-5 rounded-full border-0 p-0 transition-colors ${aiAutoDetect ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF]' : (darkMode ? 'bg-white/20' : 'bg-slate-300')}`}>
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${aiAutoDetect ? 'translate-x-4' : 'translate-x-0'}`} />
               </button>
             </div>
-
-            {/* Simulate AI detection (demo) */}
-            {aiAutoDetect && (
-              <button onClick={simulateAiDetection}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${theme.cardBorder} ${theme.hover} text-sm ${theme.textMuted}`}
-                title="Simulate AI detecting a shipment from email">
-                🤖 Test AI Detection
-              </button>
-            )}
 
             {/* New shipment */}
             <button onClick={() => { setForm({ ...EMPTY_FORM }); setEditingId(null); setShowForm(true); }}
@@ -392,6 +658,13 @@ export default function ShipmentsPage() {
                     </div>
                     <span className="text-lg">{MODE_ICONS[p.mode]}</span>
                   </div>
+                  {p.updateTarget ? (
+                    <p className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#9E14FB]/20 text-[#9E14FB] inline-block mb-2">
+                      Status update → {STATUSES.find(s => s.key === p.status)?.label || p.status}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 inline-block mb-2">New shipment</p>
+                  )}
                   <p className={`text-xs ${theme.textDim} mb-1`}>{p.origin} → {p.destination}</p>
                   {p.emailSubject && <p className={`text-xs ${theme.textDim} mb-3 italic truncate`}>From: "{p.emailSubject}"</p>}
                   <div className="grid grid-cols-2 gap-2 text-xs mb-3">
@@ -405,10 +678,12 @@ export default function ShipmentsPage() {
                       className="flex-1 py-1.5 bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] rounded-lg text-white text-xs font-medium">
                       ✓ Approve
                     </button>
-                    <button onClick={() => { /* open edit with pre-filled */ setForm({ status: p.status, reference: p.reference, customer: p.customer, origin: p.origin, destination: p.destination, mode: p.mode, commodity: p.commodity, weight: p.weight, container: p.container, incoterm: p.incoterm, eta: p.eta, etd: p.etd, carrier: p.carrier, notes: p.notes, emailId: p.emailId, emailSubject: p.emailSubject, aiGenerated: true, approved: false }); setEditingId(null); setShowForm(true); rejectPending(p.id); }}
-                      className={`flex-1 py-1.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-lg text-xs`}>
-                      ✏️ Edit
-                    </button>
+                    {!p.updateTarget && (
+                      <button onClick={() => { /* open edit with pre-filled */ setForm({ status: p.status, reference: p.reference, customer: p.customer, origin: p.origin, destination: p.destination, mode: p.mode, commodity: p.commodity, weight: p.weight, container: p.container, incoterm: p.incoterm, eta: p.eta, etd: p.etd, carrier: p.carrier, notes: p.notes, emailId: p.emailId, emailSubject: p.emailSubject, aiGenerated: true, approved: false }); setEditingId(null); setShowForm(true); rejectPending(p.id); }}
+                        className={`flex-1 py-1.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-lg text-xs`}>
+                        ✏️ Edit
+                      </button>
+                    )}
                     <button onClick={() => rejectPending(p.id)}
                       className="py-1.5 px-2 bg-red-500/20 text-red-400 rounded-lg text-xs hover:bg-red-500/30">
                       ✕
@@ -468,6 +743,7 @@ export default function ShipmentsPage() {
                           {s.container && <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-white/10 text-gray-300' : 'bg-slate-100 text-slate-600'}`}>{s.container}</span>}
                           {s.incoterm && <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-white/10 text-gray-300' : 'bg-slate-100 text-slate-600'}`}>{s.incoterm}</span>}
                           {s.aiGenerated && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#9E14FB]/20 text-[#9E14FB]">🤖 AI</span>}
+                          {s.t49TrackingActive && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">🟢 Live</span>}
                         </div>
                         {s.etd && <p className={`text-[10px] ${theme.textDim} mt-1.5`}>ETD: {s.etd}</p>}
                         {s.eta && <p className={`text-[10px] ${theme.textDim}`}>ETA: {s.eta}</p>}
@@ -549,6 +825,103 @@ export default function ShipmentsPage() {
                 <p className={`text-xs ${theme.textDim}`}>Created {new Date(selectedCard.createdAt).toLocaleDateString()}</p>
                 <p className={`text-xs ${theme.textDim}`}>Updated {new Date(selectedCard.updatedAt).toLocaleDateString()}</p>
                 {selectedCard.aiGenerated && <p className="text-xs text-[#9E14FB] mt-1">🤖 Created by AI from email</p>}
+              </div>
+
+              <div className={`border-t ${theme.cardBorder} pt-3`}>
+                <button onClick={() => openShare(selectedCard)}
+                  className="w-full py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-lg text-white text-xs font-medium">
+                  🔗 Share with Customer
+                </button>
+
+                {portals.filter(p => p.shipment_id === selectedCard.id).length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider`}>Shared Links</p>
+                    {portals.filter(p => p.shipment_id === selectedCard.id).map(p => (
+                      <div key={p.id} className={`border ${theme.cardBorder} rounded-lg p-2 space-y-1.5`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${p.is_active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                            {p.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                          <span className={`text-[10px] ${theme.textDim}`}>{new Date(p.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button onClick={() => copyPortalLink(p.url)} className={`flex-1 py-1 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded text-[10px]`}>Copy Link</button>
+                          <button onClick={() => togglePortalActive(p)} className={`flex-1 py-1 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded text-[10px]`}>{p.is_active ? 'Deactivate' : 'Activate'}</button>
+                          <button onClick={() => deletePortal(p.id)} className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-[10px] hover:bg-red-500/30">🗑️</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Container Tracking (Terminal49) */}
+              <div className={`border-t ${theme.cardBorder} pt-3`}>
+                <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-2`}>Container Tracking</p>
+                {!selectedCard.t49TrackingActive ? (
+                  <div className={`rounded-lg border border-[#9E14FB]/20 p-3 opacity-80`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-base">🛰️</span>
+                      <div>
+                        <p className={`text-xs font-semibold ${theme.text}`}>Live Container Tracking</p>
+                        <p className="text-[10px] text-[#9E14FB] font-medium">Coming Soon</p>
+                      </div>
+                    </div>
+                    <p className={`text-[11px] ${theme.textDim} leading-snug mb-2`}>
+                      Real-time milestone updates powered by Terminal49 — vessel departures, arrivals, customs clearance and more. Available in an upcoming update.
+                    </p>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-white/5 text-gray-400' : 'bg-slate-100 text-slate-500'}`}>Powered by Terminal49</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 font-medium">● Live Tracking Active</span>
+                        <button onClick={() => refreshTracking(selectedCard.id)} disabled={refreshing[selectedCard.id] || refreshCooldown[selectedCard.id]}
+                          title="Refresh" className={`text-[10px] px-1.5 py-0.5 rounded-full border ${theme.cardBorder} ${theme.hover} ${theme.textMuted} disabled:opacity-40 flex items-center gap-1`}>
+                          {refreshing[selectedCard.id]
+                            ? <span className="w-2.5 h-2.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            : '🔄'} Refresh
+                        </button>
+                      </div>
+                      <button onClick={() => stopTracking(selectedCard)} className="text-[10px] text-red-400 hover:underline">Stop Tracking</button>
+                    </div>
+
+                    {justUpdated[selectedCard.id] && <p className="text-[10px] text-green-400 transition-opacity">✓ Updated just now</p>}
+                    {refreshError[selectedCard.id] && <p className="text-[10px] text-red-400">{refreshError[selectedCard.id]}</p>}
+                    {lastRefreshedAt[selectedCard.id] && (
+                      <p className={`text-[10px] ${theme.textDim}`}>Last refreshed: {timeAgo(lastRefreshedAt[selectedCard.id])}</p>
+                    )}
+
+                    {selectedCard.t49LastEvent && (
+                      <div>
+                        <p className={`text-xs ${theme.textMuted}`}>{selectedCard.t49LastEvent}</p>
+                        {selectedCard.t49LastEventAt && <p className={`text-[10px] ${theme.textDim}`}>{new Date(selectedCard.t49LastEventAt).toLocaleString()}</p>}
+                      </div>
+                    )}
+                    {selectedCard.t49PodEta && (
+                      <p className="text-xs"><span className={theme.textDim}>ETA:</span> {new Date(selectedCard.t49PodEta).toLocaleDateString()} <span className="text-green-400">(live)</span></p>
+                    )}
+                    {selectedCard.t49Vessel && <p className="text-xs"><span className={theme.textDim}>Vessel:</span> {selectedCard.t49Vessel}</p>}
+
+                    {/* Event timeline */}
+                    {shipmentEvents[selectedCard.id]?.length > 0 ? (
+                      <div className="mt-2 space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {shipmentEvents[selectedCard.id].map(ev => (
+                          <div key={ev.id} className="flex gap-2 text-xs">
+                            <span className="text-[#1BA1FF] mt-0.5">●</span>
+                            <div className="min-w-0">
+                              <p className={theme.text}>{ev.description}</p>
+                              <p className={`text-[10px] ${theme.textDim}`}>{ev.location ? `${ev.location} · ` : ''}{new Date(ev.event_at).toLocaleString()}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : lastRefreshedAt[selectedCard.id] && !refreshing[selectedCard.id] && (
+                      <p className={`text-xs ${theme.textDim}`}>No tracking data available yet — Terminal49 may still be processing this container.</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -694,6 +1067,125 @@ export default function ShipmentsPage() {
                 className={`px-6 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm`}>
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Settings Modal */}
+      {shareShipment && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-md shadow-2xl`}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${theme.cardBorder}`}>
+              <h2 className="font-bold text-lg">🔗 Share with Customer</h2>
+              <button onClick={() => { setShareShipment(null); setSharePortal(null); }} className={`${theme.textDim} hover:text-white text-xl`}>✕</button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {!sharePortal ? (
+                <p className={`text-sm ${theme.textDim}`}>Generating share link...</p>
+              ) : (
+                <>
+                  <div>
+                    <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Tracking Link</label>
+                    <div className="flex gap-2">
+                      <input readOnly value={sharePortal.url} className={`flex-1 px-3 py-2 rounded-lg border ${theme.input} text-xs`} />
+                      <button onClick={() => copyPortalLink(sharePortal.url)} className={`px-3 py-2 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-lg text-xs font-medium`}>Copy Link</button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Show carrier name</span>
+                    <button onClick={() => setSharePortal(p => p ? { ...p, show_carrier: !p.show_carrier } : p)} type="button"
+                      className={`relative flex-shrink-0 w-9 h-5 rounded-full border-0 p-0 transition-colors ${sharePortal.show_carrier ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF]' : (darkMode ? 'bg-white/20' : 'bg-slate-300')}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${sharePortal.show_carrier ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Show quoted rate</span>
+                    <button onClick={() => setSharePortal(p => p ? { ...p, show_rate: !p.show_rate } : p)} type="button"
+                      className={`relative flex-shrink-0 w-9 h-5 rounded-full border-0 p-0 transition-colors ${sharePortal.show_rate ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF]' : (darkMode ? 'bg-white/20' : 'bg-slate-300')}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${sharePortal.show_rate ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Personal Message (optional)</label>
+                    <textarea value={sharePortal.message || ''} onChange={e => setSharePortal(p => p ? { ...p, message: e.target.value } : p)} rows={2}
+                      placeholder="e.g. Thanks for your business! Track your shipment below."
+                      className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF] resize-none`} />
+                  </div>
+
+                  <div>
+                    <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Expiry Date (optional)</label>
+                    <input type="date" value={sharePortal.expires_at ? sharePortal.expires_at.slice(0, 10) : ''} onChange={e => setSharePortal(p => p ? { ...p, expires_at: e.target.value || null } : p)}
+                      className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
+                  </div>
+
+                  <button onClick={saveShareSettings} disabled={shareSaving}
+                    className={`w-full py-2 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-lg text-sm font-medium disabled:opacity-50`}>
+                    {shareSaving ? 'Saving...' : 'Save Settings'}
+                  </button>
+
+                  <div className={`border-t ${theme.cardBorder} pt-4`}>
+                    <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Send by Email</label>
+                    <div className="flex gap-2">
+                      <input value={shareEmail} onChange={e => setShareEmail(e.target.value)} placeholder="customer@example.com"
+                        className={`flex-1 px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
+                      <button onClick={sendPortalByEmail} disabled={shareSending}
+                        className="px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-lg text-white text-sm font-medium disabled:opacity-50">
+                        {shareSending ? 'Sending...' : 'Send'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Track Container Modal */}
+      {trackShipment && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-sm shadow-2xl`}>
+            <div className={`flex items-center justify-between px-6 py-4 border-b ${theme.cardBorder}`}>
+              <h2 className="font-bold text-lg">🔍 Track Container</h2>
+              <button onClick={() => setTrackShipment(null)} className={`${theme.textDim} hover:text-white text-xl`}>✕</button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {trackError && <div className="px-3 py-2 rounded-lg bg-red-500/20 text-red-400 text-xs">{trackError}</div>}
+
+              <div>
+                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Container Number *</label>
+                <input value={trackContainerNumber} onChange={e => setTrackContainerNumber(e.target.value.toUpperCase())}
+                  placeholder="e.g. MSCU1234567"
+                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
+              </div>
+
+              <div>
+                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>BL Number (optional)</label>
+                <input value={trackBlNumber} onChange={e => setTrackBlNumber(e.target.value)}
+                  placeholder="e.g. MAEU221876618"
+                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
+              </div>
+
+              <div>
+                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Carrier *</label>
+                <select value={trackCarrier} onChange={e => setTrackCarrier(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}>
+                  <option value="">Select carrier</option>
+                  {CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <button onClick={startTracking} disabled={trackSaving || !trackContainerNumber || !trackCarrier}
+                className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
+                {trackSaving ? 'Starting...' : 'Start Tracking'}
+              </button>
+
+              <p className={`text-[10px] ${theme.textDim} text-center`}>Powered by Terminal49 — supports 33+ shipping lines</p>
             </div>
           </div>
         </div>

@@ -3,6 +3,9 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import QuoteBuilderModal, { Quote } from '../components/QuoteBuilderModal';
+import TrialBanner from '../components/TrialBanner';
+import UpgradeModal, { UpgradeReason } from '../components/UpgradeModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
@@ -170,6 +173,8 @@ const translations = {
 const NAV_ITEMS = [
   { href: '/dashboard', label: { en: 'Inbox', pt: 'Inbox', nl: 'Inbox' }, icon: 'Dashboard_inbox' },
   { href: '/shipments', label: { en: 'Shipments', pt: 'Embarques', nl: 'Zendingen' }, icon: 'Dashboard_tracking' },
+  { href: '/quotes', label: { en: 'Quotes', pt: 'Cotações', nl: 'Offertes' }, icon: 'Dashboard_quotation' },
+  { href: '/rates', label: { en: 'Rates', pt: 'Tarifas', nl: 'Tarieven' }, icon: 'Dashboard_quotation' },
   { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
   { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
   { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
@@ -578,7 +583,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'warning'; msg: string; sub?: string } | null>(null);
   const [darkMode, setDarkMode] = useState(true);
   const [language, setLanguage] = useState<Language>('en');
   const [langMenuOpen, setLangMenuOpen] = useState(false);
@@ -616,6 +621,11 @@ export default function DashboardPage() {
   const [reminderTime, setReminderTime] = useState("");
   const [mercanteStates, setMercanteStates] = useState<Record<string, MercanteState>>({});
   const [mercanteCardOpen, setMercanteCardOpen] = useState<Record<string, boolean>>({});
+  const [shipmentMatchStates, setShipmentMatchStates] = useState<Record<string, boolean>>({});
+  const [quoteBuilderInitial, setQuoteBuilderInitial] = useState<Quote | null>(null);
+  const [upgradeReason, setUpgradeReason] = useState<UpgradeReason | null>(null);
+  const [billingUrgent, setBillingUrgent] = useState(false);
+  const [lowAnalysesToastShown, setLowAnalysesToastShown] = useState(false);
 
   const t = translations[language];
 
@@ -649,7 +659,10 @@ export default function DashboardPage() {
     divider: 'bg-slate-300 hover:bg-[#5200FF]/50',
   };
 
-  const notify = (type: 'success' | 'error', msg: string) => { setNotification({ type, msg }); setTimeout(() => setNotification(null), 3000); };
+  const notify = (type: 'success' | 'error' | 'warning', msg: string, opts?: { sub?: string; duration?: number }) => {
+    setNotification({ type, msg, sub: opts?.sub });
+    setTimeout(() => setNotification(null), opts?.duration || 3000);
+  };
 
   const startSidebarResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault(); sidebarResizing.current = true;
@@ -693,6 +706,7 @@ export default function DashboardPage() {
     else setLoading(false);
   }, [searchParams]);
 
+
   useEffect(() => { localStorage.setItem('fw_custom_labels', JSON.stringify(customLabels)); }, [customLabels]);
   useEffect(() => { localStorage.setItem('fw_manual_folders', JSON.stringify(manualFolders)); }, [manualFolders]);
   useEffect(() => { localStorage.setItem('fw_trash', JSON.stringify(Array.from(trashedEmails))); }, [trashedEmails]);
@@ -726,15 +740,43 @@ export default function DashboardPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subject: email.subject, body: email.body || email.snippet, from: email.from, emailId: email.id, sessionId: session, language })
       });
+      if (res.status === 402) {
+        const data = await res.json();
+        const reasonMap: Record<string, UpgradeReason> = { trial_expired: 'trial_expired', trial_limit_reached: 'trial_limit', monthly_limit_reached: 'analyses_limit' };
+        setUpgradeReason(reasonMap[data.reason] || 'analyses_limit');
+        setEmails(prev => prev.map(e => e.id === email.id ? { ...e, isAnalyzing: false } : e));
+        return;
+      }
       const data = await res.json();
       if (data.analysis) {
         const updated = { ...email, analysis: data.analysis, isAnalyzing: false };
         setEmails(prev => prev.map(e => e.id === email.id ? updated : e));
         if (selected?.id === email.id) setSelected(updated);
         addTimelineEvent(email.id, 'analyzed', 'AI Analysis completed');
+        matchShipment(email, data.analysis);
+
+        if (typeof data.analyses_remaining === 'number' && data.analyses_remaining > 0 && data.analyses_remaining <= 5 && !lowAnalysesToastShown) {
+          setLowAnalysesToastShown(true);
+          notify('warning', `⚠️ Only ${data.analyses_remaining} analyses remaining in your trial`, { sub: 'Upgrade to Professional for unlimited access', duration: 8000 });
+        }
       }
     } catch (e) { console.error(e); }
     setEmails(prev => prev.map(e => e.id === email.id ? { ...e, isAnalyzing: false } : e));
+  };
+
+  const matchShipment = async (email: Email, analysis: any) => {
+    const autoDetect = localStorage.getItem('fw_ai_autodetect');
+    if (autoDetect === 'false') return;
+    const ids = analysis.shipment_identifiers || {};
+    if (!ids.reference && !ids.booking_number && !ids.container_number && !ids.bl_number && !analysis.shipment_status_hint) return;
+    try {
+      const res = await fetch(`${API_URL}/api/shipments/match?session=${session || ''}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: session, emailId: email.id, emailSubject: email.subject, from: email.from, identifiers: ids, statusHint: analysis.shipment_status_hint }),
+      });
+      const data = await res.json();
+      setShipmentMatchStates(prev => ({ ...prev, [email.id]: !!data.created }));
+    } catch (e) { console.error(e); }
   };
 
   const analyzeAll = async () => {
@@ -767,6 +809,19 @@ export default function DashboardPage() {
       events.push({ type: parts[0], label: parts.slice(1).join(':'), time: n.createdAt, icon: iconMap[parts[0]] || '•' });
     });
     return events;
+  };
+
+  const openQuoteBuilder = (email: Email) => {
+    const a = email.analysis || {};
+    setQuoteBuilderInitial({
+      customer_name: email.from.split('<')[0].trim(),
+      customer_email: email.from.match(/<(.+?)>/)?.[1] || email.from,
+      origin: a.pol || '', destination: a.pod || '', mode: a.mode || '',
+      commodity: a.cargo_type || '', container_type: a.container_type || '', weight: '',
+      incoterm: a.incoterm || '', carrier: '', sell_rate: 0, currency: 'USD', transit_time: '',
+      validity_date: '', notes: '', charges: [], status: 'draft',
+      email_id: email.id, email_subject: email.subject,
+    });
   };
 
   const isMercanteIntent = (intent: string | undefined) => !!intent && MERCANTE_INTENTS.has(intent);
@@ -1006,7 +1061,10 @@ export default function DashboardPage() {
   return (
     <div className={`min-h-screen ${theme.bgGradient} ${theme.text} transition-colors`}>
       {notification && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-xl text-white ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>{notification.msg}</div>
+        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-xl text-white ${notification.type === 'success' ? 'bg-green-500' : notification.type === 'warning' ? 'bg-orange-500' : 'bg-red-500'}`}>
+          <p>{notification.msg}</p>
+          {notification.sub && <p className="text-xs opacity-90 mt-0.5">{notification.sub}</p>}
+        </div>
       )}
 
       {/* Context Menu */}
@@ -1047,6 +1105,22 @@ export default function DashboardPage() {
           userEmail={user?.email || ''}
         />
       )}
+
+      {/* Quote Builder Modal */}
+      {quoteBuilderInitial && (
+        <QuoteBuilderModal
+          darkMode={darkMode}
+          session={session}
+          initial={quoteBuilderInitial}
+          onClose={() => setQuoteBuilderInitial(null)}
+          onSent={(q) => {
+            if (q.email_id) { addTimelineEvent(q.email_id, 'status', 'Quote sent to customer'); setWorkflowStatus(q.email_id, 'quoted'); }
+            setQuoteBuilderInitial(null);
+          }}
+        />
+      )}
+
+      {upgradeReason && <UpgradeModal reason={upgradeReason} session={session} darkMode={darkMode} onLogout={disconnect} />}
 
       {/* Create Folder/Label Modal */}
       {showCreateLabel && (
@@ -1113,9 +1187,17 @@ export default function DashboardPage() {
               </svg>
             </Link>
           )}
+          {user && (
+            <Link href={`/billing?session=${session}`} className={`relative text-sm ${theme.textMuted} border ${theme.cardBorder} px-3 py-1.5 rounded-full ${theme.hover} transition`}>
+              Billing
+              {billingUrgent && <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
+            </Link>
+          )}
           {user && (<><span className={`text-sm ${theme.textMuted} hidden lg:block max-w-36 truncate`}>{user.email}</span><button onClick={disconnect} className="text-sm text-red-400 border border-red-400/30 px-3 py-1.5 rounded-full hover:bg-red-400/10 transition">{language === 'pt' ? 'Desconectar' : language === 'nl' ? 'Ontkoppelen' : 'Disconnect'}</button></>)}
         </div>
       </header>
+
+      <TrialBanner session={session} onSubscription={(sub) => setBillingUrgent(sub.plan === 'trial' && sub.trial_days_remaining < 3)} />
 
       <div className="p-4">
         {!user ? (
@@ -1329,6 +1411,11 @@ export default function DashboardPage() {
                             </button>
                           )}
                           {selected.isAnalyzing && <div className="flex items-center gap-1.5 text-[#1BA1FF] text-xs"><div className="w-3 h-3 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin"></div> Analyzing...</div>}
+                          {!trashedEmails.has(selected.id) && selected.analysis?.intent === 'quote_request' && (
+                            <button onClick={() => openQuoteBuilder(selected)} className={`flex items-center gap-1.5 px-3 py-1.5 border ${theme.cardBorder} ${theme.hover} rounded-full text-xs font-medium ${theme.text}`}>
+                              📋 Build Quote
+                            </button>
+                          )}
                           {/* Reminder Button */}
                           {!trashedEmails.has(selected.id) && (
                             <button onClick={() => setShowReminderModal(true)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-blue-500 border border-blue-400/30 rounded-full hover:bg-blue-100/40" title="Set Reminder">
@@ -1466,6 +1553,14 @@ export default function DashboardPage() {
                                   <button onClick={() => selected && runMercanteAction(selected, MERCANTE_ACTIONS.find(a => a.action === 'missing')!)} className="text-xs px-3 py-1.5 rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition font-medium">{t.mercanteRequestMissing}</button>
                                 </div>
                               )}
+                            </div>
+                          )}
+
+                          {/* SHIPMENT MATCH FLAG */}
+                          {selected && shipmentMatchStates[selected.id] && (
+                            <div className={`mt-3 p-3 rounded-lg border ${darkMode ? 'bg-[#9E14FB]/10 border-[#9E14FB]/30' : 'bg-purple-50 border-purple-200'} flex items-center justify-between gap-2`}>
+                              <span className="text-xs text-[#9E14FB] font-medium">🚢 Shipment update detected</span>
+                              <Link href={`/shipments?session=${session}`} className="text-xs text-[#9E14FB] font-medium hover:underline flex-shrink-0">Review in Shipment Tracker →</Link>
                             </div>
                           )}
 
