@@ -184,7 +184,6 @@ export default function ShipmentsPage() {
   const [shareEmail, setShareEmail] = useState('');
   const [shareSaving, setShareSaving] = useState(false);
   const [shareSending, setShareSending] = useState(false);
-  const [billingUrgent, setBillingUrgent] = useState(false);
 
   const [trackShipment, setTrackShipment] = useState<Shipment | null>(null);
   const [trackContainerNumber, setTrackContainerNumber] = useState('');
@@ -193,6 +192,9 @@ export default function ShipmentsPage() {
   const [trackSaving, setTrackSaving] = useState(false);
   const [trackError, setTrackError] = useState<string | null>(null);
   const [shipmentEvents, setShipmentEvents] = useState<Record<string, ShipmentEvent[]>>({});
+  const [portbaseConfigured, setPortbaseConfigured] = useState(false);
+  const [portbaseStatus, setPortbaseStatus] = useState<Record<string, any>>({});
+  const [portbaseLoading, setPortbaseLoading] = useState<Record<string, boolean>>({});
 
   const [refreshing, setRefreshing] = useState<Record<string, boolean>>({});
   const [refreshError, setRefreshError] = useState<Record<string, string | null>>({});
@@ -453,6 +455,30 @@ export default function ShipmentsPage() {
     } catch (e) {}
   }, [session]);
 
+  // Check once whether Portbase (Netherlands) is configured, to decide
+  // whether to show the "Check Portbase Status" button at all.
+  useEffect(() => {
+    if (!session) return;
+    fetch(`${API_URL}/api/integrations?session=${session}`)
+      .then(r => r.json())
+      .then(d => setPortbaseConfigured(!!d.integrations?.some((i: any) => i.country_code === 'NL' && i.integration_key === 'portbase' && i.is_active)))
+      .catch(() => {});
+  }, [session]);
+
+  const isDutchPort = (text: string | undefined) => !!text && /rotterdam|nlrtm|amsterdam|nlams/i.test(text);
+
+  const checkPortbaseStatus = async (shipmentId: string, containerNumber: string) => {
+    setPortbaseLoading(prev => ({ ...prev, [shipmentId]: true }));
+    try {
+      const res = await fetch(`${API_URL}/api/integrations/portbase/container/${containerNumber}?session=${session}`);
+      const data = await res.json();
+      setPortbaseStatus(prev => ({ ...prev, [shipmentId]: res.ok ? data : { error: data.message || 'Portbase lookup failed' } }));
+    } catch (e) {
+      setPortbaseStatus(prev => ({ ...prev, [shipmentId]: { error: 'Portbase lookup failed' } }));
+    }
+    setPortbaseLoading(prev => ({ ...prev, [shipmentId]: false }));
+  };
+
   // Refresh live tracking (manual button + auto-refresh on panel open).
   // Always fetches live from Terminal49 regardless of cooldown state — the
   // cooldown only disables the *button* on the frontend to prevent spamming.
@@ -583,17 +609,11 @@ export default function ShipmentsPage() {
             }
           </button>
 
-          {user && (
-            <Link href={`/billing?session=${session}`} className={`relative text-sm ${theme.textMuted} border ${theme.cardBorder} px-3 py-1.5 rounded-full ${theme.hover} transition`}>
-              Billing
-              {billingUrgent && <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
-            </Link>
-          )}
           {user && <span className={`text-sm ${theme.textMuted} hidden lg:block max-w-36 truncate`}>{user.email}</span>}
         </div>
       </header>
 
-      <TrialBanner session={session} onSubscription={(sub) => setBillingUrgent(sub.plan === 'trial' && sub.trial_days_remaining < 3)} />
+      <TrialBanner session={session} />
 
       <div className="p-4">
         {/* Page header */}
@@ -923,6 +943,29 @@ export default function ShipmentsPage() {
                   </div>
                 )}
               </div>
+
+              {/* Portbase Status (Netherlands) */}
+              {portbaseConfigured && selectedCard.containerNumber && (isDutchPort(selectedCard.origin) || isDutchPort(selectedCard.destination)) && (
+                <div className={`border-t ${theme.cardBorder} pt-3`}>
+                  <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-2`}>Portbase Status</p>
+                  {!portbaseStatus[selectedCard.id] ? (
+                    <button onClick={() => checkPortbaseStatus(selectedCard.id, selectedCard.containerNumber!)}
+                      disabled={portbaseLoading[selectedCard.id]}
+                      className={`w-full py-2 border ${theme.cardBorder} ${theme.hover} rounded-lg text-xs font-medium ${theme.text} disabled:opacity-50`}>
+                      {portbaseLoading[selectedCard.id] ? 'Checking...' : '🇳🇱 Check Portbase Status'}
+                    </button>
+                  ) : portbaseStatus[selectedCard.id].error ? (
+                    <p className="text-xs text-red-400">{portbaseStatus[selectedCard.id].error}</p>
+                  ) : (
+                    <div className="space-y-1.5 text-xs">
+                      {portbaseStatus[selectedCard.id].status && <p><span className={theme.textDim}>Status:</span> {portbaseStatus[selectedCard.id].status}</p>}
+                      {portbaseStatus[selectedCard.id].terminal && <p><span className={theme.textDim}>Terminal:</span> {portbaseStatus[selectedCard.id].terminal}</p>}
+                      {portbaseStatus[selectedCard.id].customs_status && <p><span className={theme.textDim}>Customs:</span> {portbaseStatus[selectedCard.id].customs_status}</p>}
+                      {portbaseStatus[selectedCard.id].release_status && <p><span className={theme.textDim}>Release:</span> {portbaseStatus[selectedCard.id].release_status}</p>}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

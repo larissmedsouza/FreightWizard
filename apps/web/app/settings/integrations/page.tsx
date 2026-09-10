@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../../components/header';
+import CountryIntegrations from '../../components/CountryIntegrations';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
@@ -220,6 +221,7 @@ export default function IntegrationsPage() {
     serproCertificate: '', serproCertPassword: '',
     serproCertCnpj: '', serproEnvironment: 'sandbox' as 'production' | 'sandbox',
     autoRequestMissing: false, missingDataTemplate: DEFAULT_TEMPLATE,
+    radarStatus: '', mapaEnabled: false, mapaRegistrationNumber: '',
   });
 
   // Remote state (what was last saved)
@@ -251,6 +253,8 @@ export default function IntegrationsPage() {
               serproCertCnpj: d.serproCertCnpj || '', serproEnvironment: d.serproEnvironment || 'sandbox',
               autoRequestMissing: d.autoRequestMissing || false,
               missingDataTemplate: d.missingDataTemplate || DEFAULT_TEMPLATE,
+              radarStatus: d.radarStatus || '', mapaEnabled: !!d.mapaEnabled,
+              mapaRegistrationNumber: d.mapaRegistrationNumber || '',
             }));
             setSaved({
               hasSerproSecret: d.hasSerproSecret, hasCertificate: d.hasCertificate,
@@ -405,6 +409,12 @@ export default function IntegrationsPage() {
         <div>
           <h1 className="text-2xl font-bold mb-1">{T[language].pageTitle}</h1>
           <p className={`text-sm ${theme.textDim}`}>{T[language].pageDesc}</p>
+        </div>
+
+        {/* Settings sub-nav */}
+        <div className={`flex gap-1 p-1 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl w-fit`}>
+          <span className="px-4 py-1.5 text-sm rounded-lg font-medium bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white">Integrations</span>
+          <Link href={`/billing?session=${session}`} className={`px-4 py-1.5 text-sm rounded-lg font-medium ${theme.textMuted} ${theme.hover}`}>Billing</Link>
         </div>
 
         {/* ── SECTION 1: Company Profile ─────────────────────────────────── */}
@@ -594,6 +604,45 @@ export default function IntegrationsPage() {
           </a>
         </>)}
 
+        {/* ── SECTION 3b: Brazil — RADAR & MAPA ────────────────────────────── */}
+        {sectionCard(<>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-base">🇧🇷</span>
+            <h2 className="text-base font-semibold">Additional Compliance</h2>
+          </div>
+
+          <div>
+            <label className={`block text-xs font-medium ${theme.textMuted} mb-1.5`}>RADAR Status</label>
+            <select value={form.radarStatus} onChange={e => setForm(f => ({ ...f, radarStatus: e.target.value }))}
+              className={`w-full px-3 py-2.5 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}>
+              <option value="">Not set</option>
+              <option value="Ilimitada">Ilimitada</option>
+              <option value="Limitada">Limitada</option>
+              <option value="Suspensa">Suspensa</option>
+            </select>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-sm font-medium ${theme.text}`}>MAPA-regulated shipments</p>
+              <p className={`text-xs ${theme.textDim}`}>This company ships agricultural/food products regulated by MAPA</p>
+            </div>
+            <button onClick={() => setForm(f => ({ ...f, mapaEnabled: !f.mapaEnabled }))}
+              className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${form.mapaEnabled ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF]' : (darkMode ? 'bg-white/20' : 'bg-slate-300')}`}>
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${form.mapaEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
+          </div>
+
+          {form.mapaEnabled && (
+            <div>
+              <label className={`block text-xs font-medium ${theme.textMuted} mb-1.5`}>MAPA Registration Number</label>
+              <input value={form.mapaRegistrationNumber} onChange={e => setForm(f => ({ ...f, mapaRegistrationNumber: e.target.value }))}
+                className={`w-full px-3 py-2.5 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
+              <p className={`text-xs ${theme.textDim} mt-1`}>When enabled, quote-request emails involving Brazil and regulated commodities (food, grain, coffee, wood, etc.) will show a MAPA alert.</p>
+            </div>
+          )}
+        </>)}
+
         {/* ── SECTION 4: Fallback & Manual Mode ────────────────────────────── */}
         {sectionCard(<>
           <div className="flex items-center gap-2 mb-1">
@@ -638,12 +687,16 @@ export default function IntegrationsPage() {
         </>)}
 
         {/* Save button */}
-        <div className="flex justify-end pb-8">
+        <div className="flex justify-end">
           <button onClick={handleSave} disabled={saving}
             className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white font-semibold text-sm hover:opacity-90 transition disabled:opacity-50 flex items-center gap-2">
             {saving && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
             {saving ? T[language].saving : T[language].saveSettings}
           </button>
+        </div>
+
+        <div className={`border-t ${theme.cardBorder} pt-6 pb-8`}>
+          <CountryIntegrations session={session} darkMode={darkMode} />
         </div>
       </div>
 

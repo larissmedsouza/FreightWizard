@@ -191,6 +191,48 @@ CREATE TABLE IF NOT EXISTS shipment_events (
 );
 
 -- ============================================
+-- TENANT INTEGRATIONS (Brazil / SERPRO) — table predates this schema file
+-- and already exists live; this CREATE is a documented reconstruction for
+-- fresh installs (IF NOT EXISTS is a no-op against the existing database).
+-- The three ALTERs below add the new RADAR/MAPA compliance fields requested
+-- for the Country Integrations feature, alongside the existing SERPRO ones.
+-- ============================================
+CREATE TABLE IF NOT EXISTS tenant_integrations (
+  tenant_id UUID PRIMARY KEY,
+  cnpj TEXT, company_name TEXT, trade_name TEXT, country TEXT DEFAULT 'Brazil',
+  contact_name TEXT, contact_email TEXT, contact_phone TEXT,
+  serpro_client_id TEXT, serpro_client_secret TEXT, serpro_certificate TEXT, serpro_cert_password TEXT,
+  serpro_cert_cnpj TEXT, serpro_environment TEXT DEFAULT 'sandbox', serpro_status TEXT DEFAULT 'unconfigured',
+  serpro_cert_expiry TIMESTAMPTZ,
+  auto_request_missing BOOLEAN DEFAULT false, missing_data_template TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE tenant_integrations ADD COLUMN IF NOT EXISTS radar_status TEXT;
+ALTER TABLE tenant_integrations ADD COLUMN IF NOT EXISTS mapa_enabled BOOLEAN DEFAULT false;
+ALTER TABLE tenant_integrations ADD COLUMN IF NOT EXISTS mapa_registration_number TEXT;
+
+-- ============================================
+-- COUNTRY INTEGRATIONS (Netherlands / USA / EU — BYOC credentials)
+-- Brazil/SERPRO deliberately stays on tenant_integrations above (existing,
+-- untouched) rather than being migrated here, per "do not remove or replace
+-- the existing Brazil section."
+-- ============================================
+CREATE TABLE IF NOT EXISTS country_integrations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  session_id TEXT,
+  country_code TEXT,
+  integration_key TEXT,
+  api_key TEXT,
+  api_secret TEXT,
+  extra_fields JSONB DEFAULT '{}',
+  is_active BOOLEAN DEFAULT true,
+  last_verified_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(session_id, country_code, integration_key)
+);
+
+-- ============================================
 -- RATE CARDS TABLE
 -- ============================================
 CREATE TABLE IF NOT EXISTS rate_cards (
@@ -252,6 +294,8 @@ CREATE INDEX IF NOT EXISTS idx_shipments_t49_shipment_id ON shipments(t49_shipme
 CREATE INDEX IF NOT EXISTS idx_shipment_events_shipment_id ON shipment_events(shipment_id);
 CREATE INDEX IF NOT EXISTS idx_rate_cards_session_id ON rate_cards(session_id);
 CREATE INDEX IF NOT EXISTS idx_rate_cards_mode ON rate_cards(mode);
+CREATE INDEX IF NOT EXISTS idx_country_integrations_session_id ON country_integrations(session_id);
+CREATE INDEX IF NOT EXISTS idx_country_integrations_country_code ON country_integrations(country_code);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_email ON subscriptions(user_email);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_session_id ON subscriptions(session_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id);
@@ -270,6 +314,7 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription_id ON subscript
 -- ALTER TABLE shipment_events ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE rate_cards ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE country_integrations ENABLE ROW LEVEL SECURITY;
 
 -- ============================================
 -- DONE!

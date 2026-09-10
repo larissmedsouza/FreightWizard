@@ -1177,19 +1177,14 @@ export default function DashboardPage() {
           <button onClick={toggleTheme} className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
             {darkMode ? <Icon name="Dashboard_sun_light_mode" className="w-4 h-4" style={theme.iconFilter} /> : <Icon name="Dashboard_moon_dark_mode" className="w-4 h-4" style={theme.iconFilter} />}
           </button>
-          {/* Settings gear icon */}
+          {/* Settings gear icon (Billing lives inside Settings) */}
           {user && session && (
             <Link href={`/settings/integrations?session=${session}`} title="Settings"
-              className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder} transition`}>
+              className={`relative p-2 rounded-full ${theme.hover} border ${theme.cardBorder} transition`}>
               <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${theme.textMuted}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
-            </Link>
-          )}
-          {user && (
-            <Link href={`/billing?session=${session}`} className={`relative text-sm ${theme.textMuted} border ${theme.cardBorder} px-3 py-1.5 rounded-full ${theme.hover} transition`}>
-              Billing
               {billingUrgent && <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
             </Link>
           )}
@@ -1552,6 +1547,29 @@ export default function DashboardPage() {
                                   <p className={`text-xs ${theme.textDim} mb-2`}>{t.mercanteSuggestedAction}</p>
                                   <button onClick={() => selected && runMercanteAction(selected, MERCANTE_ACTIONS.find(a => a.action === 'missing')!)} className="text-xs px-3 py-1.5 rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition font-medium">{t.mercanteRequestMissing}</button>
                                 </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* MAPA ALERT (Brazil) */}
+                          {selected?.analysis?.mapa_alert?.triggered && (
+                            <div className={`mt-3 p-3 rounded-lg border ${darkMode ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50 border-amber-200'}`}>
+                              <p className="text-xs font-semibold text-amber-500 mb-1">⚠️ MAPA Alert</p>
+                              <p className={`text-xs ${theme.textMuted} mb-1`}>{selected.analysis.mapa_alert.reason}</p>
+                              <p className={`text-xs ${theme.textDim} mb-2`}>{selected.analysis.mapa_alert.action}</p>
+                              <a href={selected.analysis.mapa_alert.link} target="_blank" rel="noopener noreferrer"
+                                className="text-xs text-amber-500 font-medium hover:underline">MAPA Requirements →</a>
+                            </div>
+                          )}
+
+                          {/* EU TARIC LOOKUP */}
+                          {selected?.analysis?.taric_lookup && (
+                            <div className={`mt-3 p-3 rounded-lg border ${darkMode ? 'bg-blue-500/10 border-blue-500/30' : 'bg-blue-50 border-blue-200'}`}>
+                              <p className="text-xs font-semibold text-blue-400 mb-1">🇪🇺 EU TARIC</p>
+                              <p className={`text-xs ${theme.textMuted} mb-1`}>HS {selected.analysis.taric_lookup.hs_code}: {selected.analysis.taric_lookup.description}</p>
+                              <p className={`text-xs ${theme.textDim}`}>Duty: {selected.analysis.taric_lookup.duty_rate} | VAT: {selected.analysis.taric_lookup.vat_rate}</p>
+                              {selected.analysis.taric_lookup.restrictions?.length > 0 && (
+                                <p className="text-xs text-red-400 mt-1">⚠️ {selected.analysis.taric_lookup.restrictions.join(', ')}</p>
                               )}
                             </div>
                           )}

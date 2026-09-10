@@ -53,7 +53,6 @@ export default function QuotesPage() {
   const [statusFilter, setStatusFilter] = useState<QuoteStatus | 'all'>('all');
   const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
-  const [billingUrgent, setBillingUrgent] = useState(false);
 
   const theme = darkMode ? {
     bg: 'bg-gradient-to-br from-[#050510] via-[#0a0a1a] to-[#050510]',
@@ -168,17 +167,11 @@ export default function QuotesPage() {
             }
           </button>
 
-          {user && (
-            <Link href={`/billing?session=${session}`} className={`relative text-sm ${theme.textMuted} border ${theme.cardBorder} px-3 py-1.5 rounded-full ${theme.hover} transition`}>
-              Billing
-              {billingUrgent && <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
-            </Link>
-          )}
           {user && <span className={`text-sm ${theme.textMuted} hidden lg:block max-w-36 truncate`}>{user.email}</span>}
         </div>
       </header>
 
-      <TrialBanner session={session} onSubscription={(sub) => setBillingUrgent(sub.plan === 'trial' && sub.trial_days_remaining < 3)} />
+      <TrialBanner session={session} />
 
       <div className="p-4">
         <h1 className="text-2xl font-bold flex items-center gap-2 mb-4">

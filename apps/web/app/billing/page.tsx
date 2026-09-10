@@ -100,9 +100,15 @@ export default function BillingPage() {
   return (
     <div className={`min-h-screen ${theme.bg} ${theme.text}`}>
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold">Billing</h1>
           <Link href={`/dashboard?session=${session}`} className={`text-sm ${theme.textMuted} hover:underline`}>← Back to Inbox</Link>
+        </div>
+
+        {/* Settings sub-nav */}
+        <div className={`flex gap-1 p-1 mb-6 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl w-fit`}>
+          <Link href={`/settings/integrations?session=${session}`} className={`px-4 py-1.5 text-sm rounded-lg font-medium ${theme.textMuted} hover:bg-white/5`}>Integrations</Link>
+          <span className="px-4 py-1.5 text-sm rounded-lg font-medium bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white">Billing</span>
         </div>
 
         {/* Current Plan */}

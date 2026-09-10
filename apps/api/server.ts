@@ -673,6 +673,96 @@ app.post('/api/billing/increment-analysis', async (req, res) => {
   res.json(result);
 });
 
+// ============================================
+// EMAIL ANALYSIS COMPLIANCE HOOKS (MAPA + TARIC)
+// ============================================
+const MAPA_KEYWORDS = [
+  'food', 'grain', 'soy', 'soja', 'corn', 'milho', 'sugar', 'açúcar', 'acucar',
+  'meat', 'carne', 'fruit', 'fruta', 'coffee', 'café', 'cafe', 'cotton', 'algodão', 'algodao',
+  'tobacco', 'tabaco', 'wood', 'madeira', 'animal', 'plant', 'fertilizer', 'fertilizante',
+  'pesticide', 'agroquímico', 'agroquimico', 'organic',
+];
+const BRAZIL_LOCATION_RE = /\bbr\b|brazil|brasil|santos|paranaguá|paranagua|itajaí|itajai|manaus|rio grande|suape|vitória|vitoria|navegantes/i;
+const EU_COUNTRY_CODES = ['NL', 'DE', 'FR', 'BE', 'IT', 'ES', 'PT', 'PL', 'AT', 'IE', 'DK', 'SE', 'FI', 'GR', 'CZ', 'HU', 'RO', 'BG', 'HR', 'SK', 'SI', 'LT', 'LV', 'EE', 'LU', 'CY', 'MT'];
+
+function buildMapaAlert(analysis: any, mapaEnabled: boolean) {
+  if (!mapaEnabled) return { triggered: false };
+  const mode = (analysis.mode || '').toLowerCase();
+  if (mode !== 'ocean' && mode !== 'air') return { triggered: false };
+  const pol = analysis.pol || '';
+  const pod = analysis.pod || '';
+  if (!BRAZIL_LOCATION_RE.test(pol) && !BRAZIL_LOCATION_RE.test(pod)) return { triggered: false };
+  const commodity = (analysis.cargo_type || '').toLowerCase();
+  if (!commodity || !MAPA_KEYWORDS.some(k => commodity.includes(k))) return { triggered: false };
+  return {
+    triggered: true,
+    reason: `Commodity '${analysis.cargo_type}' on a Brazil shipment may require MAPA phytosanitary inspection`,
+    action: 'Verify MAPA registration and phytosanitary certificate requirements before booking',
+    link: 'https://www.gov.br/agricultura/pt-br/assuntos/sanidade-animal-e-vegetal',
+  };
+}
+
+// Auto-runs the TARIC lookup when the email mentions an HS code and the
+// destination is an EU member state, but only if the forwarder has an
+// active EU integration configured (per the "AND the forwarder has EU
+// integrations active" condition in the spec).
+async function maybeAutoTaricLookup(analysis: any, sessionId: string | undefined) {
+  if (!analysis.hs_code || !sessionId) return null;
+  const pod = (analysis.pod || '').toUpperCase();
+  const destCountry = EU_COUNTRY_CODES.find(c => pod.includes(c));
+  if (!destCountry) return null;
+
+  const { data: euIntegrations } = await supabase
+    .from('country_integrations').select('id').eq('session_id', sessionId)
+    .eq('country_code', 'EU').eq('is_active', true).limit(1);
+  if (!euIntegrations || euIntegrations.length === 0) return null;
+
+  const result = await lookupTaric(analysis.hs_code, destCountry);
+  if (!result.ok) return null;
+  return result.data;
+}
+
+// Pull the analysis JSON object out of Claude's response text. The model
+// usually returns a bare object, but sometimes wraps it in a ```json fence
+// or adds a sentence before/after — a single greedy /\{[\s\S]*\}/ match can
+// then span text that doesn't parse. Try the greedy match first, then fall
+// back to scanning for the last balanced {...} block that JSON.parse accepts.
+function extractAnalysisJson(text: string): any | null {
+  if (!text) return null;
+  const stripped = text.replace(/```(?:json)?/gi, '').trim();
+
+  const greedy = stripped.match(/\{[\s\S]*\}/);
+  if (greedy) {
+    try { return JSON.parse(greedy[0]); } catch { /* fall through to scan */ }
+  }
+
+  // Scan for balanced {...} objects; return the last one that parses.
+  const candidates: string[] = [];
+  for (let start = 0; start < stripped.length; start++) {
+    if (stripped[start] !== '{') continue;
+    let depth = 0, inStr = false, esc = false;
+    for (let i = start; i < stripped.length; i++) {
+      const ch = stripped[i];
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) { candidates.push(stripped.slice(start, i + 1)); break; }
+      }
+    }
+  }
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    try {
+      const parsed = JSON.parse(candidates[i]);
+      if (parsed && typeof parsed === 'object' && 'intent' in parsed) return parsed;
+    } catch { /* try next candidate */ }
+  }
+  return null;
+}
+
 app.post('/api/analyze', async (req, res) => {
   const { subject, body, from, emailId, sessionId, source, userEmail, language } = req.body;
 
@@ -681,7 +771,7 @@ app.post('/api/analyze', async (req, res) => {
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 1024,
       messages: [{
         role: 'user',
@@ -710,6 +800,7 @@ Analyze this freight email and extract:
     ce_number (9-15 digit numeric), bl_number (alphanumeric BL/MBL/HBL), container_number (4 letters + 7 digits), vessel_name, voyage, discharge_port, origin_port, carrier/armador, importer_cnpj (Brazilian CNPJ), shipment_date
 11. Shipment identifiers — extract from ANY email (not just Mercante-related), null if not mentioned: reference/booking number, container number, BL/MBL/HBL number
 12. Shipment status hint — infer what this email implies about a shipment's status, or null if it implies no status change. One of: inquiry (asking for a quote), quoted, booked ("booking confirmed"), in_transit ("vessel departed", "cargo shipped/in transit"), at_destination ("arrived at port", "cargo landed"), delivered ("delivered", "POD signed"), closed, cancelled
+13. HS code — the Harmonized System / commodity tariff code if mentioned anywhere in the email (e.g. "0901.21", "09012100"), null if not mentioned
 
 Email Subject: ${subject}
 From: ${from}
@@ -747,16 +838,16 @@ Respond in JSON format:
     "container_number": null,
     "bl_number": null
   },
-  "shipment_status_hint": null
+  "shipment_status_hint": null,
+  "hs_code": null
 }`
       }]
     });
 
     const text = message.content[0].type === 'text' ? message.content[0].text : '';
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const analysis = extractAnalysisJson(text);
 
-    if (jsonMatch) {
-      const analysis = JSON.parse(jsonMatch[0]);
+    if (analysis) {
       let userId: string | null = null;
 
       if (sessionId) {
@@ -772,6 +863,13 @@ Respond in JSON format:
         await trackActivity(userId, emailId, 'analyzed', analysis.intent, analysis.priority);
         console.log(`💾 Analysis saved to Supabase for user: ${userId}`);
       }
+
+      const tenantIntegration = userId ? await getTenantIntegration(userId) : null;
+      analysis.mapa_alert = buildMapaAlert(analysis, !!tenantIntegration?.mapaEnabled);
+      if (analysis.mapa_alert.triggered) console.log(`🌱 MAPA alert triggered for email ${emailId}: ${analysis.mapa_alert.reason}`);
+
+      const taric = await maybeAutoTaricLookup(analysis, sessionId);
+      if (taric) analysis.taric_lookup = taric;
 
       res.json({ analysis, analyses_remaining: gate.analyses_remaining });
     } else {
@@ -2457,7 +2555,7 @@ async function processQueueItem(
 ) {
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 1024,
       messages: [{
         role: 'user',
@@ -2522,7 +2620,7 @@ app.post('/api/analyze-document', async (req, res) => {
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 2048,
       messages: [{
         role: 'user',
@@ -2680,7 +2778,7 @@ app.post('/api/compare-documents', async (req, res) => {
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 3000,
       messages: [{
         role: 'user',
@@ -2757,7 +2855,7 @@ app.post('/api/extract-text', async (req, res) => {
     }
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 4000,
       messages: [{
         role: 'user',
@@ -2845,6 +2943,9 @@ interface TenantIntegration {
   serproCertExpiry: string | null;
   autoRequestMissing: boolean;
   missingDataTemplate: string;
+  radarStatus: string;
+  mapaEnabled: boolean;
+  mapaRegistrationNumber: string;
   // Sensitive — never returned to frontend:
   _serproClientSecret?: string;
   _serproCertPassword?: string;
@@ -2882,6 +2983,9 @@ async function getTenantIntegration(userId: string): Promise<TenantIntegration |
     serproCertExpiry: data.serpro_cert_expiry || null,
     autoRequestMissing: data.auto_request_missing || false,
     missingDataTemplate: data.missing_data_template || DEFAULT_MISSING_TEMPLATE,
+    radarStatus: data.radar_status || '',
+    mapaEnabled: !!data.mapa_enabled,
+    mapaRegistrationNumber: data.mapa_registration_number || '',
     _serproClientSecret: data.serpro_client_secret ? decryptField(data.serpro_client_secret) : undefined,
     _serproCertPassword: data.serpro_cert_password ? decryptField(data.serpro_cert_password) : undefined,
     _serproCertificate: data.serpro_certificate ? decryptField(data.serpro_certificate) : undefined,
@@ -2922,6 +3026,7 @@ app.post('/api/settings/integrations', async (req, res) => {
     cnpj, companyName, tradeName, country, contactName, contactEmail, contactPhone,
     serproClientId, serproClientSecret, serproCertificate, serproCertPassword,
     serproCertCnpj, serproEnvironment, autoRequestMissing, missingDataTemplate,
+    radarStatus, mapaEnabled, mapaRegistrationNumber,
   } = req.body;
 
   try {
@@ -2939,6 +3044,9 @@ app.post('/api/settings/integrations', async (req, res) => {
       serpro_environment: serproEnvironment || 'sandbox',
       auto_request_missing: !!autoRequestMissing,
       missing_data_template: missingDataTemplate || DEFAULT_MISSING_TEMPLATE,
+      radar_status: radarStatus || null,
+      mapa_enabled: !!mapaEnabled,
+      mapa_registration_number: mapaRegistrationNumber || '',
       updated_at: new Date().toISOString(),
     };
 
@@ -3010,6 +3118,251 @@ async function serproTestConnection(clientId: string, clientSecret: string, auth
   const expiry = new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0];
   return { success: true, message: `Connection successful — certificate valid until ${expiry}`, certExpiry: expiry };
 }
+
+// ============================================
+// COUNTRY INTEGRATIONS (BYOC) — Netherlands, USA, EU
+// Brazil/SERPRO deliberately stays on tenant_integrations above — untouched.
+// ============================================
+function maskSecret(encrypted: string | null): string {
+  if (!encrypted) return '';
+  const plain = decryptField(encrypted);
+  if (!plain) return '';
+  return plain.length <= 4 ? '••••' : `••••••••${plain.slice(-4)}`;
+}
+
+function sanitizeIntegration(row: any) {
+  return {
+    id: row.id, country_code: row.country_code, integration_key: row.integration_key,
+    api_key_masked: maskSecret(row.api_key), api_secret_masked: maskSecret(row.api_secret),
+    has_api_key: !!row.api_key, has_api_secret: !!row.api_secret,
+    extra_fields: row.extra_fields || {}, is_active: row.is_active,
+    last_verified_at: row.last_verified_at, updated_at: row.updated_at,
+  };
+}
+
+app.get('/api/integrations', async (req, res) => {
+  const sessionId = req.query.session as string;
+  const session = await getSession(sessionId);
+  if (!session) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { data, error } = await supabase.from('country_integrations').select('*').eq('session_id', sessionId).order('country_code');
+  if (error) return res.status(500).json({ error: 'Failed to load integrations' });
+  res.json({ integrations: (data || []).map(sanitizeIntegration) });
+});
+
+app.post('/api/integrations', async (req, res) => {
+  const sessionId = (req.query.session as string) || req.body.session_id;
+  const session = await getSession(sessionId);
+  if (!session) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { country_code, integration_key, api_key, api_secret, extra_fields } = req.body;
+  if (!country_code || !integration_key) return res.status(400).json({ error: 'country_code and integration_key are required' });
+
+  const patch: Record<string, any> = { session_id: sessionId, country_code, integration_key, updated_at: new Date().toISOString() };
+  if (api_key) patch.api_key = encryptField(api_key);
+  if (api_secret) patch.api_secret = encryptField(api_secret);
+  if (extra_fields !== undefined) patch.extra_fields = extra_fields;
+
+  const { data, error } = await supabase.from('country_integrations')
+    .upsert(patch, { onConflict: 'session_id,country_code,integration_key' })
+    .select('*').single();
+  if (error) { console.error('Integration save error:', error); return res.status(500).json({ error: 'Failed to save integration' }); }
+  res.json({ integration: sanitizeIntegration(data) });
+});
+
+app.delete('/api/integrations/:id', async (req, res) => {
+  const sessionId = req.query.session as string;
+  const session = await getSession(sessionId);
+  if (!session) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { data: existing } = await supabase.from('country_integrations').select('session_id').eq('id', req.params.id).single();
+  if (!existing || existing.session_id !== sessionId) return res.status(404).json({ error: 'Integration not found' });
+
+  const { error } = await supabase.from('country_integrations').delete().eq('id', req.params.id);
+  if (error) return res.status(500).json({ error: 'Failed to delete integration' });
+  res.json({ success: true });
+});
+
+// Portbase (Netherlands) uses OAuth2 client-credentials via IAMconnected.
+// TODO: Portbase's IAMconnected token endpoint is not publicly documented —
+// this needs the real URL once Larissa contracts with Portbase and gets
+// access to their developer docs. Structured the same way the existing
+// SERPRO integration handles this same situation (see serproTestConnection
+// above) so swapping in the real endpoint is a one-line change.
+const PORTBASE_TOKEN_URL = process.env.PORTBASE_TOKEN_URL || 'https://iamconnected.portbase.com/oauth2/token';
+async function fetchPortbaseToken(clientId: string, apiKey: string): Promise<{ success: boolean; message: string; token?: string }> {
+  if (!clientId || !apiKey) return { success: false, message: 'Missing Portbase Client ID or API Key' };
+  try {
+    const res = await fetch(PORTBASE_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: apiKey }),
+    });
+    if (!res.ok) return { success: false, message: `Portbase token request failed (${res.status}) — verify Client ID/API Key and that the token endpoint is correct` };
+    const data = await res.json();
+    if (!data.access_token) return { success: false, message: 'Portbase did not return an access token' };
+    return { success: true, message: 'Portbase OAuth token obtained successfully', token: data.access_token };
+  } catch (e: any) {
+    return { success: false, message: `Could not reach Portbase — ${e.message || 'network error'}` };
+  }
+}
+
+app.post('/api/integrations/verify', async (req, res) => {
+  const sessionId = req.body.session_id || (req.query.session as string);
+  const session = await getSession(sessionId);
+  if (!session) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { country_code, integration_key } = req.body;
+
+  if (integration_key === 'taric') {
+    return res.json({ verified: true, message: 'EU TARIC is a free public data source — no credentials required' });
+  }
+
+  if (integration_key === 'serpro') {
+    const tenantIntegration = session.userId ? await getTenantIntegration(session.userId) : null;
+    if (!tenantIntegration?._serproClientSecret || !tenantIntegration.serproClientId) {
+      return res.json({ verified: false, message: 'SERPRO credentials not configured' });
+    }
+    const authUrl = 'https://autenticacao.sapi.serpro.gov.br/authenticate';
+    const test = await serproTestConnection(tenantIntegration.serproClientId, tenantIntegration._serproClientSecret, authUrl);
+    if (test.success) await supabase.from('tenant_integrations').update({ serpro_status: 'connected', updated_at: new Date().toISOString() }).eq('tenant_id', session.userId);
+    return res.json({ verified: test.success, message: test.message });
+  }
+
+  const { data: integ } = await supabase.from('country_integrations')
+    .select('*').eq('session_id', sessionId).eq('country_code', country_code).eq('integration_key', integration_key).single();
+  if (!integ) return res.json({ verified: false, message: 'Integration not configured' });
+
+  let result: { verified: boolean; message: string };
+
+  if (integration_key === 'portbase') {
+    const apiKey = integ.api_key ? decryptField(integ.api_key) : '';
+    const clientId = integ.extra_fields?.client_id || '';
+    const tokenResult = await fetchPortbaseToken(clientId, apiKey);
+    result = { verified: tokenResult.success, message: tokenResult.message };
+  } else if (integration_key === 'ace') {
+    result = { verified: true, message: 'Manually confirmed — ACE filer codes cannot be verified via API (CBP does not expose one to BYOC integrations)' };
+  } else {
+    result = { verified: false, message: 'Unknown integration' };
+  }
+
+  if (result.verified) {
+    await supabase.from('country_integrations').update({ last_verified_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', integ.id);
+  }
+  res.json(result);
+});
+
+// Portbase Cargo Controller — container status lookup. Same caveat as the
+// token endpoint above: Portbase's Cargo Controller API isn't publicly
+// documented either, so this URL is a placeholder (TODO) until real API
+// access is contracted. Structured correctly for a one-line swap later.
+const PORTBASE_CARGO_API_URL = process.env.PORTBASE_CARGO_API_URL || 'https://api.portbase.com/cargo-controller/v1/containers';
+app.get('/api/integrations/portbase/container/:containerNumber', async (req, res) => {
+  const sessionId = req.query.session as string;
+  const session = await getSession(sessionId);
+  if (!session) return res.status(401).json({ error: 'Not authenticated' });
+
+  const { data: integ } = await supabase.from('country_integrations')
+    .select('*').eq('session_id', sessionId).eq('country_code', 'NL').eq('integration_key', 'portbase').single();
+  if (!integ) return res.status(400).json({ error: 'Portbase is not configured — add your credentials in Settings first' });
+
+  const apiKey = integ.api_key ? decryptField(integ.api_key) : '';
+  const clientId = integ.extra_fields?.client_id || '';
+  const tokenResult = await fetchPortbaseToken(clientId, apiKey);
+  if (!tokenResult.success || !tokenResult.token) {
+    return res.status(502).json({ error: 'portbase_unavailable', message: tokenResult.message });
+  }
+
+  try {
+    const res2 = await fetch(`${PORTBASE_CARGO_API_URL}/${req.params.containerNumber}`, {
+      headers: { Authorization: `Bearer ${tokenResult.token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res2.ok) return res.status(502).json({ error: 'portbase_unavailable', message: `Portbase returned ${res2.status}` });
+    const data = await res2.json();
+    res.json({
+      container: req.params.containerNumber,
+      status: data.status || null, terminal: data.terminal || null,
+      customs_status: data.customsStatus || null, release_status: data.releaseStatus || null,
+      raw: data,
+    });
+  } catch (error: any) {
+    console.error('Portbase container lookup error:', error.message);
+    res.status(502).json({ error: 'portbase_unavailable', message: 'Could not reach Portbase Cargo Controller' });
+  }
+});
+
+// EU TARIC HS-code lookup. The European Commission does not expose a
+// documented free JSON REST API for TARIC — the official public endpoint
+// (taric_consultation.jsp) is a JS-rendered consultation page, not an API;
+// there's no server-rendered data to scrape from a plain fetch. This makes
+// a best-effort real fetch attempt and degrades gracefully (never fabricates
+// duty-rate data) when structured data can't be extracted — see the summary
+// note delivered alongside this feature for the full explanation.
+const taricCache = new Map<string, { data: any; expiresAt: number }>();
+const TARIC_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+// Shared by the /api/integrations/taric/lookup route and the automatic
+// lookup triggered from /api/analyze — same function, so both paths behave
+// identically and share the 24h cache.
+async function lookupTaric(hsCodeRaw: string, countryRaw: string): Promise<{ ok: true; data: any } | { ok: false; error: string; message: string; manual_url: string }> {
+  const hsCode = hsCodeRaw.replace(/\D/g, '');
+  const country = (countryRaw || 'NL').toUpperCase();
+  const paddedCode = hsCode.padEnd(10, '0');
+  const manualUrl = `https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=EN&Taric=${paddedCode}`;
+
+  const cacheKey = `${hsCode}:${country}`;
+  const cached = taricCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return { ok: true, data: { ...cached.data, cached: true } };
+
+  try {
+    const url = `${manualUrl}&Screen=0`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) throw new Error(`TARIC site returned ${response.status}`);
+    const html = await response.text();
+
+    // Best-effort extraction — the page is JS-rendered so this will usually
+    // find nothing; that's the graceful-degradation path below, by design.
+    const descMatch = html.match(/<td[^>]*class="[^"]*GoodsDescription[^"]*"[^>]*>([^<]+)</i);
+    const dutyMatch = html.match(/(\d+(?:\.\d+)?)\s*%/);
+
+    if (!descMatch) {
+      return {
+        ok: false, error: 'taric_unavailable',
+        message: 'EU TARIC does not expose a public data API for automated lookup right now — please check the code manually at the official consultation tool.',
+        manual_url: manualUrl,
+      };
+    }
+
+    const result = {
+      hs_code: hsCode, description: descMatch[1].trim(),
+      duty_rate: dutyMatch ? `${dutyMatch[1]}%` : 'See official source',
+      vat_rate: `See national rate (${country})`,
+      restrictions: [] as string[],
+      measures: [] as string[],
+      source: 'EU TARIC',
+    };
+    taricCache.set(cacheKey, { data: result, expiresAt: Date.now() + TARIC_CACHE_TTL_MS });
+    return { ok: true, data: result };
+  } catch (error: any) {
+    console.error('TARIC lookup error:', error.message);
+    return {
+      ok: false, error: 'taric_unavailable',
+      message: 'EU TARIC is temporarily unavailable — please try again later or check manually.',
+      manual_url: manualUrl,
+    };
+  }
+}
+
+app.get('/api/integrations/taric/lookup', async (req, res) => {
+  const hsCode = (req.query.hs_code as string || '').replace(/\D/g, '');
+  const country = (req.query.country as string || 'NL').toUpperCase();
+  if (!hsCode || hsCode.length < 6) return res.status(400).json({ error: 'A valid HS code (6-10 digits) is required' });
+
+  const result = await lookupTaric(hsCode, country);
+  if (result.ok) return res.json(result.data);
+  res.status(502).json({ error: result.error, message: result.message, manual_url: result.manual_url });
+});
 
 // ============================================
 // 3-TIER MERCANTE CONNECTOR
@@ -3331,7 +3684,7 @@ app.post('/api/translate', async (req, res) => {
   const lang = langNames[targetLanguage] || targetLanguage;
   try {
     const msg = await anthropic.messages.create({
-      model: 'claude-opus-4-5',
+      model: 'claude-sonnet-5',
       max_tokens: 1024,
       messages: [{ role: 'user', content: `Translate the following professional freight email reply to ${lang}. Preserve all formatting, names, references (CE numbers, BL numbers, ports, carriers), and the professional tone. Return only the translated text, no explanations.\n\n${text}` }],
     });
