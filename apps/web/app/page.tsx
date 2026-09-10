@@ -2,492 +2,430 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 
-// Icon component for easy SVG usage
-const Icon = ({ name, className = "w-6 h-6" }: { name: string; className?: string }) => (
-  <img src={`/icons/${name}.svg`} alt={name} className={className} />
-);
-
-// Translations
-const translations = {
-  en: {
-    nav: { whatWeDo: 'What we Do', howItWorks: 'How it Works', useCases: 'Use Cases', pricing: 'Pricing', aboutUs: 'About Us', signIn: 'Sign in', signUp: 'Sign up' },
-    hero: {
-      badge: 'SUPERCHARGE YOUR FREIGHT',
-      title1: 'Your AI Copilot',
-      title2: 'for ',
-      title3: 'Freight Forwarding.',
-      subtitle: 'Handling inquiries, quotes, follow-ups and shipment classification automatically.',
-      desc: 'Reduce email workload and respond to freight inquiries in minutes, not hours.',
-      cta: 'Try it free',
-    },
-    product: {
-      title: 'Everything your freight inbox needs — automated by AI',
-      desc: 'Freight forwarding operations rely heavily on email communication. Quote requests, shipment updates, documentation questions, and follow-ups arrive continuously throughout the day. Managing this inbox manually slows teams down and increases the risk of missed opportunities.',
-      desc2: 'FreightWizard uses artificial intelligence to analyze incoming freight emails, extract key shipment information, and suggest the appropriate actions automatically.',
-      features: [
-        { icon: 'web_page_AI Email Understanding', title: 'AI Email Understanding', desc: 'Automatically reads freight emails and extracts shipment details such as ports, container types, cargo information, and delivery dates.' },
-        { icon: 'web_page_Smart_Workflow_Suggestions', title: 'Smart Workflow Suggestions', desc: 'Identifies whether an email is a quote request, booking update, documentation request, or status inquiry and suggests the correct next step.' },
-        { icon: 'web_page_AI Drafted Responses', title: 'AI Drafted Responses', desc: 'Generates professional reply drafts that your team can review and send in seconds.' },
-        { icon: 'web_page_Inbox Prioritization', title: 'Inbox Prioritization', desc: 'Highlights urgent requests and high-value quote opportunities so nothing falls through the cracks.' },
-      ],
-    },
-    features: {
-      title: 'Key Features',
-      items: [
-        { icon: 'web_page_Shipment Data Extraction', title: 'Shipment Data Extraction', desc: 'Detects ports, container types, cargo details, vessel names, and shipment references automatically.' },
-        { icon: 'web_page_Email Intent Detection', title: 'Email Intent Detection', desc: 'Classifies incoming emails as quotes, updates, documentation requests, or tracking inquiries.' },
-        { icon: 'web_page_Reply Assistant', title: 'Reply Assistant', desc: 'AI generates accurate and professional responses based on the email context.' },
-        { icon: 'web_page_Activity Timeline', title: 'Activity Timeline', desc: 'Track communication history for every shipment conversation.' },
-        { icon: 'web_page_Smart Notifications', title: 'Smart Notifications', desc: 'Get alerted when high-priority emails arrive or deadlines approach.' },
-        { icon: 'web_page_Analytics Dashboard', title: 'Analytics Dashboard', desc: 'Monitor email volume, response times, and team productivity.' },
-      ],
-    },
-    howItWorks: {
-      title: 'From inbox chaos to structured freight workflows',
-      steps: [
-        { num: '1', title: 'Connect Your Inbox', desc: 'Connect your Gmail or Outlook inbox securely. FreightWizard begins monitoring incoming messages in real time without changing how customers contact you.' },
-        { num: '2', title: 'AI Analyzes Each Email', desc: 'The system reads incoming messages and identifies shipment details: origin/destination ports, container type, shipment dates, and customer intent.' },
-        { num: '3', title: 'Structured Data & Suggestions', desc: 'Extracted information is displayed in a structured format. FreightWizard suggests the next action: prepare a quote, request missing info, or forward to operations.' },
-        { num: '4', title: 'Review & Send', desc: 'Your team can review the AI-generated reply, make adjustments if needed, and send the response immediately.' },
-      ],
-    },
-    useCases: {
-      title: 'Built for freight forwarding teams',
-      desc: 'FreightWizard is designed specifically for companies whose operations depend on managing large volumes of freight communication.',
-      cases: [
-        { icon: 'web_page_Freight Forwarding Companies', title: 'Freight Forwarding Companies', desc: 'Automate inbox processing and respond faster to quote requests.' },
-        { icon: 'web_page_Operations Teams', title: 'Operations Teams', desc: 'Reduce time spent sorting emails and extracting shipment data.' },
-        { icon: 'web_page_Sales Teams', title: 'Sales Teams', desc: 'Never miss a potential shipment opportunity hidden in your inbox.' },
-        { icon: 'web_page_Small Forwarders', title: 'Small Forwarders', desc: 'Scale operations without hiring additional staff.' },
-      ],
-    },
-    integrations: {
-      title: 'Works with the tools you already use',
-      desc: 'FreightWizard integrates with major email platforms and can be extended to connect with freight management systems.',
-      supported: 'Supported integrations',
-      current: ['Gmail', 'Outlook', 'Microsoft 365', 'Google Workspace'],
-      future: 'Future integrations',
-      coming: ['CargoWise', 'Descartes', 'Freight tracking APIs'],
-    },
-    pricing: {
-      title: 'Simple, transparent pricing',
-      plans: [
-        { name: 'Starter', price: 'Free', period: 'forever', desc: 'For individuals getting started', features: ['50 emails/month', '1 inbox', 'Basic AI analysis', 'Email support'], cta: 'Start Free' },
-        { name: 'Professional', price: '$49', period: '/month', desc: 'For small teams', features: ['1,000 emails/month', '3 inboxes', 'Full AI features', 'Priority support', 'Analytics dashboard'], cta: 'Start Trial', popular: true },
-        { name: 'Business', price: '$149', period: '/month', desc: 'For growing companies', features: ['10,000 emails/month', '10 inboxes', 'Advanced analytics', 'API access', 'Dedicated support'], cta: 'Contact Sales' },
-        { name: 'Enterprise', price: 'Custom', period: '', desc: 'For large operations', features: ['Unlimited emails', 'Unlimited inboxes', 'Custom integrations', 'SLA guarantee', 'On-premise option'], cta: 'Contact Sales' },
-      ],
-    },
-    about: {
-      title: 'Built for the logistics industry',
-      p1: 'FreightWizard was created to solve a common challenge in freight forwarding: managing complex shipment communication through email.',
-      p2: 'Our goal is to bring modern AI automation to logistics teams while maintaining the reliability and control required for operational workflows.',
-      p3: 'We focus on building tools that help freight professionals work faster, reduce manual tasks, and deliver better service to their customers.',
-    },
-    faq: {
-      title: 'Frequently Asked Questions',
-      items: [
-        { q: 'How does FreightWizard access my emails?', a: 'We use secure OAuth connections provided by Google and Microsoft. We never store your email password and you can revoke access at any time.' },
-        { q: 'Is my data secure?', a: 'Yes. All data is encrypted in transit and at rest. We do not train AI models on your emails. Your operational data remains private.' },
-        { q: 'Can I edit AI-generated replies?', a: 'Absolutely. Every AI suggestion can be reviewed, edited, or rejected before sending. You maintain full control.' },
-        { q: 'What email providers do you support?', a: 'Currently we support Gmail, Google Workspace, Outlook, and Microsoft 365. More integrations are coming soon.' },
-        { q: 'How accurate is the AI analysis?', a: 'Our AI correctly identifies email intent and extracts shipment data with over 95% accuracy for standard freight communications.' },
-        { q: 'Can I try before buying?', a: 'Yes! Our Starter plan is free forever, and Professional plans come with a 14-day free trial.' },
-      ],
-    },
-    security: {
-      title: 'Security & Data Protection',
-      desc: 'FreightWizard is designed with security and data protection as a priority.',
-      items: ['Secure OAuth connections', 'Encrypted data storage', 'No AI training on your emails', 'Strict access controls', 'GDPR compliant'],
-    },
-    cta: {
-      title: 'Ready to transform your freight inbox?',
-      desc: 'Join hundreds of freight forwarding companies already using FreightWizard to save time and win more business.',
-      button: 'Start Free Trial',
-    },
-    footer: {
-      desc: 'AI-powered email management for freight forwarding.',
-      product: 'Product',
-      company: 'Company',
-      legal: 'Legal',
-      links: { features: 'Features', pricing: 'Pricing', integrations: 'Integrations', about: 'About', blog: 'Blog', careers: 'Careers', privacy: 'Privacy', terms: 'Terms' },
-      copy: '© 2026 FreightWizard. All rights reserved.',
-    },
-  },
-  pt: {
-    nav: { whatWeDo: 'O que fazemos', howItWorks: 'Como Funciona', useCases: 'Casos de Uso', pricing: 'Preços', aboutUs: 'Sobre Nós', signIn: 'Entrar', signUp: 'Cadastrar' },
-    hero: {
-      badge: 'POTENCIALIZE SEU FRETE',
-      title1: 'Seu Copiloto IA',
-      title2: 'para ',
-      title3: 'Freight Forwarding.',
-      subtitle: 'Gerenciando consultas, cotações, follow-ups e classificação de embarques automaticamente.',
-      desc: 'Reduza a carga de e-mails e responda a consultas de frete em minutos, não horas.',
-      cta: 'Teste grátis',
-    },
-    product: {
-      title: 'Tudo que sua caixa de entrada de frete precisa — automatizado por IA',
-      desc: 'Operações de freight forwarding dependem muito da comunicação por e-mail. Pedidos de cotação, atualizações de embarque e follow-ups chegam continuamente.',
-      desc2: 'O FreightWizard usa inteligência artificial para analisar e-mails, extrair informações de embarque e sugerir ações automaticamente.',
-      features: [
-        { icon: 'web_page_AI Email Understanding', title: 'Compreensão de E-mail por IA', desc: 'Lê automaticamente e-mails de frete e extrai detalhes como portos, tipos de container e datas.' },
-        { icon: 'web_page_Smart_Workflow_Suggestions', title: 'Sugestões Inteligentes', desc: 'Identifica se o e-mail é pedido de cotação, atualização de booking ou consulta de status.' },
-        { icon: 'web_page_AI Drafted Responses', title: 'Respostas com IA', desc: 'Gera rascunhos profissionais que sua equipe pode revisar e enviar em segundos.' },
-        { icon: 'web_page_Inbox Prioritization', title: 'Priorização de Inbox', desc: 'Destaca pedidos urgentes e oportunidades de alto valor.' },
-      ],
-    },
-    features: {
-      title: 'Recursos Principais',
-      items: [
-        { icon: 'web_page_Shipment Data Extraction', title: 'Extração de Dados', desc: 'Detecta portos, tipos de container, detalhes de carga e referências automaticamente.' },
-        { icon: 'web_page_Email Intent Detection', title: 'Detecção de Intenção', desc: 'Classifica e-mails como cotações, atualizações ou consultas de rastreamento.' },
-        { icon: 'web_page_Reply Assistant', title: 'Assistente de Resposta', desc: 'IA gera respostas precisas e profissionais baseadas no contexto.' },
-        { icon: 'web_page_Activity Timeline', title: 'Linha do Tempo', desc: 'Acompanhe o histórico de comunicação de cada conversa.' },
-        { icon: 'web_page_Smart Notifications', title: 'Notificações', desc: 'Seja alertado quando e-mails urgentes chegarem.' },
-        { icon: 'web_page_Analytics Dashboard', title: 'Painel Analytics', desc: 'Monitore volume de e-mails e produtividade da equipe.' },
-      ],
-    },
-    howItWorks: {
-      title: 'Do caos do inbox para fluxos estruturados',
-      steps: [
-        { num: '1', title: 'Conecte sua Caixa', desc: 'Conecte seu Gmail ou Outlook de forma segura. O FreightWizard começa a monitorar mensagens em tempo real.' },
-        { num: '2', title: 'IA Analisa Cada E-mail', desc: 'O sistema lê mensagens e identifica detalhes: portos, tipo de container, datas e intenção do cliente.' },
-        { num: '3', title: 'Dados Estruturados', desc: 'Informações extraídas são exibidas de forma estruturada com sugestões de próximas ações.' },
-        { num: '4', title: 'Revise & Envie', desc: 'Sua equipe pode revisar a resposta gerada pela IA e enviar imediatamente.' },
-      ],
-    },
-    useCases: {
-      title: 'Feito para equipes de freight forwarding',
-      desc: 'FreightWizard é projetado para empresas que dependem de grandes volumes de comunicação de frete.',
-      cases: [
-        { icon: 'web_page_Freight Forwarding Companies', title: 'Freight Forwarders', desc: 'Automatize o processamento de inbox e responda mais rápido.' },
-        { icon: 'web_page_Operations Teams', title: 'Equipes de Operações', desc: 'Reduza tempo gasto classificando e-mails.' },
-        { icon: 'web_page_Sales Teams', title: 'Equipes de Vendas', desc: 'Nunca perca uma oportunidade escondida no inbox.' },
-        { icon: 'web_page_Small Forwarders', title: 'Pequenos Forwarders', desc: 'Escale operações sem contratar mais funcionários.' },
-      ],
-    },
-    integrations: {
-      title: 'Funciona com suas ferramentas',
-      desc: 'FreightWizard integra com principais plataformas de e-mail.',
-      supported: 'Integrações suportadas',
-      current: ['Gmail', 'Outlook', 'Microsoft 365', 'Google Workspace'],
-      future: 'Integrações futuras',
-      coming: ['CargoWise', 'Descartes', 'APIs de Frete'],
-    },
-    pricing: {
-      title: 'Preços simples e transparentes',
-      plans: [
-        { name: 'Starter', price: 'Grátis', period: 'para sempre', desc: 'Para começar', features: ['50 emails/mês', '1 inbox', 'Análise básica', 'Suporte por email'], cta: 'Começar Grátis' },
-        { name: 'Professional', price: 'R$199', period: '/mês', desc: 'Para pequenas equipes', features: ['1.000 emails/mês', '3 inboxes', 'IA completa', 'Suporte prioritário'], cta: 'Teste Grátis', popular: true },
-        { name: 'Business', price: 'R$599', period: '/mês', desc: 'Para empresas', features: ['10.000 emails/mês', '10 inboxes', 'Analytics avançado', 'Acesso à API'], cta: 'Fale Conosco' },
-        { name: 'Enterprise', price: 'Sob Consulta', period: '', desc: 'Para grandes operações', features: ['Emails ilimitados', 'Inboxes ilimitados', 'Integrações custom', 'SLA garantido'], cta: 'Fale Conosco' },
-      ],
-    },
-    about: {
-      title: 'Construído para a indústria logística',
-      p1: 'FreightWizard foi criado para resolver um desafio comum no freight forwarding: gerenciar comunicação complexa de embarques por e-mail.',
-      p2: 'Nosso objetivo é trazer automação moderna de IA para equipes de logística, mantendo a confiabilidade e controle necessários para fluxos operacionais.',
-      p3: 'Focamos em construir ferramentas que ajudam profissionais de frete a trabalhar mais rápido, reduzir tarefas manuais e entregar melhor serviço aos seus clientes.',
-    },
-    faq: {
-      title: 'Perguntas Frequentes',
-      items: [
-        { q: 'Como o FreightWizard acessa meus e-mails?', a: 'Usamos conexões OAuth seguras. Nunca armazenamos sua senha e você pode revogar acesso a qualquer momento.' },
-        { q: 'Meus dados estão seguros?', a: 'Sim. Todos os dados são criptografados. Não treinamos modelos de IA com seus e-mails.' },
-        { q: 'Posso editar respostas da IA?', a: 'Absolutamente. Toda sugestão pode ser revisada e editada antes de enviar.' },
-        { q: 'Quais provedores de email suportam?', a: 'Gmail, Google Workspace, Outlook e Microsoft 365.' },
-        { q: 'Quão precisa é a análise?', a: 'Nossa IA identifica intenção e extrai dados com mais de 95% de precisão.' },
-        { q: 'Posso testar antes de comprar?', a: 'Sim! O plano Starter é grátis e planos Professional têm 14 dias de teste.' },
-      ],
-    },
-    security: {
-      title: 'Segurança & Proteção de Dados',
-      desc: 'FreightWizard foi projetado com segurança como prioridade.',
-      items: ['Conexões OAuth seguras', 'Dados criptografados', 'Sem treinamento de IA', 'Controles de acesso', 'Compatível com LGPD'],
-    },
-    cta: { title: 'Pronto para transformar seu inbox?', desc: 'Junte-se a centenas de empresas já usando FreightWizard.', button: 'Começar Grátis' },
-    footer: { desc: 'Gestão de e-mails com IA para freight forwarding.', product: 'Produto', company: 'Empresa', legal: 'Legal', links: { features: 'Recursos', pricing: 'Preços', integrations: 'Integrações', about: 'Sobre', blog: 'Blog', careers: 'Carreiras', privacy: 'Privacidade', terms: 'Termos' }, copy: '© 2026 FreightWizard. Todos os direitos reservados.' },
-  },
-  nl: {
-    nav: { whatWeDo: 'Wat we doen', howItWorks: 'Hoe Het Werkt', useCases: 'Use Cases', pricing: 'Prijzen', aboutUs: 'Over Ons', signIn: 'Inloggen', signUp: 'Aanmelden' },
-    hero: {
-      badge: 'SUPERCHARGE JE VRACHT',
-      title1: 'Jouw AI Copiloot',
-      title2: 'voor ',
-      title3: 'Freight Forwarding.',
-      subtitle: 'Behandel vragen, offertes, follow-ups en zendingsclassificatie automatisch.',
-      desc: 'Verminder e-mailwerklast en reageer op vrachtvragen in minuten, niet uren.',
-      cta: 'Probeer gratis',
-    },
-    product: {
-      title: 'Alles wat je vracht-inbox nodig heeft — geautomatiseerd door AI',
-      desc: 'Freight forwarding operaties zijn sterk afhankelijk van e-mailcommunicatie. Offerteaanvragen, updates en follow-ups komen continu binnen.',
-      desc2: 'FreightWizard gebruikt AI om e-mails te analyseren, zendingsinformatie te extraheren en acties automatisch voor te stellen.',
-      features: [
-        { icon: 'web_page_AI Email Understanding', title: 'AI E-mail Begrip', desc: 'Leest automatisch vracht-e-mails en extraheert details zoals havens, containertypes en data.' },
-        { icon: 'web_page_Smart_Workflow_Suggestions', title: 'Slimme Suggesties', desc: 'Identificeert of een e-mail een offerteaanvraag, boeking of statusvraag is.' },
-        { icon: 'web_page_AI Drafted Responses', title: 'AI Antwoorden', desc: 'Genereert professionele concepten die je team in seconden kan versturen.' },
-        { icon: 'web_page_Inbox Prioritization', title: 'Inbox Prioritering', desc: 'Markeert urgente verzoeken en waardevolle kansen.' },
-      ],
-    },
-    features: {
-      title: 'Belangrijkste Functies',
-      items: [
-        { icon: 'web_page_Shipment Data Extraction', title: 'Zendingsdata Extractie', desc: 'Detecteert havens, containertypes, lading en referenties automatisch.' },
-        { icon: 'web_page_Email Intent Detection', title: 'Intentie Detectie', desc: 'Classificeert e-mails als offertes, updates of tracking vragen.' },
-        { icon: 'web_page_Reply Assistant', title: 'Antwoord Assistent', desc: 'AI genereert accurate en professionele antwoorden.' },
-        { icon: 'web_page_Activity Timeline', title: 'Activiteit Tijdlijn', desc: 'Volg communicatiegeschiedenis voor elk gesprek.' },
-        { icon: 'web_page_Smart Notifications', title: 'Notificaties', desc: 'Ontvang alerts bij urgente e-mails.' },
-        { icon: 'web_page_Analytics Dashboard', title: 'Analytics Dashboard', desc: 'Monitor e-mailvolume en teamproductiviteit.' },
-      ],
-    },
-    howItWorks: {
-      title: 'Van inbox-chaos naar gestructureerde workflows',
-      steps: [
-        { num: '1', title: 'Verbind Je Inbox', desc: 'Verbind Gmail of Outlook veilig. FreightWizard begint berichten in realtime te monitoren.' },
-        { num: '2', title: 'AI Analyseert E-mails', desc: 'Het systeem leest berichten en identificeert zendingsdetails: havens, containertype, data.' },
-        { num: '3', title: 'Gestructureerde Data', desc: 'Geëxtraheerde informatie wordt gestructureerd weergegeven met actie-suggesties.' },
-        { num: '4', title: 'Review & Verstuur', desc: 'Je team kan het AI-antwoord reviewen, aanpassen en direct versturen.' },
-      ],
-    },
-    useCases: {
-      title: 'Gebouwd voor freight forwarding teams',
-      desc: 'FreightWizard is ontworpen voor bedrijven die afhankelijk zijn van grote volumes vrachtcommunicatie.',
-      cases: [
-        { icon: 'web_page_Freight Forwarding Companies', title: 'Freight Forwarders', desc: 'Automatiseer inbox-verwerking en reageer sneller.' },
-        { icon: 'web_page_Operations Teams', title: 'Operations Teams', desc: 'Verminder tijd besteed aan e-mail sorteren.' },
-        { icon: 'web_page_Sales Teams', title: 'Sales Teams', desc: 'Mis nooit een kans verborgen in je inbox.' },
-        { icon: 'web_page_Small Forwarders', title: 'Kleine Forwarders', desc: 'Schaal operaties zonder extra personeel.' },
-      ],
-    },
-    integrations: {
-      title: 'Werkt met je bestaande tools',
-      desc: 'FreightWizard integreert met grote e-mailplatforms.',
-      supported: 'Ondersteunde integraties',
-      current: ['Gmail', 'Outlook', 'Microsoft 365', 'Google Workspace'],
-      future: 'Toekomstige integraties',
-      coming: ['CargoWise', 'Descartes', 'Vracht APIs'],
-    },
-    pricing: {
-      title: 'Eenvoudige, transparante prijzen',
-      plans: [
-        { name: 'Starter', price: 'Gratis', period: 'voor altijd', desc: 'Om te starten', features: ['50 emails/maand', '1 inbox', 'Basis AI', 'E-mail support'], cta: 'Start Gratis' },
-        { name: 'Professional', price: '€49', period: '/maand', desc: 'Voor kleine teams', features: ['1.000 emails/maand', '3 inboxen', 'Volledige AI', 'Priority support'], cta: 'Probeer Gratis', popular: true },
-        { name: 'Business', price: '€149', period: '/maand', desc: 'Voor groeiende bedrijven', features: ['10.000 emails/maand', '10 inboxen', 'Geavanceerde analytics', 'API toegang'], cta: 'Neem Contact Op' },
-        { name: 'Enterprise', price: 'Op Maat', period: '', desc: 'Voor grote operaties', features: ['Onbeperkte emails', 'Onbeperkte inboxen', 'Custom integraties', 'SLA garantie'], cta: 'Neem Contact Op' },
-      ],
-    },
-    about: {
-      title: 'Gebouwd voor de logistieke industrie',
-      p1: 'FreightWizard is gemaakt om een veelvoorkomende uitdaging in freight forwarding op te lossen: het beheren van complexe zendingscommunicatie via e-mail.',
-      p2: 'Ons doel is om moderne AI-automatisering naar logistieke teams te brengen, met behoud van de betrouwbaarheid en controle die nodig is voor operationele workflows.',
-      p3: 'We richten ons op het bouwen van tools die vrachtprofessionals helpen sneller te werken, handmatige taken te verminderen en betere service aan hun klanten te leveren.',
-    },
-    faq: {
-      title: 'Veelgestelde Vragen',
-      items: [
-        { q: 'Hoe krijgt FreightWizard toegang tot mijn e-mails?', a: 'We gebruiken veilige OAuth-verbindingen. We slaan je wachtwoord nooit op.' },
-        { q: 'Zijn mijn gegevens veilig?', a: 'Ja. Alle data is versleuteld. We trainen geen AI-modellen op je e-mails.' },
-        { q: 'Kan ik AI-antwoorden bewerken?', a: 'Absoluut. Elke suggestie kan worden gereviewd en bewerkt voor verzending.' },
-        { q: 'Welke e-mailproviders ondersteunen jullie?', a: 'Gmail, Google Workspace, Outlook en Microsoft 365.' },
-        { q: 'Hoe accuraat is de AI-analyse?', a: 'Onze AI identificeert intentie en extraheert data met meer dan 95% nauwkeurigheid.' },
-        { q: 'Kan ik uitproberen voor aankoop?', a: 'Ja! Starter is altijd gratis, Professional heeft 14 dagen proefperiode.' },
-      ],
-    },
-    security: {
-      title: 'Beveiliging & Gegevensbescherming',
-      desc: 'FreightWizard is ontworpen met beveiliging als prioriteit.',
-      items: ['Veilige OAuth verbindingen', 'Versleutelde opslag', 'Geen AI training op je data', 'Strikte toegangscontroles', 'AVG compliant'],
-    },
-    cta: { title: 'Klaar om je inbox te transformeren?', desc: 'Sluit je aan bij honderden bedrijven die FreightWizard al gebruiken.', button: 'Start Gratis' },
-    footer: { desc: 'AI-gestuurd e-mailbeheer voor freight forwarding.', product: 'Product', company: 'Bedrijf', legal: 'Juridisch', links: { features: 'Functies', pricing: 'Prijzen', integrations: 'Integraties', about: 'Over Ons', blog: 'Blog', careers: 'Vacatures', privacy: 'Privacy', terms: 'Voorwaarden' }, copy: '© 2026 FreightWizard. Alle rechten voorbehouden.' },
-  },
-};
-
-type Language = 'en' | 'pt' | 'nl';
+const API_URL = 'https://freightwizard-production.up.railway.app';
 
 export default function HomePage() {
-  const [language, setLanguage] = useState<Language>('en');
-  const [langMenuOpen, setLangMenuOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [faqOpen, setFaqOpen] = useState<number | null>(null);
+  const [annual, setAnnual] = useState(false);
+  const [lang, setLang] = useState('EN');
 
-  const t = translations[language];
-  const langLabels: Record<Language, string> = { en: 'EN', pt: 'PT', nl: 'NL' };
+  const prices = {
+    starter: annual ? 790 : 79,
+    professional: annual ? 1790 : 179,
+    enterprise: annual ? 3990 : 399,
+  };
+
+  const faqs = [
+    { q: 'How does FreightWizard access my emails?', a: 'FreightWizard connects via secure OAuth — the same standard used by Google and Microsoft. We never store your password. You can revoke access at any time from your email provider settings.' },
+    { q: 'Is my data secure?', a: 'All data is encrypted in transit and at rest. Your emails are processed to generate analysis and are never used to train AI models. We are GDPR compliant and your data is never shared with third parties.' },
+    { q: 'Can I edit AI-generated replies?', a: 'Yes, always. Every AI-generated reply is a draft that you review before sending. You can edit, rewrite, or discard it entirely. Nothing is sent without your approval.' },
+    { q: 'What email providers do you support?', a: 'Currently Gmail and Outlook (Microsoft 365). Google Workspace and Microsoft 365 business accounts are fully supported.' },
+    { q: 'How accurate is the AI analysis?', a: 'Accuracy depends on the quality of the incoming email. For standard freight emails with clear cargo details, accuracy is high. For ambiguous or incomplete emails, FreightWizard flags the missing information so you can follow up.' },
+    { q: 'Can I try before buying?', a: 'Yes. Every account starts with a 14-day free trial with full Professional access and up to 30 email analyses. No credit card required.' },
+  ];
 
   return (
-    <div className="min-h-screen bg-[#050510] text-white">
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 bg-[#050510]/90 backdrop-blur-md border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-1.5">
-            <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className="h-7 w-7 object-contain" />
-            <span className="text-xl font-bold">FreightWizard</span>
-          </Link>
+    <div style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", background: '#FAFAFA', color: '#111827', margin: 0, padding: 0 }}>
 
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#product" className="text-gray-400 hover:text-white transition text-sm">{t.nav.whatWeDo}</a>
-            <a href="#how-it-works" className="text-gray-400 hover:text-white transition text-sm">{t.nav.howItWorks}</a>
-            <a href="#use-cases" className="text-gray-400 hover:text-white transition text-sm">{t.nav.useCases}</a>
-            <a href="#pricing" className="text-gray-400 hover:text-white transition text-sm">{t.nav.pricing}</a>
-            <a href="#about" className="text-gray-400 hover:text-white transition text-sm">{t.nav.aboutUs}</a>
+      <style>{`
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #FAFAFA; }
+
+        /* Squared button style */
+        .btn-primary {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 11px 24px;
+          background: #111827;
+          color: #fff;
+          font-size: 14px;
+          font-weight: 500;
+          border-radius: 4px;
+          border: none;
+          cursor: pointer;
+          text-decoration: none;
+          transition: background 0.15s, transform 0.1s;
+          letter-spacing: -0.01em;
+        }
+        .btn-primary:hover { background: #1F2937; }
+
+        .btn-outline {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 11px 24px;
+          background: transparent;
+          color: #111827;
+          font-size: 14px;
+          font-weight: 500;
+          border-radius: 4px;
+          border: 1.5px solid #D1D5DB;
+          cursor: pointer;
+          text-decoration: none;
+          transition: border-color 0.15s, background 0.15s;
+          letter-spacing: -0.01em;
+        }
+        .btn-outline:hover { border-color: #9CA3AF; background: #F3F4F6; }
+
+        .btn-accent {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 11px 24px;
+          background: #2563EB;
+          color: #fff;
+          font-size: 14px;
+          font-weight: 500;
+          border-radius: 4px;
+          border: none;
+          cursor: pointer;
+          text-decoration: none;
+          transition: background 0.15s;
+          letter-spacing: -0.01em;
+        }
+        .btn-accent:hover { background: #1D4ED8; }
+
+        .nav-link {
+          font-size: 14px;
+          color: #374151;
+          text-decoration: none;
+          font-weight: 450;
+          transition: color 0.15s;
+          letter-spacing: -0.01em;
+        }
+        .nav-link:hover { color: #111827; }
+
+        .section { padding: 96px 0; }
+        .section-sm { padding: 64px 0; }
+        .container { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
+        .container-narrow { max-width: 720px; margin: 0 auto; padding: 0 32px; }
+
+        .label {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #6B7280;
+          margin-bottom: 12px;
+        }
+
+        .heading-xl {
+          font-size: clamp(36px, 5vw, 60px);
+          font-weight: 600;
+          letter-spacing: -0.03em;
+          line-height: 1.08;
+          color: #111827;
+        }
+
+        .heading-lg {
+          font-size: clamp(28px, 3vw, 40px);
+          font-weight: 600;
+          letter-spacing: -0.025em;
+          line-height: 1.15;
+          color: #111827;
+        }
+
+        .heading-md {
+          font-size: 22px;
+          font-weight: 600;
+          letter-spacing: -0.02em;
+          line-height: 1.3;
+          color: #111827;
+        }
+
+        .body-lg { font-size: 17px; line-height: 1.65; color: #4B5563; font-weight: 400; }
+        .body-md { font-size: 15px; line-height: 1.6; color: #6B7280; }
+
+        .divider { border: none; border-top: 1px solid #E5E7EB; }
+
+        .feature-card {
+          padding: 32px;
+          background: #fff;
+          border: 1px solid #E5E7EB;
+          border-radius: 6px;
+        }
+
+        .step-number {
+          font-size: 12px;
+          font-weight: 600;
+          color: #9CA3AF;
+          letter-spacing: 0.05em;
+          margin-bottom: 16px;
+        }
+
+        .plan-card {
+          padding: 32px;
+          background: #fff;
+          border: 1px solid #E5E7EB;
+          border-radius: 6px;
+          position: relative;
+        }
+
+        .plan-card-featured {
+          padding: 32px;
+          background: #111827;
+          border: 1px solid #111827;
+          border-radius: 6px;
+          position: relative;
+          color: #fff;
+        }
+
+        .badge {
+          display: inline-block;
+          font-size: 11px;
+          font-weight: 600;
+          padding: 3px 10px;
+          border-radius: 2px;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
+
+        .faq-item {
+          border-bottom: 1px solid #E5E7EB;
+          padding: 24px 0;
+        }
+
+        .faq-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: none;
+          border: none;
+          cursor: pointer;
+          text-align: left;
+          gap: 16px;
+        }
+
+        .check { color: #2563EB; font-size: 14px; margin-right: 8px; }
+        .check-white { color: #60A5FA; font-size: 14px; margin-right: 8px; }
+
+        .tag {
+          display: inline-block;
+          font-size: 12px;
+          font-weight: 500;
+          padding: 4px 10px;
+          border-radius: 3px;
+          background: #F3F4F6;
+          color: #374151;
+          border: 1px solid #E5E7EB;
+        }
+
+        .integration-logo {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 20px;
+          background: #fff;
+          border: 1px solid #E5E7EB;
+          border-radius: 4px;
+          font-size: 14px;
+          font-weight: 500;
+          color: #374151;
+        }
+
+        @media (max-width: 768px) {
+          .hide-mobile { display: none !important; }
+          .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr !important; }
+          .container { padding: 0 20px; }
+          .section { padding: 64px 0; }
+        }
+      `}</style>
+
+      {/* ── NAV ── */}
+      <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(250,250,250,0.95)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #E5E7EB' }}>
+        <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 60 }}>
+          <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+            <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" style={{ width: 24, height: 24, filter: 'brightness(0)' }} />
+            <span style={{ fontSize: 16, fontWeight: 600, color: '#111827', letterSpacing: '-0.02em' }}>FreightWizard</span>
+          </a>
+
+          <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+            <a href="#features" className="nav-link">Features</a>
+            <a href="#how-it-works" className="nav-link">How it works</a>
+            <a href="#pricing" className="nav-link">Pricing</a>
+            <a href="#faq" className="nav-link">FAQ</a>
           </div>
 
-          <div className="hidden md:flex items-center gap-4">
-            {/* Language Selector */}
-            <div className="relative">
-              <button onClick={() => setLangMenuOpen(!langMenuOpen)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-white px-3 py-2 rounded-lg border border-white/10">
-                {langLabels[language]} <span className="text-xs">▼</span>
-              </button>
-              {langMenuOpen && (
-                <div className="absolute top-full right-0 mt-2 bg-[#0a0a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden">
-                  {(['en', 'pt', 'nl'] as Language[]).map((l) => (
-                    <button key={l} onClick={() => { setLanguage(l); setLangMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-white/10">
-                      {langLabels[l]}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            <Link href="/dashboard" className="text-gray-400 hover:text-white transition text-sm">{t.nav.signIn}</Link>
-            <Link href="/dashboard" className="px-5 py-2.5 bg-white text-black rounded-full font-medium text-sm hover:opacity-90 transition">
-              {t.nav.signUp}
-            </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <a href={`${API_URL}/auth/google`} className="btn-outline">Sign in</a>
+            <a href={`${API_URL}/auth/google`} className="btn-primary">Start free trial</a>
           </div>
-
-          {/* Mobile Menu Button */}
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden text-2xl">☰</button>
         </div>
-
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden bg-[#0a0a1a] border-t border-white/10 px-6 py-4 space-y-4">
-            <a href="#product" className="block text-gray-300">{t.nav.whatWeDo}</a>
-            <a href="#how-it-works" className="block text-gray-300">{t.nav.howItWorks}</a>
-            <a href="#use-cases" className="block text-gray-300">{t.nav.useCases}</a>
-            <a href="#pricing" className="block text-gray-300">{t.nav.pricing}</a>
-            <a href="#about" className="block text-gray-300">{t.nav.aboutUs}</a>
-            <Link href="/dashboard" className="block w-full text-center py-3 bg-white text-black rounded-full font-medium">
-              {t.nav.signUp}
-            </Link>
-          </div>
-        )}
       </nav>
 
-      {/* Hero Section with Real Globe */}
-      <section className="pt-32 pb-20 px-6 relative overflow-hidden min-h-screen flex items-center">
-        {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#9E14FB]/5 via-[#050510] to-[#1BA1FF]/5"></div>
-        
-        <div className="max-w-7xl mx-auto w-full relative z-10">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Left Content */}
-            <div>
-              <div className="inline-block px-4 py-2 bg-gradient-to-r from-[#9E14FB]/20 to-[#5200FF]/20 rounded-full text-sm mb-6 border border-[#9E14FB]/30">
-                <span className="bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] bg-clip-text text-transparent font-medium">
-                  {t.hero.badge}
-                </span>
-              </div>
-              
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-                <span className="text-white">{t.hero.title1}</span>
-                <br />
-                <span className="text-white">{t.hero.title2}</span>
-                <span className="bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] bg-clip-text text-transparent">{t.hero.title3}</span>
-              </h1>
-              
-              <p className="text-gray-300 text-lg mb-4">
-                {t.hero.subtitle}
-              </p>
-              <p className="text-gray-500 mb-8">
-                {t.hero.desc}
-              </p>
-              
-              <Link href="/dashboard" className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full font-medium text-lg hover:opacity-90 transition shadow-lg shadow-[#5200FF]/25">
-                {t.hero.cta} <span>→</span>
-              </Link>
+      {/* ── HERO ── */}
+      <section style={{ padding: '96px 0 80px', background: '#fff', borderBottom: '1px solid #E5E7EB' }}>
+        <div className="container">
+          <div style={{ maxWidth: 680 }}>
+            <div className="label">AI-powered freight operations</div>
+            <h1 className="heading-xl" style={{ marginBottom: 24 }}>
+              Your freight inbox,<br />handled by AI.
+            </h1>
+            <p className="body-lg" style={{ maxWidth: 520, marginBottom: 40 }}>
+              FreightWizard reads incoming freight emails, extracts shipment data, builds quotes, tracks shipments, and sends professional replies — so your team focuses on closing, not sorting.
+            </p>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <a href={`${API_URL}/auth/google`} className="btn-primary">
+                Start 14-day free trial
+              </a>
+              <a href="#how-it-works" className="btn-outline">
+                See how it works
+              </a>
             </div>
-
-            {/* Right Content - Real Globe with Floating Icons */}
-            <div className="relative">
-              <div className="relative w-full aspect-square max-w-lg mx-auto">
-                {/* Subtle glow effect behind globe */}
-                <div className="absolute inset-0 bg-gradient-to-r from-[#9E14FB]/20 via-[#5200FF]/15 to-[#1BA1FF]/20 rounded-full blur-3xl scale-90 opacity-60"></div>
-                
-                {/* Real Globe Image */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <img 
-                    src="/globe.png" 
-                    alt="Global Freight Network" 
-                    className="w-full h-full object-contain"
-                    style={{ mixBlendMode: 'lighten' }}
-                  />
-                </div>
-                
-                {/* Floating icons around the globe - white icons */}
-                <div className="absolute top-[8%] left-[12%] w-12 h-12 bg-gradient-to-r from-[#9E14FB] to-[#5200FF] rounded-xl flex items-center justify-center shadow-lg shadow-[#9E14FB]/40 animate-bounce p-2.5" style={{ animationDuration: '3s' }}>
-                  <Icon name="web_page_Email Intent Detection" className="w-full h-full brightness-0 invert" />
-                </div>
-                <div className="absolute top-[15%] right-[8%] w-12 h-12 bg-gradient-to-r from-[#5200FF] to-[#1BA1FF] rounded-xl flex items-center justify-center shadow-lg shadow-[#5200FF]/40 animate-bounce p-2.5" style={{ animationDuration: '3.5s', animationDelay: '0.5s' }}>
-                  <Icon name="web_page_Shipment Data Extraction" className="w-full h-full brightness-0 invert" />
-                </div>
-                <div className="absolute bottom-[18%] left-[8%] w-12 h-12 bg-gradient-to-r from-[#1BA1FF] to-[#9E14FB] rounded-xl flex items-center justify-center shadow-lg shadow-[#1BA1FF]/40 animate-bounce p-2.5" style={{ animationDuration: '4s', animationDelay: '1s' }}>
-                  <Icon name="web_page_Freight Forwarding Companies" className="w-full h-full brightness-0 invert" />
-                </div>
-                <div className="absolute bottom-[10%] right-[12%] w-12 h-12 bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] rounded-xl flex items-center justify-center shadow-lg shadow-[#9E14FB]/40 animate-bounce p-2.5" style={{ animationDuration: '3.2s', animationDelay: '1.5s' }}>
-                  <Icon name="web_page_Analytics Dashboard" className="w-full h-full brightness-0 invert" />
-                </div>
-                
-                {/* Small floating dots */}
-                <div className="absolute top-[35%] left-[5%] w-2 h-2 bg-[#9E14FB] rounded-full animate-pulse"></div>
-                <div className="absolute top-[25%] right-[20%] w-2 h-2 bg-[#1BA1FF] rounded-full animate-pulse" style={{ animationDelay: '0.5s' }}></div>
-                <div className="absolute bottom-[30%] right-[5%] w-2 h-2 bg-[#5200FF] rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
-                <div className="absolute bottom-[40%] left-[18%] w-2 h-2 bg-[#1BA1FF] rounded-full animate-pulse" style={{ animationDelay: '1.5s' }}></div>
-              </div>
-            </div>
+            <p style={{ fontSize: 13, color: '#9CA3AF', marginTop: 16 }}>No credit card required. 30 email analyses included.</p>
           </div>
-        </div>
-      </section>
 
-      {/* Product Section */}
-      <section id="product" className="py-20 px-6 bg-[#050510]">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.product.title}</h2>
-            <p className="text-gray-400 max-w-3xl mx-auto mb-4">{t.product.desc}</p>
-            <p className="text-gray-400 max-w-3xl mx-auto">{t.product.desc2}</p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {t.product.features.map((feature, i) => (
-              <div key={i} className="bg-gradient-to-br from-[#0a0a1a] to-[#0f0f1f] rounded-2xl p-6 border border-white/5 hover:border-[#5200FF]/50 transition group">
-                <div className="w-12 h-12 mb-4 p-2 rounded-xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
-                  <Icon name={feature.icon} className="w-full h-full" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2 group-hover:bg-gradient-to-r group-hover:from-[#9E14FB] group-hover:to-[#1BA1FF] group-hover:bg-clip-text group-hover:text-transparent transition">{feature.title}</h3>
-                <p className="text-gray-500 text-sm">{feature.desc}</p>
+          {/* Hero stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: '#E5E7EB', border: '1px solid #E5E7EB', borderRadius: 6, overflow: 'hidden', marginTop: 64, maxWidth: 600 }}>
+            {[
+              { value: '< 2 min', label: 'Average quote response time' },
+              { value: '8 hrs', label: 'Saved per forwarder per week' },
+              { value: '3 countries', label: 'Compliance coverage' },
+            ].map((stat, i) => (
+              <div key={i} style={{ padding: '24px 28px', background: '#fff' }}>
+                <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: '-0.03em', color: '#111827', marginBottom: 4 }}>{stat.value}</div>
+                <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.4 }}>{stat.label}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section className="py-20 px-6 bg-gradient-to-b from-[#050510] to-[#0a0a1a]">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-16">{t.features.title}</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {t.features.items.map((feature, i) => (
-              <div key={i} className="flex gap-4">
-                <div className="w-10 h-10 flex-shrink-0 p-2 rounded-lg bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
-                  <Icon name={feature.icon} className="w-full h-full" />
+      {/* ── WHAT WE DO ── */}
+      <section id="features" className="section">
+        <div className="container">
+          <div style={{ marginBottom: 56 }}>
+            <div className="label">What FreightWizard does</div>
+            <h2 className="heading-lg" style={{ maxWidth: 480 }}>Everything your freight ops team does manually — automated</h2>
+          </div>
+
+          <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: '#E5E7EB', border: '1px solid #E5E7EB', borderRadius: 6, overflow: 'hidden' }}>
+            {[
+              {
+                icon: '📧',
+                title: 'Email Analysis',
+                desc: 'Reads incoming freight emails and extracts shipment details: ports, container types, cargo, incoterms, customer intent, and missing information.',
+              },
+              {
+                icon: '💰',
+                title: 'Quote Builder',
+                desc: 'Pre-fills a professional quote from the email data. Add your rate, preview the document, and send it directly from FreightWizard — in under 2 minutes.',
+              },
+              {
+                icon: '🚢',
+                title: 'Shipment Tracker',
+                desc: 'Kanban board that auto-detects shipments from emails. Moves cards when status-update emails arrive. Full audit trail per shipment.',
+              },
+              {
+                icon: '🔗',
+                title: 'Customer Portal',
+                desc: 'Generate a shareable tracking link for your customer. They see live status, route, ETA, and milestones — no login required.',
+              },
+              {
+                icon: '📋',
+                title: 'Rate Card Storage',
+                desc: 'Save your carrier rates per lane, carrier, and container type. FreightWizard auto-suggests the best rate when you open the quote builder.',
+              },
+              {
+                icon: '🌍',
+                title: 'Compliance Layer',
+                desc: 'Country-specific checks for Brazil (MAPA, SERPRO), Netherlands (Portbase, EORI), and USA (ACE, EIN). Flags compliance issues directly in the email analysis.',
+              },
+              {
+                icon: '📄',
+                title: 'Document Intelligence',
+                desc: 'Upload Bills of Lading, AWBs, invoices, or packing lists. AI extracts all fields, flags risks and missing data, and generates a structured report.',
+              },
+              {
+                icon: '👥',
+                title: 'Team Inbox',
+                desc: 'Assign emails to team members, set owners and watchers, manage team queues, and track individual performance on a leaderboard.',
+              },
+              {
+                icon: '📊',
+                title: 'Analytics Dashboard',
+                desc: 'Monitor email volume, response times, quote conversion, intent breakdown, and team productivity over time.',
+              },
+            ].map((f, i) => (
+              <div key={i} style={{ padding: '32px', background: '#fff' }}>
+                <div style={{ fontSize: 28, marginBottom: 16 }}>{f.icon}</div>
+                <h3 className="heading-md" style={{ fontSize: 16, marginBottom: 10 }}>{f.title}</h3>
+                <p className="body-md" style={{ fontSize: 14 }}>{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ── */}
+      <section id="how-it-works" className="section" style={{ background: '#fff', borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #E5E7EB' }}>
+        <div className="container">
+          <div style={{ marginBottom: 56 }}>
+            <div className="label">How it works</div>
+            <h2 className="heading-lg">From inbox to quote in under 2 minutes</h2>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, position: 'relative' }}>
+            {/* connector line */}
+            <div style={{ position: 'absolute', top: 20, left: '12.5%', right: '12.5%', height: 1, background: '#E5E7EB', zIndex: 0 }} className="hide-mobile" />
+
+            {[
+              { step: '01', title: 'Connect your inbox', desc: 'Link Gmail or Outlook via secure OAuth. Your existing email address — no changes for customers.' },
+              { step: '02', title: 'AI reads the email', desc: 'Extracts ports, cargo, container type, incoterm, customer intent, and missing data within seconds.' },
+              { step: '03', title: 'Build the quote', desc: 'Rate card auto-suggest fills your sell rate. Preview the formatted quote and adjust before sending.' },
+              { step: '04', title: 'Send and track', desc: 'Send the reply directly. Shipment is auto-created in the tracker. Customer gets a portal link.' },
+            ].map((s, i) => (
+              <div key={i} style={{ padding: '0 24px 0 0', position: 'relative', zIndex: 1 }}>
+                <div style={{ width: 40, height: 40, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#9CA3AF', letterSpacing: '0.05em' }}>{s.step}</span>
                 </div>
-                <div>
-                  <h3 className="font-semibold mb-1">{feature.title}</h3>
-                  <p className="text-gray-500 text-sm">{feature.desc}</p>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: '#111827', marginBottom: 8, letterSpacing: '-0.01em' }}>{s.title}</h3>
+                <p style={{ fontSize: 14, color: '#6B7280', lineHeight: 1.6 }}>{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── USE CASES ── */}
+      <section className="section">
+        <div className="container">
+          <div style={{ marginBottom: 56 }}>
+            <div className="label">Who uses FreightWizard</div>
+            <h2 className="heading-lg" style={{ maxWidth: 440 }}>Built for the teams that run on email</h2>
+          </div>
+
+          <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 24 }}>
+            {[
+              {
+                title: 'Independent freight forwarders',
+                desc: 'Solo operators and small agencies handling 50–500 shipments per month. FreightWizard gives you the leverage of a larger team without the headcount.',
+                tags: ['Quote builder', 'Rate cards', 'Shipment tracker'],
+              },
+              {
+                title: 'Operations teams',
+                desc: 'Forwarding companies with 5–30 people. Assign emails, track response times, measure team performance, and stop losing quotes to slow turnaround.',
+                tags: ['Team inbox', 'Analytics', 'Leaderboard'],
+              },
+              {
+                title: 'Brazil-focused forwarders',
+                desc: 'Companies moving cargo through Santos, Paranaguá, or Itajaí. SERPRO integration, MAPA compliance alerts, and CE Mercante status built in.',
+                tags: ['SERPRO', 'MAPA alerts', 'CE Mercante'],
+              },
+              {
+                title: 'European forwarders',
+                desc: 'Dutch and EU forwarders using Portbase for Rotterdam. EORI validation, DMS compliance checklists, and TARIC reference built into the workflow.',
+                tags: ['Portbase', 'EORI', 'DMS compliance'],
+              },
+            ].map((u, i) => (
+              <div key={i} className="feature-card">
+                <h3 className="heading-md" style={{ fontSize: 17, marginBottom: 10 }}>{u.title}</h3>
+                <p className="body-md" style={{ marginBottom: 20, fontSize: 14 }}>{u.desc}</p>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {u.tags.map(t => <span key={t} className="tag">{t}</span>)}
                 </div>
               </div>
             ))}
@@ -495,133 +433,179 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* How It Works */}
-      <section id="how-it-works" className="py-20 px-6 bg-[#050510]">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-16">{t.howItWorks.title}</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {t.howItWorks.steps.map((step, i) => (
-              <div key={i} className="relative">
-                <div className="w-12 h-12 bg-gradient-to-br from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full flex items-center justify-center text-xl font-bold mb-4">
-                  {step.num}
-                </div>
-                <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
-                <p className="text-gray-500 text-sm">{step.desc}</p>
-                {i < 3 && <div className="hidden lg:block absolute top-6 left-14 w-full h-0.5 bg-gradient-to-r from-[#5200FF]/50 to-transparent"></div>}
-              </div>
-            ))}
+      {/* ── INTEGRATIONS ── */}
+      <section className="section-sm" style={{ background: '#fff', borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #E5E7EB' }}>
+        <div className="container">
+          <div style={{ marginBottom: 40 }}>
+            <div className="label">Integrations</div>
+            <h2 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>Works with the tools you already use</h2>
           </div>
-        </div>
-      </section>
 
-      {/* Use Cases */}
-      <section id="use-cases" className="py-20 px-6 bg-gradient-to-b from-[#050510] to-[#0a0a1a]">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.useCases.title}</h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">{t.useCases.desc}</p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {t.useCases.cases.map((useCase, i) => (
-              <div key={i} className="bg-[#0a0a1a] rounded-2xl p-6 border border-white/5 text-center hover:border-[#1BA1FF]/30 transition">
-                <div className="w-16 h-16 mx-auto mb-4 p-3 rounded-2xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
-                  <Icon name={useCase.icon} className="w-full h-full" />
-                </div>
-                <h3 className="font-semibold mb-2">{useCase.title}</h3>
-                <p className="text-gray-500 text-sm">{useCase.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Integrations */}
-      <section id="integrations" className="py-20 px-6 bg-[#050510]">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.integrations.title}</h2>
-            <p className="text-gray-400">{t.integrations.desc}</p>
-          </div>
-          
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold text-center mb-4 text-[#1BA1FF]">{t.integrations.supported}</h3>
-            <div className="flex flex-wrap justify-center gap-4">
-              {t.integrations.current.map((int, i) => (
-                <div key={i} className="px-6 py-3 bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10 rounded-full border border-[#5200FF]/30 hover:border-[#5200FF]/50 transition">
-                  {int}
-                </div>
+          <div style={{ marginBottom: 32 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#9CA3AF', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 16 }}>Email</p>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {['Gmail', 'Outlook', 'Microsoft 365', 'Google Workspace'].map(i => (
+                <div key={i} className="integration-logo">{i}</div>
               ))}
             </div>
           </div>
-          
+
+          <div style={{ marginBottom: 32 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#9CA3AF', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 16 }}>Compliance & customs</p>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {['SERPRO Integra Comex (BR)', 'Portbase (NL)', 'CE Mercante (BR)', 'ACE / CBP (US)'].map(i => (
+                <div key={i} className="integration-logo">{i}</div>
+              ))}
+            </div>
+          </div>
+
           <div>
-            <h3 className="text-lg font-semibold text-center mb-4 text-gray-500">{t.integrations.future}</h3>
-            <div className="flex flex-wrap justify-center gap-4">
-              {t.integrations.coming.map((int, i) => (
-                <div key={i} className="px-6 py-3 bg-[#0a0a1a] rounded-full border border-white/10 text-gray-500">
-                  {int}
-                </div>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#9CA3AF', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 16 }}>Coming soon</p>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {['CargoWise', 'Descartes', 'Terminal49 live tracking', 'SAP TM'].map(i => (
+                <div key={i} style={{ ...{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', background: '#F9FAFB', border: '1px dashed #D1D5DB', borderRadius: 4, fontSize: 14, fontWeight: 500, color: '#9CA3AF' } }}>{i}</div>
               ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="py-20 px-6 bg-gradient-to-b from-[#050510] to-[#0a0a1a]">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-16">{t.pricing.title}</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
-            {t.pricing.plans.map((plan, i) => (
-              <div key={i} className={`rounded-2xl p-6 border flex flex-col ${plan.popular ? 'bg-gradient-to-br from-[#9E14FB]/10 via-[#5200FF]/10 to-[#1BA1FF]/10 border-[#5200FF]/50' : 'bg-[#0a0a1a] border-white/5'}`}>
-                {plan.popular && <div className="text-xs bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] bg-clip-text text-transparent font-medium mb-2">MOST POPULAR</div>}
-                <h3 className="text-xl font-bold">{plan.name}</h3>
-                <div className="mt-4 mb-2">
-                  <span className="text-3xl font-bold">{plan.price}</span>
-                  <span className="text-gray-500">{plan.period}</span>
-                </div>
-                <p className="text-gray-500 text-sm mb-6">{plan.desc}</p>
-                <ul className="space-y-3 mb-6 flex-grow">
-                  {plan.features.map((f, j) => (
-                    <li key={j} className="flex items-center gap-2 text-sm">
-                      <span className="text-[#1BA1FF]">✓</span> {f}
-                    </li>
-                  ))}
-                </ul>
-                <Link href="/dashboard" className={`block w-full text-center py-3 rounded-full font-medium mt-auto ${plan.popular ? 'bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] text-white' : 'border border-white/20 hover:bg-white/5'}`}>
-                  {plan.cta}
-                </Link>
+      {/* ── PRICING ── */}
+      <section id="pricing" className="section">
+        <div className="container">
+          <div style={{ marginBottom: 48 }}>
+            <div className="label">Pricing</div>
+            <h2 className="heading-lg" style={{ marginBottom: 16 }}>Simple, transparent pricing</h2>
+            <p className="body-lg" style={{ marginBottom: 32, maxWidth: 480 }}>Start with a 14-day free trial. No credit card required. Full Professional access from day one.</p>
+
+            {/* Annual toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 14, color: annual ? '#6B7280' : '#111827', fontWeight: annual ? 400 : 500 }}>Monthly</span>
+              <button
+                onClick={() => setAnnual(!annual)}
+                style={{ width: 44, height: 24, borderRadius: 12, background: annual ? '#111827' : '#D1D5DB', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+                <span style={{ position: 'absolute', top: 3, left: annual ? 23 : 3, width: 18, height: 18, borderRadius: 9, background: '#fff', transition: 'left 0.2s' }} />
+              </button>
+              <span style={{ fontSize: 14, color: annual ? '#111827' : '#6B7280', fontWeight: annual ? 500 : 400 }}>Annual</span>
+              {annual && <span style={{ fontSize: 12, fontWeight: 600, color: '#059669', background: '#ECFDF5', padding: '2px 8px', borderRadius: 2 }}>2 months free</span>}
+            </div>
+          </div>
+
+          <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, background: '#E5E7EB', border: '1px solid #E5E7EB', borderRadius: 6, overflow: 'hidden', alignItems: 'stretch' }}>
+
+            {/* Trial */}
+            <div style={{ padding: 32, background: '#F9FAFB' }}>
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', marginBottom: 8 }}>Trial</p>
+                <div style={{ fontSize: 36, fontWeight: 600, letterSpacing: '-0.03em', color: '#111827' }}>Free</div>
+                <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>14 days · no card needed</div>
               </div>
-            ))}
+              <a href={`${API_URL}/auth/google`} className="btn-outline" style={{ width: '100%', justifyContent: 'center', marginBottom: 28 }}>Start free trial</a>
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {['30 email analyses', 'Full Professional access', '5 active shipments', '5 quotes', '1 user'].map(f => (
+                  <li key={f} style={{ fontSize: 14, color: '#374151' }}><span className="check">✓</span>{f}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Starter */}
+            <div style={{ padding: 32, background: '#fff' }}>
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', marginBottom: 8 }}>Starter</p>
+                <div style={{ fontSize: 36, fontWeight: 600, letterSpacing: '-0.03em', color: '#111827' }}>${prices.starter}</div>
+                <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>per month{annual ? ', billed annually' : ''}</div>
+              </div>
+              <a href={`${API_URL}/auth/google`} className="btn-outline" style={{ width: '100%', justifyContent: 'center', marginBottom: 28 }}>Get started</a>
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {['200 analyses/month', 'Quote builder', 'Shipment tracker (10)', '20 quotes/month', 'Rate card storage', 'Customer portal', '1 user', 'Email support'].map(f => (
+                  <li key={f} style={{ fontSize: 14, color: '#374151' }}><span className="check">✓</span>{f}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Professional */}
+            <div style={{ padding: 32, background: '#111827', color: '#fff', position: 'relative' }}>
+              <div style={{ position: 'absolute', top: 16, right: 16 }}>
+                <span className="badge" style={{ background: '#2563EB', color: '#fff' }}>Most popular</span>
+              </div>
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#9CA3AF', marginBottom: 8 }}>Professional</p>
+                <div style={{ fontSize: 36, fontWeight: 600, letterSpacing: '-0.03em', color: '#fff' }}>${prices.professional}</div>
+                <div style={{ fontSize: 13, color: '#9CA3AF', marginTop: 4 }}>per month{annual ? ', billed annually' : ''}</div>
+              </div>
+              <a href={`${API_URL}/auth/google`} className="btn-accent" style={{ width: '100%', justifyContent: 'center', marginBottom: 28 }}>Get started</a>
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {['Unlimited analyses', 'Everything in Starter', 'Unlimited shipments', 'Unlimited quotes', 'Document intelligence', 'Team leaderboard', 'Up to 5 users', 'Country compliance layer', 'Priority support'].map(f => (
+                  <li key={f} style={{ fontSize: 14, color: '#D1D5DB' }}><span className="check-white">✓</span>{f}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Enterprise */}
+            <div style={{ padding: 32, background: '#fff' }}>
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#6B7280', marginBottom: 8 }}>Enterprise</p>
+                <div style={{ fontSize: 36, fontWeight: 600, letterSpacing: '-0.03em', color: '#111827' }}>${prices.enterprise}</div>
+                <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>per month{annual ? ', billed annually' : ''}</div>
+              </div>
+              <a href={`${API_URL}/auth/google`} className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: 28 }}>Get started</a>
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {['Everything in Professional', 'Unlimited users', 'Custom portal branding', 'Live container tracking', 'API access', 'Dedicated support', 'Custom onboarding'].map(f => (
+                  <li key={f} style={{ fontSize: 14, color: '#374151' }}><span className="check">✓</span>{f}</li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* About Section */}
-      <section id="about" className="py-20 px-6 bg-[#050510]">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-8">{t.about.title}</h2>
-          <div className="space-y-6 text-gray-400 text-lg leading-relaxed">
-            <p>{t.about.p1}</p>
-            <p>{t.about.p2}</p>
-            <p>{t.about.p3}</p>
+      {/* ── SECURITY ── */}
+      <section className="section-sm" style={{ background: '#fff', borderTop: '1px solid #E5E7EB', borderBottom: '1px solid #E5E7EB' }}>
+        <div className="container">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center' }}>
+            <div>
+              <div className="label">Security</div>
+              <h2 className="heading-lg" style={{ marginBottom: 16 }}>Your email data stays yours</h2>
+              <p className="body-lg" style={{ marginBottom: 0 }}>FreightWizard is built with security as a constraint, not an afterthought. Your emails are processed to generate analysis and never used to train AI models or shared with third parties.</p>
+            </div>
+            <div>
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {[
+                  'OAuth 2.0 — no passwords stored',
+                  'End-to-end encrypted data storage',
+                  'Zero AI training on your emails',
+                  'GDPR compliant',
+                  'Strict role-based access controls',
+                  'Webhook signature verification',
+                ].map(item => (
+                  <li key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 15, color: '#374151' }}>
+                    <span style={{ color: '#2563EB', flexShrink: 0 }}>✓</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* FAQ */}
-      <section className="py-20 px-6 bg-gradient-to-b from-[#050510] to-[#0a0a1a]">
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-16">{t.faq.title}</h2>
-          <div className="space-y-4">
-            {t.faq.items.map((faq, i) => (
-              <div key={i} className="border border-white/10 rounded-xl overflow-hidden bg-[#0a0a1a]/50">
-                <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-white/5">
-                  <span className="font-medium">{faq.q}</span>
-                  <span className="text-xl text-[#1BA1FF]">{openFaq === i ? '−' : '+'}</span>
+      {/* ── FAQ ── */}
+      <section id="faq" className="section">
+        <div className="container-narrow">
+          <div style={{ marginBottom: 48 }}>
+            <div className="label">FAQ</div>
+            <h2 className="heading-lg">Common questions</h2>
+          </div>
+
+          <div>
+            {faqs.map((faq, i) => (
+              <div key={i} className="faq-item">
+                <button className="faq-btn" onClick={() => setFaqOpen(faqOpen === i ? null : i)}>
+                  <span style={{ fontSize: 16, fontWeight: 500, color: '#111827', letterSpacing: '-0.01em' }}>{faq.q}</span>
+                  <span style={{ fontSize: 18, color: '#9CA3AF', flexShrink: 0, transform: faqOpen === i ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }}>+</span>
                 </button>
-                {openFaq === i && (
-                  <div className="px-6 pb-4 text-gray-400">{faq.a}</div>
+                {faqOpen === i && (
+                  <p style={{ marginTop: 16, fontSize: 15, color: '#6B7280', lineHeight: 1.7 }}>{faq.a}</p>
                 )}
               </div>
             ))}
@@ -629,69 +613,49 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Security */}
-      <section className="py-20 px-6 bg-[#050510]">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.security.title}</h2>
-          <p className="text-gray-400 mb-8">{t.security.desc}</p>
-          <div className="flex flex-wrap justify-center gap-4">
-            {t.security.items.map((item, i) => (
-              <div key={i} className="px-4 py-2 bg-[#1BA1FF]/10 text-[#1BA1FF] rounded-full text-sm border border-[#1BA1FF]/20">
-                ✓ {item}
+      {/* ── CTA ── */}
+      <section className="section-sm" style={{ background: '#111827', borderTop: '1px solid #1F2937' }}>
+        <div className="container" style={{ textAlign: 'center' }}>
+          <h2 className="heading-lg" style={{ color: '#fff', marginBottom: 16, maxWidth: 480, margin: '0 auto 16px' }}>Start responding to freight inquiries in minutes</h2>
+          <p style={{ fontSize: 17, color: '#9CA3AF', marginBottom: 40, maxWidth: 400, margin: '0 auto 40px' }}>14-day free trial. No credit card. Cancel anytime.</p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <a href={`${API_URL}/auth/google`} className="btn-accent">Start free trial</a>
+            <a href="#pricing" style={{ display: 'inline-flex', alignItems: 'center', padding: '11px 24px', color: '#9CA3AF', fontSize: 14, textDecoration: 'none', border: '1.5px solid #374151', borderRadius: 4, transition: 'color 0.15s, border-color 0.15s' }}>View pricing</a>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer style={{ background: '#111827', borderTop: '1px solid #1F2937', padding: '48px 0 32px' }}>
+        <div className="container">
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 48, marginBottom: 48 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" style={{ width: 20, height: 20, filter: 'brightness(0) invert(1)' }} />
+                <span style={{ fontSize: 15, fontWeight: 600, color: '#fff', letterSpacing: '-0.02em' }}>FreightWizard</span>
+              </div>
+              <p style={{ fontSize: 14, color: '#6B7280', lineHeight: 1.6, maxWidth: 280 }}>AI-powered email management for freight forwarding operations.</p>
+            </div>
+
+            {[
+              { heading: 'Product', links: [{ label: 'Features', href: '#features' }, { label: 'Pricing', href: '#pricing' }, { label: 'Integrations', href: '#features' }] },
+              { heading: 'Company', links: [{ label: 'About', href: '#' }, { label: 'Blog', href: '#' }, { label: 'Careers', href: '#' }] },
+              { heading: 'Legal', links: [{ label: 'Privacy', href: '#' }, { label: 'Terms', href: '#' }, { label: 'Security', href: '#' }] },
+            ].map(col => (
+              <div key={col.heading}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#9CA3AF', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 16 }}>{col.heading}</p>
+                <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {col.links.map(l => (
+                    <li key={l.label}><a href={l.href} style={{ fontSize: 14, color: '#6B7280', textDecoration: 'none', transition: 'color 0.15s' }}>{l.label}</a></li>
+                  ))}
+                </ul>
               </div>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* Final CTA */}
-      <section className="py-20 px-6 bg-gradient-to-b from-[#050510] to-[#0a0a1a]">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.cta.title}</h2>
-          <p className="text-gray-400 mb-8">{t.cta.desc}</p>
-          <Link href="/dashboard" className="inline-block px-10 py-4 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full font-medium text-lg hover:opacity-90 shadow-lg shadow-[#5200FF]/25">
-            {t.cta.button}
-          </Link>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-12 px-6 border-t border-white/5 bg-[#050510]">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className="h-6 w-6 object-contain" />
-                <span className="font-bold">FreightWizard</span>
-              </div>
-              <p className="text-gray-500 text-sm">{t.footer.desc}</p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">{t.footer.product}</h4>
-              <ul className="space-y-2 text-gray-500 text-sm">
-                <li><a href="#product" className="hover:text-white">{t.footer.links.features}</a></li>
-                <li><a href="#pricing" className="hover:text-white">{t.footer.links.pricing}</a></li>
-                <li><a href="#integrations" className="hover:text-white">{t.footer.links.integrations}</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">{t.footer.company}</h4>
-              <ul className="space-y-2 text-gray-500 text-sm">
-                <li><a href="#about" className="hover:text-white">{t.footer.links.about}</a></li>
-                <li><a href="#" className="hover:text-white">{t.footer.links.blog}</a></li>
-                <li><a href="#" className="hover:text-white">{t.footer.links.careers}</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">{t.footer.legal}</h4>
-              <ul className="space-y-2 text-gray-500 text-sm">
-                <li><a href="#" className="hover:text-white">{t.footer.links.privacy}</a></li>
-                <li><a href="#" className="hover:text-white">{t.footer.links.terms}</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-white/5 pt-8 text-center text-gray-600 text-sm">
-            {t.footer.copy}
+          <div style={{ borderTop: '1px solid #1F2937', paddingTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <p style={{ fontSize: 13, color: '#4B5563' }}>© 2026 FreightWizard. All rights reserved.</p>
+            <p style={{ fontSize: 13, color: '#4B5563' }}>Built for freight forwarders in 🇧🇷 🇳🇱 🇺🇸</p>
           </div>
         </div>
       </footer>
