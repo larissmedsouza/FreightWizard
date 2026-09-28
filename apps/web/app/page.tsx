@@ -363,9 +363,8 @@ export default function HomePage() {
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 bg-[#050510]/90 backdrop-blur-md border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-1.5">
-            <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className="h-7 w-7 object-contain" />
-            <span className="text-xl font-bold">FreightWizard</span>
+          <Link href="/" className="flex items-center">
+            <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-7 w-auto" />
           </Link>
 
           {/* Desktop Nav */}
@@ -435,7 +434,7 @@ export default function HomePage() {
         </div>
 
         {/* Layer 3: content */}
-        <div className="relative z-20 flex flex-col items-center justify-end min-h-screen pt-[45vh] md:pt-[40vh] pb-8 md:pb-16 px-6 text-center pointer-events-none">
+        <div className="relative z-20 flex flex-col items-center justify-start md:justify-end min-h-screen pt-56 md:pt-[40vh] pb-8 md:pb-16 px-6 text-center pointer-events-none">
           <div className="inline-block px-4 py-2 bg-[#050510]/80 backdrop-blur-sm border border-[#9E14FB]/40 rounded-full text-xs md:text-sm mb-5">
             <span className="bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] bg-clip-text text-transparent font-medium">
               {t.hero.badge}
@@ -693,9 +692,8 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className="h-6 w-6 object-contain" />
-                <span className="font-bold">FreightWizard</span>
+              <div className="flex items-center mb-4">
+                <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-6 w-auto" />
               </div>
               <p className="text-gray-500 text-sm">{t.footer.desc}</p>
             </div>
