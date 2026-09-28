@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import FreightGlobe from '@/app/components/FreightGlobe';
 import Image from 'next/image';
 
 // Icon component for easy SVG usage
@@ -23,7 +24,7 @@ const translations = {
       cta: 'Try it free',
     },
     product: {
-      title: 'Everything your freight inbox needs — automated by AI',
+      title: 'Everything your freight inbox needs, automated by AI',
       desc: 'Freight forwarding operations rely heavily on email communication. Quote requests, shipment updates, documentation questions, and follow-ups arrive continuously throughout the day. Managing this inbox manually slows teams down and increases the risk of missed opportunities.',
       desc2: 'FreightWizard uses artificial intelligence to analyze incoming freight emails, extract key shipment information, and suggest the appropriate actions automatically.',
       features: [
@@ -36,18 +37,18 @@ const translations = {
     features: {
       title: 'Key Features',
       items: [
-        { icon: 'web_page_Shipment Data Extraction', title: 'Shipment Data Extraction', desc: 'Detects ports, container types, cargo details, vessel names, and shipment references automatically.' },
+        { icon: 'web_page_Data Extraction', title: 'Shipment Data Extraction', desc: 'Detects ports, container types, cargo details, vessel names, and shipment references automatically.' },
         { icon: 'web_page_Email Intent Detection', title: 'Email Intent Detection', desc: 'Classifies incoming emails as quotes, updates, documentation requests, or tracking inquiries.' },
         { icon: 'web_page_Reply Assistant', title: 'Reply Assistant', desc: 'AI generates accurate and professional responses based on the email context.' },
         { icon: 'web_page_Activity Timeline', title: 'Activity Timeline', desc: 'Track communication history for every shipment conversation.' },
         { icon: 'web_page_Smart Notifications', title: 'Smart Notifications', desc: 'Get alerted when high-priority emails arrive or deadlines approach.' },
         { icon: 'web_page_Analytics Dashboard', title: 'Analytics Dashboard', desc: 'Monitor email volume, response times, and team productivity.' },
         { icon: 'web_page_AI Drafted Responses', title: 'Quote Builder', desc: 'Pre-fills quotes from extracted email data so you can review and send them directly.' },
-        { icon: 'web_page_Activity Timeline', title: 'Shipment Tracker', desc: 'Kanban board that auto-detects shipments from your emails and keeps their status current.' },
-        { icon: 'web_page_Freight Forwarding Companies', title: 'Customer Portal', desc: 'Shareable tracking link your customer can open with no login required.' },
+        { icon: 'web_page_Shipment Tracker', title: 'Shipment Tracker', desc: 'Kanban board that auto-detects shipments from your emails and keeps their status current.' },
+        { icon: 'web_page_Customer Portal', title: 'Customer Portal', desc: 'Shareable tracking link your customer can open with no login required.' },
         { icon: 'web_page_Analytics Dashboard', title: 'Rate Card Storage', desc: 'Save carrier rates per lane and have them auto-suggested inside the quote builder.' },
-        { icon: 'web_page_Smart Notifications', title: 'Country Compliance', desc: 'Brazil MAPA/SERPRO, Netherlands Portbase/EORI, and USA ACE checks built in.' },
-        { icon: 'web_page_Shipment Data Extraction', title: 'Document Intelligence', desc: 'Upload a BL, AWB, or invoice and AI extracts the fields and flags risks.' },
+        { icon: 'web_page_Country Compliance', title: 'Country Compliance', desc: 'Brazil MAPA/SERPRO, Netherlands Portbase/EORI, and USA ACE checks built in.' },
+        { icon: 'web_page_Document Intelligence', title: 'Document Intelligence', desc: 'Upload a BL, AWB, or invoice and AI extracts the fields and flags risks.' },
       ],
     },
     howItWorks: {
@@ -141,7 +142,7 @@ const translations = {
       cta: 'Teste grátis',
     },
     product: {
-      title: 'Tudo que sua caixa de entrada de frete precisa — automatizado por IA',
+      title: 'Tudo que sua caixa de entrada de frete precisa, automatizado por IA',
       desc: 'Operações de freight forwarding dependem muito da comunicação por e-mail. Pedidos de cotação, atualizações de embarque e follow-ups chegam continuamente.',
       desc2: 'O FreightWizard usa inteligência artificial para analisar e-mails, extrair informações de embarque e sugerir ações automaticamente.',
       features: [
@@ -154,18 +155,18 @@ const translations = {
     features: {
       title: 'Recursos Principais',
       items: [
-        { icon: 'web_page_Shipment Data Extraction', title: 'Extração de Dados', desc: 'Detecta portos, tipos de container, detalhes de carga e referências automaticamente.' },
+        { icon: 'web_page_Data Extraction', title: 'Extração de Dados', desc: 'Detecta portos, tipos de container, detalhes de carga e referências automaticamente.' },
         { icon: 'web_page_Email Intent Detection', title: 'Detecção de Intenção', desc: 'Classifica e-mails como cotações, atualizações ou consultas de rastreamento.' },
         { icon: 'web_page_Reply Assistant', title: 'Assistente de Resposta', desc: 'IA gera respostas precisas e profissionais baseadas no contexto.' },
         { icon: 'web_page_Activity Timeline', title: 'Linha do Tempo', desc: 'Acompanhe o histórico de comunicação de cada conversa.' },
         { icon: 'web_page_Smart Notifications', title: 'Notificações', desc: 'Seja alertado quando e-mails urgentes chegarem.' },
         { icon: 'web_page_Analytics Dashboard', title: 'Painel Analytics', desc: 'Monitore volume de e-mails e produtividade da equipe.' },
         { icon: 'web_page_AI Drafted Responses', title: 'Construtor de Cotações', desc: 'Pré-preenche cotações com os dados extraídos do e-mail para revisar e enviar direto.' },
-        { icon: 'web_page_Activity Timeline', title: 'Rastreador de Embarques', desc: 'Quadro Kanban que detecta embarques nos seus e-mails e mantém o status atualizado.' },
-        { icon: 'web_page_Freight Forwarding Companies', title: 'Portal do Cliente', desc: 'Link de rastreamento compartilhável que o cliente abre sem precisar de login.' },
+        { icon: 'web_page_Shipment Tracker', title: 'Rastreador de Embarques', desc: 'Quadro Kanban que detecta embarques nos seus e-mails e mantém o status atualizado.' },
+        { icon: 'web_page_Customer Portal', title: 'Portal do Cliente', desc: 'Link de rastreamento compartilhável que o cliente abre sem precisar de login.' },
         { icon: 'web_page_Analytics Dashboard', title: 'Tabela de Tarifas', desc: 'Salve tarifas de transportadoras por rota e receba sugestões no construtor de cotações.' },
-        { icon: 'web_page_Smart Notifications', title: 'Compliance por País', desc: 'MAPA/SERPRO no Brasil, Portbase/EORI na Holanda e ACE nos EUA já integrados.' },
-        { icon: 'web_page_Shipment Data Extraction', title: 'Inteligência de Documentos', desc: 'Envie um BL, AWB ou fatura e a IA extrai os campos e sinaliza riscos.' },
+        { icon: 'web_page_Country Compliance', title: 'Compliance por País', desc: 'MAPA/SERPRO no Brasil, Portbase/EORI na Holanda e ACE nos EUA já integrados.' },
+        { icon: 'web_page_Document Intelligence', title: 'Inteligência de Documentos', desc: 'Envie um BL, AWB ou fatura e a IA extrai os campos e sinaliza riscos.' },
       ],
     },
     howItWorks: {
@@ -248,7 +249,7 @@ const translations = {
       cta: 'Probeer gratis',
     },
     product: {
-      title: 'Alles wat je vracht-inbox nodig heeft — geautomatiseerd door AI',
+      title: 'Alles wat je vracht-inbox nodig heeft, geautomatiseerd door AI',
       desc: 'Freight forwarding operaties zijn sterk afhankelijk van e-mailcommunicatie. Offerteaanvragen, updates en follow-ups komen continu binnen.',
       desc2: 'FreightWizard gebruikt AI om e-mails te analyseren, zendingsinformatie te extraheren en acties automatisch voor te stellen.',
       features: [
@@ -261,18 +262,18 @@ const translations = {
     features: {
       title: 'Belangrijkste Functies',
       items: [
-        { icon: 'web_page_Shipment Data Extraction', title: 'Zendingsdata Extractie', desc: 'Detecteert havens, containertypes, lading en referenties automatisch.' },
+        { icon: 'web_page_Data Extraction', title: 'Zendingsdata Extractie', desc: 'Detecteert havens, containertypes, lading en referenties automatisch.' },
         { icon: 'web_page_Email Intent Detection', title: 'Intentie Detectie', desc: 'Classificeert e-mails als offertes, updates of tracking vragen.' },
         { icon: 'web_page_Reply Assistant', title: 'Antwoord Assistent', desc: 'AI genereert accurate en professionele antwoorden.' },
         { icon: 'web_page_Activity Timeline', title: 'Activiteit Tijdlijn', desc: 'Volg communicatiegeschiedenis voor elk gesprek.' },
         { icon: 'web_page_Smart Notifications', title: 'Notificaties', desc: 'Ontvang alerts bij urgente e-mails.' },
         { icon: 'web_page_Analytics Dashboard', title: 'Analytics Dashboard', desc: 'Monitor e-mailvolume en teamproductiviteit.' },
         { icon: 'web_page_AI Drafted Responses', title: 'Offerte Bouwer', desc: 'Vult offertes vooraf in met data uit de e-mail zodat je ze direct kunt versturen.' },
-        { icon: 'web_page_Activity Timeline', title: 'Zending Tracker', desc: 'Kanban-bord dat zendingen uit je e-mails detecteert en de status actueel houdt.' },
-        { icon: 'web_page_Freight Forwarding Companies', title: 'Klantportaal', desc: 'Deelbare tracking-link die je klant zonder login kan openen.' },
+        { icon: 'web_page_Shipment Tracker', title: 'Zending Tracker', desc: 'Kanban-bord dat zendingen uit je e-mails detecteert en de status actueel houdt.' },
+        { icon: 'web_page_Customer Portal', title: 'Klantportaal', desc: 'Deelbare tracking-link die je klant zonder login kan openen.' },
         { icon: 'web_page_Analytics Dashboard', title: 'Tarievenkaart Opslag', desc: 'Sla vervoerderstarieven per traject op en krijg ze voorgesteld in de offerte bouwer.' },
-        { icon: 'web_page_Smart Notifications', title: 'Land Compliance', desc: 'MAPA/SERPRO in Brazilië, Portbase/EORI in Nederland en ACE in de VS ingebouwd.' },
-        { icon: 'web_page_Shipment Data Extraction', title: 'Document Intelligentie', desc: 'Upload een BL, AWB of factuur en AI extraheert de velden en markeert risico\'s.' },
+        { icon: 'web_page_Country Compliance', title: 'Land Compliance', desc: 'MAPA/SERPRO in Brazilië, Portbase/EORI in Nederland en ACE in de VS ingebouwd.' },
+        { icon: 'web_page_Document Intelligence', title: 'Document Intelligentie', desc: 'Upload een BL, AWB of factuur en AI extraheert de velden en markeert risico\'s.' },
       ],
     },
     howItWorks: {
@@ -418,78 +419,46 @@ export default function HomePage() {
         )}
       </nav>
 
-      {/* Hero Section with Real Globe */}
-      <section className="pt-32 pb-20 px-6 relative overflow-hidden min-h-screen flex items-center">
-        {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#9E14FB]/5 via-[#050510] to-[#1BA1FF]/5"></div>
-        
-        <div className="max-w-7xl mx-auto w-full relative z-10">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Left Content */}
-            <div>
-              <div className="inline-block px-4 py-2 bg-gradient-to-r from-[#9E14FB]/20 to-[#5200FF]/20 rounded-full text-sm mb-6 border border-[#9E14FB]/30">
-                <span className="bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] bg-clip-text text-transparent font-medium">
-                  {t.hero.badge}
-                </span>
-              </div>
-              
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-                <span className="text-white">{t.hero.title1}</span>
-                <br />
-                <span className="text-white">{t.hero.title2}</span>
-                <span className="bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] bg-clip-text text-transparent">{t.hero.title3}</span>
-              </h1>
-              
-              <p className="text-gray-300 text-lg mb-4">
-                {t.hero.subtitle}
-              </p>
-              <p className="text-gray-500 mb-8">
-                {t.hero.desc}
-              </p>
-              
-              <Link href="/dashboard" className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-md font-medium text-lg hover:opacity-90 transition shadow-lg shadow-[#5200FF]/25">
-                {t.hero.cta} <span>→</span>
-              </Link>
-            </div>
-
-            {/* Right Content - Real Globe with Floating Icons */}
-            <div className="relative">
-              <div className="relative w-full aspect-square max-w-lg mx-auto">
-                {/* Subtle glow effect behind globe */}
-                <div className="absolute inset-0 bg-gradient-to-r from-[#9E14FB]/20 via-[#5200FF]/15 to-[#1BA1FF]/20 rounded-full blur-3xl scale-90 opacity-60"></div>
-                
-                {/* Real Globe Image */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <img 
-                    src="/globe.png" 
-                    alt="Global Freight Network" 
-                    className="w-full h-full object-contain"
-                    style={{ mixBlendMode: 'lighten' }}
-                  />
-                </div>
-                
-                {/* Floating icons around the globe - white icons */}
-                <div className="absolute top-[8%] left-[12%] w-12 h-12 bg-gradient-to-r from-[#9E14FB] to-[#5200FF] rounded-xl flex items-center justify-center shadow-lg shadow-[#9E14FB]/40 animate-bounce p-2.5" style={{ animationDuration: '3s' }}>
-                  <Icon name="web_page_Email Intent Detection" className="w-full h-full brightness-0 invert" />
-                </div>
-                <div className="absolute top-[15%] right-[8%] w-12 h-12 bg-gradient-to-r from-[#5200FF] to-[#1BA1FF] rounded-xl flex items-center justify-center shadow-lg shadow-[#5200FF]/40 animate-bounce p-2.5" style={{ animationDuration: '3.5s', animationDelay: '0.5s' }}>
-                  <Icon name="web_page_Shipment Data Extraction" className="w-full h-full brightness-0 invert" />
-                </div>
-                <div className="absolute bottom-[18%] left-[8%] w-12 h-12 bg-gradient-to-r from-[#1BA1FF] to-[#9E14FB] rounded-xl flex items-center justify-center shadow-lg shadow-[#1BA1FF]/40 animate-bounce p-2.5" style={{ animationDuration: '4s', animationDelay: '1s' }}>
-                  <Icon name="web_page_Freight Forwarding Companies" className="w-full h-full brightness-0 invert" />
-                </div>
-                <div className="absolute bottom-[10%] right-[12%] w-12 h-12 bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] rounded-xl flex items-center justify-center shadow-lg shadow-[#9E14FB]/40 animate-bounce p-2.5" style={{ animationDuration: '3.2s', animationDelay: '1.5s' }}>
-                  <Icon name="web_page_Analytics Dashboard" className="w-full h-full brightness-0 invert" />
-                </div>
-                
-                {/* Small floating dots */}
-                <div className="absolute top-[35%] left-[5%] w-2 h-2 bg-[#9E14FB] rounded-full animate-pulse"></div>
-                <div className="absolute top-[25%] right-[20%] w-2 h-2 bg-[#1BA1FF] rounded-full animate-pulse" style={{ animationDelay: '0.5s' }}></div>
-                <div className="absolute bottom-[30%] right-[5%] w-2 h-2 bg-[#5200FF] rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
-                <div className="absolute bottom-[40%] left-[18%] w-2 h-2 bg-[#1BA1FF] rounded-full animate-pulse" style={{ animationDelay: '1.5s' }}></div>
-              </div>
-            </div>
+      {/* Hero Section with Immersive Globe */}
+      <section className="min-h-screen relative overflow-hidden bg-[#050510]">
+        {/* Layer 1: globe */}
+        <div className="absolute inset-0 z-0 flex items-start justify-center pt-16">
+          <div className="w-[560px] max-w-[75vw] shrink-0">
+            <FreightGlobe />
           </div>
+        </div>
+
+        {/* Layer 2: contrast gradients */}
+        <div className="absolute inset-0 z-10 pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-t from-[#050510] via-[#050510]/40 to-transparent"></div>
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[60%] h-[50%] bg-[#050510]/40 blur-3xl rounded-full"></div>
+        </div>
+
+        {/* Layer 3: content */}
+        <div className="relative z-20 flex flex-col items-center justify-end min-h-screen pt-[40vh] pb-16 px-6 text-center pointer-events-none">
+          <div className="inline-block px-4 py-2 bg-[#050510]/80 backdrop-blur-sm border border-[#9E14FB]/40 rounded-full text-xs md:text-sm mb-5">
+            <span className="bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] bg-clip-text text-transparent font-medium">
+              {t.hero.badge}
+            </span>
+          </div>
+
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-sans font-medium mb-5 leading-tight">
+            <span className="text-white">{t.hero.title1}</span>
+            <br />
+            <span className="text-white">{t.hero.title2}</span>
+            <span className="bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] bg-clip-text text-transparent">{t.hero.title3}</span>
+          </h1>
+
+          <p className="text-gray-300 text-base md:text-lg mb-3 max-w-2xl">
+            {t.hero.subtitle}
+          </p>
+          <p className="text-gray-500 text-sm md:text-base mb-8 max-w-2xl">
+            {t.hero.desc}
+          </p>
+
+          <Link href="/dashboard" className="pointer-events-auto border border-white/40 text-white px-8 py-3.5 rounded-md hover:border-white/80 hover:bg-white/5 transition">
+            {t.hero.cta}
+          </Link>
         </div>
       </section>
 

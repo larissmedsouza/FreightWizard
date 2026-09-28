@@ -1,0 +1,14 @@
+<svg width="18" height="22" viewBox="0 0 18 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+<ellipse cx="8.75" cy="3.75" rx="8" ry="3" stroke="url(#fw_web_page_Data_Extraction)" stroke-width="1.5"/>
+<path d="M3.75 9.5918C4.35158 9.77264 5.02434 9.92156 5.75 10.0317" stroke="url(#fw_web_page_Data_Extraction)" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M8.75 13.75C4.33172 13.75 0.75 12.4069 0.75 10.75" stroke="url(#fw_web_page_Data_Extraction)" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M3.75 16.5918C4.35158 16.7726 5.02434 16.9216 5.75 17.0317" stroke="url(#fw_web_page_Data_Extraction)" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M8.75 20.75C4.33172 20.75 0.75 19.4069 0.75 17.75V3.75M16.75 3.75V10.75" stroke="url(#fw_web_page_Data_Extraction)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M16.75 18.0765L15.5758 19.5631C14.9508 20.3544 14.6383 20.75 14.25 20.75C13.8617 20.75 13.5492 20.3544 12.9242 19.5631L11.75 18.0765M14.25 20.6628V12.75" stroke="url(#fw_web_page_Data_Extraction)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<defs>
+<linearGradient id="fw_web_page_Data_Extraction" x1="0" y1="0" x2="0" y2="22" gradientUnits="userSpaceOnUse">
+<stop stop-color="#7C0BFD"/>
+<stop offset="1" stop-color="#3949FF"/>
+</linearGradient>
+</defs>
+</svg>

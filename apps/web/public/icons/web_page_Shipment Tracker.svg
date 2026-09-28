@@ -1,0 +1,13 @@
+<svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M6.75 20.75H4.75C2.86438 20.75 1.92157 20.75 1.33579 20.1642C0.75 19.5784 0.75 18.6356 0.75 16.75V14.75C0.75 12.8644 0.75 11.9216 1.33579 11.3358C1.92157 10.75 2.86438 10.75 4.75 10.75H6.75C8.63562 10.75 9.57843 10.75 10.1642 11.3358C10.75 11.9216 10.75 12.8644 10.75 14.75V16.75C10.75 18.6356 10.75 19.5784 10.1642 20.1642C9.57843 20.75 8.63562 20.75 6.75 20.75Z" stroke="url(#fw_web_page_Shipment_Tracker)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M4.75 13.75L6.75 13.75" stroke="url(#fw_web_page_Shipment_Tracker)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M16.75 0.75C14.5409 0.75 12.75 2.55892 12.75 4.79033C12.75 6.06626 13.25 7.05834 14.25 7.9445C14.9549 8.56911 15.8088 9.60657 16.3214 10.4475C16.5673 10.8508 16.915 10.8508 17.1786 10.4475C17.7172 9.62329 18.5451 8.56911 19.25 7.9445C20.25 7.05834 20.75 6.06626 20.75 4.79033C20.75 2.55892 18.9591 0.75 16.75 0.75Z" stroke="url(#fw_web_page_Shipment_Tracker)" stroke-width="1.5" stroke-linejoin="round"/>
+<path d="M16.75 13.75V16.75C16.75 18.6356 16.75 19.5784 16.2814 20.1642C15.8339 20.7235 15.1261 20.7488 13.75 20.7499" stroke="url(#fw_web_page_Shipment_Tracker)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M16.7578 4.75L16.7488 4.75" stroke="url(#fw_web_page_Shipment_Tracker)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<defs>
+<linearGradient id="fw_web_page_Shipment_Tracker" x1="0" y1="0" x2="0" y2="22" gradientUnits="userSpaceOnUse">
+<stop stop-color="#7C0BFD"/>
+<stop offset="1" stop-color="#3949FF"/>
+</linearGradient>
+</defs>
+</svg>

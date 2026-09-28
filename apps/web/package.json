@@ -10,6 +10,7 @@
   "dependencies": {
     "@stripe/stripe-js": "^9.15.0",
     "canvas-confetti": "^1.9.4",
+    "cobe": "^2.0.1",
     "next": "14.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
