@@ -200,6 +200,8 @@ export default function FreightGlobe() {
           transition: "opacity 1.2s ease", borderRadius: "50%", touchAction: "none",
         }}
       />
+      {/* Floating labels are hidden on phones, where they collide with the hero headline */}
+      <div className="hidden sm:block">
       {markers.map((m) => (
         <div key={m.id} style={{ position: "absolute", positionAnchor: `--cobe-${m.id}`, bottom: "anchor(top)", left: "anchor(center)", translate: "-50% 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, pointerEvents: "none", opacity: `var(--cobe-visible-${m.id}, 0)`, filter: `blur(calc((1 - var(--cobe-visible-${m.id}, 0)) * 8px))`, transition: "opacity 0.3s, filter 0.3s" } as React.CSSProperties}>
           <div style={{ width: 12, height: 12, position: "relative", transformStyle: "preserve-3d", animation: "pyramid-spin 4s linear infinite" }}>
@@ -211,6 +213,7 @@ export default function FreightGlobe() {
       {traffic.map((t) => (
         <div key={t.id} style={{ ...labelStyle, position: "absolute", positionAnchor: `--cobe-arc-${t.id}`, bottom: "anchor(top)", left: "anchor(center)", translate: "-50% 0", fontSize: "0.5rem", padding: "3px 8px", borderRadius: 4, opacity: `var(--cobe-visible-arc-${t.id}, 0)`, filter: `blur(calc((1 - var(--cobe-visible-arc-${t.id}, 0)) * 8px))`, transition: "opacity 0.3s, filter 0.3s" } as React.CSSProperties}>{(t.value / 1000).toFixed(1)}k TEU/mo</div>
       ))}
+      </div>
     </div>
   )
 }

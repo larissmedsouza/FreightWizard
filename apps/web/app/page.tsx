@@ -423,7 +423,7 @@ export default function HomePage() {
       <section className="min-h-screen relative overflow-hidden bg-[#050510]">
         {/* Layer 1: globe */}
         <div className="absolute inset-0 z-0 flex items-start justify-center pt-16">
-          <div className="w-[560px] max-w-[75vw] shrink-0">
+          <div className="w-[320px] max-w-[85vw] md:w-[560px] md:max-w-[75vw] shrink-0">
             <FreightGlobe />
           </div>
         </div>
@@ -435,7 +435,7 @@ export default function HomePage() {
         </div>
 
         {/* Layer 3: content */}
-        <div className="relative z-20 flex flex-col items-center justify-end min-h-screen pt-[40vh] pb-16 px-6 text-center pointer-events-none">
+        <div className="relative z-20 flex flex-col items-center justify-end min-h-screen pt-[45vh] md:pt-[40vh] pb-8 md:pb-16 px-6 text-center pointer-events-none">
           <div className="inline-block px-4 py-2 bg-[#050510]/80 backdrop-blur-sm border border-[#9E14FB]/40 rounded-full text-xs md:text-sm mb-5">
             <span className="bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] bg-clip-text text-transparent font-medium">
               {t.hero.badge}
@@ -449,10 +449,10 @@ export default function HomePage() {
             <span className="bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] bg-clip-text text-transparent">{t.hero.title3}</span>
           </h1>
 
-          <p className="text-gray-300 text-base md:text-lg mb-3 max-w-2xl">
+          <p className="text-gray-300 text-base md:text-lg mb-3 max-w-2xl px-4">
             {t.hero.subtitle}
           </p>
-          <p className="text-gray-500 text-sm md:text-base mb-8 max-w-2xl">
+          <p className="text-gray-500 text-sm md:text-base mb-8 max-w-2xl px-4">
             {t.hero.desc}
           </p>
 
