@@ -399,8 +399,24 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Mobile Menu Button */}
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden text-2xl">☰</button>
+          {/* Mobile: Language Selector + Menu Button */}
+          <div className="md:hidden flex items-center gap-3">
+            <div className="relative">
+              <button onClick={() => { setLangMenuOpen(!langMenuOpen); setMobileMenuOpen(false); }} className="flex items-center gap-1 text-sm text-gray-400 hover:text-white px-3 py-1.5 rounded-lg border border-white/10">
+                {langLabels[language]} <span className="text-xs">▼</span>
+              </button>
+              {langMenuOpen && (
+                <div className="absolute top-full right-0 mt-2 bg-[#0a0a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden">
+                  {(['en', 'pt', 'nl'] as Language[]).map((l) => (
+                    <button key={l} onClick={() => { setLanguage(l); setLangMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-white/10">
+                      {langLabels[l]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button onClick={() => { setMobileMenuOpen(!mobileMenuOpen); setLangMenuOpen(false); }} className="text-2xl">☰</button>
+          </div>
         </div>
 
         {/* Mobile Menu */}
