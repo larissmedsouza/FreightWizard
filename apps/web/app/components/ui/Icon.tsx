@@ -2,11 +2,11 @@
  * FreightWizard line icons, in the FreightGuild style: route motif, one
  * continuous stroke where possible, round caps and joins, node dots and one
  * filled "accent" node. 24px grid, 1.5px stroke everywhere. Single colour via
- * currentColor (violet-400 on the landing page). No filled tiles.
+ * currentColor. One set for the whole product: landing page and app.
  */
 import type { ReactNode } from "react"
 
-export type FwIconName =
+export type IconName =
   | "email"
   | "workflow"
   | "reply"
@@ -32,15 +32,16 @@ export type FwIconName =
   | "minus"
   | "chevron"
 
-const AF = "fill-current stroke-none" // accent node
+// Accent node: filled with the current colour.
+const AF = { className: "fill-current stroke-none" }
 
-const icons: Record<FwIconName, ReactNode> = {
+const icons: Record<IconName, ReactNode> = {
   // Message frame with a route running into it
   email: (
     <>
       <rect x="3" y="5.5" width="18" height="13" rx="1.5" />
       <path d="M3.5 7 12 13l8.5-6" />
-      <circle cx="12" cy="13" r="1.75" className={AF} />
+      <circle cx="12" cy="13" r="1.75" {...AF} />
     </>
   ),
   // One input routed to the right next step
@@ -49,7 +50,7 @@ const icons: Record<FwIconName, ReactNode> = {
       <path d="M4 12h5l5-5h6M9 12l5 5h6" />
       <circle cx="4" cy="12" r="1.25" />
       <circle cx="20" cy="7" r="1.25" />
-      <circle cx="20" cy="17" r="2" className={AF} />
+      <circle cx="20" cy="17" r="2" {...AF} />
     </>
   ),
   // Route returning to its origin
@@ -57,7 +58,7 @@ const icons: Record<FwIconName, ReactNode> = {
     <>
       <path d="M20.5 18v-3a5 5 0 0 0-5-5H5" />
       <path d="M8.5 6.5 5 10l3.5 3.5" />
-      <circle cx="20.5" cy="18" r="1.75" className={AF} />
+      <circle cx="20.5" cy="18" r="1.75" {...AF} />
     </>
   ),
   // Inbox tray with the top item lifted out
@@ -65,7 +66,7 @@ const icons: Record<FwIconName, ReactNode> = {
     <>
       <path d="M3.5 13.5 6 5.5h12l2.5 8v5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z" />
       <path d="M3.5 13.5h5l1 2h5l1-2h5" />
-      <circle cx="12" cy="9.5" r="1.75" className={AF} />
+      <circle cx="12" cy="9.5" r="1.75" {...AF} />
     </>
   ),
   // Document with a field routed out of it
@@ -74,7 +75,7 @@ const icons: Record<FwIconName, ReactNode> = {
       <path d="M12.5 21h-6V3h7.5l4 4v5.5" />
       <path d="M14 3v4h4M9.5 10.5h5M9.5 14h3" />
       <path d="M15.5 17.5h6M19 15l2.5 2.5L19 20" />
-      <circle cx="15.5" cy="17.5" r="1.25" className={AF} />
+      <circle cx="15.5" cy="17.5" r="1.25" {...AF} />
     </>
   ),
   // Concentric rings: the message's intent pinned down
@@ -82,7 +83,7 @@ const icons: Record<FwIconName, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="8.5" />
       <circle cx="12" cy="12" r="4.5" />
-      <circle cx="12" cy="12" r="1.75" className={AF} />
+      <circle cx="12" cy="12" r="1.75" {...AF} />
     </>
   ),
   // Message frame with a drafted line and an assist node
@@ -90,7 +91,7 @@ const icons: Record<FwIconName, ReactNode> = {
     <>
       <path d="M4 4.5h12A1.5 1.5 0 0 1 17.5 6v6a1.5 1.5 0 0 1-1.5 1.5h-6L6 17v-3.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5z" />
       <path d="M6 8.5h7.5M6 11h4.5" />
-      <circle cx="19.5" cy="18" r="2" className={AF} />
+      <circle cx="19.5" cy="18" r="2" {...AF} />
     </>
   ),
   // Vertical route with dated entries
@@ -99,7 +100,7 @@ const icons: Record<FwIconName, ReactNode> = {
       <path d="M6 3.5v17" />
       <circle cx="6" cy="6.5" r="1.25" />
       <circle cx="6" cy="12" r="1.25" />
-      <circle cx="6" cy="17.5" r="2" className={AF} />
+      <circle cx="6" cy="17.5" r="2" {...AF} />
       <path d="M10 6.5h9.5M10 12h6.5M10 17.5h8" />
     </>
   ),
@@ -108,7 +109,7 @@ const icons: Record<FwIconName, ReactNode> = {
     <>
       <path d="M6 10.5a6 6 0 0 1 12 0c0 4.5 1.5 6 2 7H4c.5-1 2-2.5 2-7z" />
       <path d="M10 20.5a2 2 0 0 0 4 0" />
-      <circle cx="18.5" cy="5" r="2" className={AF} />
+      <circle cx="18.5" cy="5" r="2" {...AF} />
     </>
   ),
   // KPI line rising across nodes
@@ -118,7 +119,7 @@ const icons: Record<FwIconName, ReactNode> = {
       <path d="M4.5 16 9 11.5l3.5 3L19 7.5" />
       <circle cx="9" cy="11.5" r="1.25" />
       <circle cx="12.5" cy="14.5" r="1.25" />
-      <circle cx="19" cy="7.5" r="2" className={AF} />
+      <circle cx="19" cy="7.5" r="2" {...AF} />
     </>
   ),
   // Quote sheet with line items and a total
@@ -126,7 +127,7 @@ const icons: Record<FwIconName, ReactNode> = {
     <>
       <rect x="4.5" y="3" width="15" height="18" rx="1.5" />
       <path d="M8 7.5h8M8 11h8M8 16.5h3.5" />
-      <circle cx="15.5" cy="16.5" r="1.75" className={AF} />
+      <circle cx="15.5" cy="16.5" r="1.75" {...AF} />
     </>
   ),
   // Arc between two nodes, current position marked
@@ -135,7 +136,7 @@ const icons: Record<FwIconName, ReactNode> = {
       <path d="M3.5 18.5C6 11 13 6.5 20.5 5.5" />
       <circle cx="3.5" cy="18.5" r="1.25" />
       <circle cx="20.5" cy="5.5" r="1.25" />
-      <circle cx="9.6" cy="10.6" r="2" className={AF} />
+      <circle cx="9.6" cy="10.6" r="2" {...AF} />
     </>
   ),
   // Browser frame with a shared link
@@ -144,7 +145,7 @@ const icons: Record<FwIconName, ReactNode> = {
       <rect x="3" y="4.5" width="18" height="15" rx="1.5" />
       <path d="M3 8.5h18" />
       <path d="M9 14.5h6M13 12.5l2 2-2 2" />
-      <circle cx="8.5" cy="14.5" r="1.5" className={AF} />
+      <circle cx="8.5" cy="14.5" r="1.5" {...AF} />
     </>
   ),
   // Rate table with one rate selected
@@ -152,7 +153,7 @@ const icons: Record<FwIconName, ReactNode> = {
     <>
       <rect x="3.5" y="4.5" width="17" height="15" rx="1.5" />
       <path d="M3.5 9.5h17M3.5 14.5h17M10 4.5v15" />
-      <circle cx="15.25" cy="12" r="1.5" className={AF} />
+      <circle cx="15.25" cy="12" r="1.5" {...AF} />
     </>
   ),
   // Shield with a check
@@ -167,7 +168,7 @@ const icons: Record<FwIconName, ReactNode> = {
     <>
       <path d="M6.5 3h7.5l4 4v14h-11.5z" />
       <path d="M14 3v4h4M10 14h5M10 17h3" />
-      <circle cx="10.5" cy="10.5" r="1.5" className={AF} />
+      <circle cx="10.5" cy="10.5" r="1.5" {...AF} />
     </>
   ),
   // Hub coordinating several routes
@@ -177,7 +178,7 @@ const icons: Record<FwIconName, ReactNode> = {
       <circle cx="4.5" cy="6" r="1.25" />
       <circle cx="19.5" cy="6" r="1.25" />
       <circle cx="12" cy="20" r="1.25" />
-      <circle cx="12" cy="12" r="2.25" className={AF} />
+      <circle cx="12" cy="12" r="2.25" {...AF} />
     </>
   ),
   // Workflow segments in sequence
@@ -186,7 +187,7 @@ const icons: Record<FwIconName, ReactNode> = {
       <path d="M3 7h6v10h6V7h6" />
       <circle cx="3" cy="7" r="1.25" />
       <circle cx="21" cy="7" r="1.25" />
-      <circle cx="12" cy="17" r="1.75" className={AF} />
+      <circle cx="12" cy="17" r="1.75" {...AF} />
     </>
   ),
   // Opportunity caught: rising route with arrowhead
@@ -195,7 +196,7 @@ const icons: Record<FwIconName, ReactNode> = {
       <path d="M3.5 20h17" />
       <path d="m5 16 4.5-4.5 3 3 7-7" />
       <path d="M15 7.5h4.5V12" />
-      <circle cx="5" cy="16" r="1.75" className={AF} />
+      <circle cx="5" cy="16" r="1.75" {...AF} />
     </>
   ),
   // Small team, room to grow
@@ -212,12 +213,12 @@ const icons: Record<FwIconName, ReactNode> = {
   chevron: <path d="m6 9.5 6 6 6-6" />,
 }
 
-export default function FwIcon({
+export default function Icon({
   name,
   size = 24,
   className = "",
 }: {
-  name: FwIconName
+  name: IconName
   size?: number
   className?: string
 }) {

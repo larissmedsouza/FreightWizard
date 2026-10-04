@@ -24,11 +24,11 @@ export function Section({
   )
 }
 
-/** Mono uppercase label with a short violet rule before it. violet-300 text (9.2:1). */
+/** Mono uppercase label with a short indigo rule before it. indigo-300 text (8.1:1 on canvas). */
 export function Eyebrow({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <p className={`flex items-center gap-3 font-fw-mono text-fw-eyebrow uppercase text-fw-violet-300 ${className}`}>
-      <span aria-hidden className="h-0.5 w-5 flex-none rounded-full bg-fw-violet-500" />
+    <p className={`flex items-center gap-3 font-fw-mono text-fw-eyebrow uppercase text-fw-indigo-300 ${className}`}>
+      <span aria-hidden className="h-0.5 w-5 flex-none rounded-full bg-fw-indigo-500" />
       {children}
     </p>
   )

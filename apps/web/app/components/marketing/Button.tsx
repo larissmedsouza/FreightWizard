@@ -4,7 +4,7 @@ import type { ComponentProps, ReactNode } from "react"
 /**
  * One button system for the landing page. 3px radius, flat fills, 44px minimum
  * tap target.
- *  - primary:   violet-500 fill, white text (5.3:1); violet-600 on hover (6.8:1).
+ *  - primary:   indigo-500 fill, white text (7.5:1); indigo-600 on hover (9.5:1).
  *  - secondary: 1px white-20% outline, ink text; raised fill on hover.
  */
 export type ButtonVariant = "primary" | "secondary"
@@ -13,7 +13,7 @@ const base =
   "inline-flex min-h-[2.75rem] items-center justify-center gap-2 rounded-fw-btn px-5 text-fw-small font-semibold whitespace-nowrap transition-colors duration-200 ease-calm"
 
 const styles: Record<ButtonVariant, string> = {
-  primary: "bg-fw-violet-500 text-fw-white hover:bg-fw-violet-600",
+  primary: "bg-fw-indigo-500 text-fw-white hover:bg-fw-indigo-600",
   secondary: "border border-fw-line-strong text-fw-ink hover:border-fw-ink-3 hover:bg-fw-raised",
 }
 

@@ -47,7 +47,7 @@ const labelStyle: React.CSSProperties = {
   fontFamily: "var(--font-plex-mono), monospace",
   color: colors.white,
   background: colors["globe-label"],
-  border: `1px solid color-mix(in srgb, ${colors["violet-500"]} 40%, transparent)`,
+  border: `1px solid color-mix(in srgb, ${colors["indigo-500"]} 40%, transparent)`,
   whiteSpace: "nowrap",
   pointerEvents: "none",
 }
@@ -126,12 +126,12 @@ export default function FreightGlobe() {
         phi: 0, theta: 0.2, dark: 1, diffuse: 1.5,
         mapSamples: 16000, mapBrightness: 10,
         baseColor: hexToRgb01(colors["globe-base"]),
-        markerColor: hexToRgb01(colors["violet-500"]),
+        markerColor: hexToRgb01(colors["globe-marker"]),
         glowColor: hexToRgb01(colors["globe-glow"]),
         markerElevation: 0.02,
         markers: markers.map((m) => ({ location: m.location, size: 0.012, id: m.id })),
         arcs: arcs.map((a) => ({ from: a.from, to: a.to, id: a.id })),
-        arcColor: hexToRgb01(colors["violet-500"]),
+        arcColor: hexToRgb01(colors["globe-arc"]),
         arcWidth: 0.5, arcHeight: 0.25, opacity: 0.7,
       })
       function animate() {

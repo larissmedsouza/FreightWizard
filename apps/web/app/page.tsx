@@ -7,8 +7,8 @@ import RevealObserver from '@/app/components/marketing/RevealObserver';
 import CountUp from '@/app/components/marketing/CountUp';
 import { ButtonLink } from '@/app/components/marketing/Button';
 import { Eyebrow, Section, SectionHeader } from '@/app/components/marketing/Section';
-import FeatureCard, { IconFrame, revealDelay } from '@/app/components/marketing/FeatureCard';
-import FwIcon, { type FwIconName } from '@/app/components/marketing/FwIcon';
+import FeatureCard, { IconFrame, revealDelay, titleHover } from '@/app/components/marketing/FeatureCard';
+import FwIcon, { type IconName as FwIconName } from '@/app/components/ui/Icon';
 
 // Translations
 const translations = {
@@ -355,7 +355,7 @@ export default function HomePage() {
   const navLink = 'text-fw-small text-fw-ink-2 transition-colors hover:text-fw-ink';
   const langButton = 'flex min-h-[2.75rem] items-center gap-1.5 rounded-fw-btn border border-fw-line px-3 font-fw-mono text-fw-data text-fw-ink-2 transition-colors hover:border-fw-line-strong hover:text-fw-ink';
   const tag = 'rounded-fw-btn border border-fw-line bg-fw-panel px-3 py-1.5 font-fw-mono text-fw-data';
-  const statusTag = 'rounded-fw-btn bg-fw-violet-tint px-2 py-0.5 font-fw-mono text-fw-data-xs uppercase text-fw-violet-200';
+  const statusTag = 'rounded-fw-btn bg-fw-indigo-tint px-2 py-0.5 font-fw-mono text-fw-data-xs uppercase text-fw-indigo-200';
 
   const langMenu = langMenuOpen && (
     <div className="absolute right-0 top-full mt-2 overflow-hidden rounded-fw-card border border-fw-line bg-fw-raised shadow-fw-frame">
@@ -368,7 +368,7 @@ export default function HomePage() {
   );
 
   return (
-    <div className="min-h-screen overflow-x-clip bg-fw-canvas font-fw-sans text-fw-body text-fw-ink antialiased selection:bg-fw-violet-500 selection:text-fw-white [&_:focus-visible]:rounded-[2px] [&_:focus-visible]:outline [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-offset-[3px] [&_:focus-visible]:outline-fw-violet-400">
+    <div className="min-h-screen overflow-x-clip bg-fw-canvas font-fw-sans text-fw-body text-fw-ink antialiased selection:bg-fw-indigo-500 selection:text-fw-white [&_:focus-visible]:rounded-[2px] [&_:focus-visible]:outline [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-offset-[3px] [&_:focus-visible]:outline-fw-indigo-300">
       <RevealObserver />
 
       {/* Navigation */}
@@ -450,7 +450,7 @@ export default function HomePage() {
             {t.hero.title1}
             <br />
             {t.hero.title2}
-            <span className="font-semibold text-fw-violet-400">{t.hero.title3}</span>
+            <span className="font-semibold text-fw-indigo-300">{t.hero.title3}</span>
           </h1>
 
           <p className="mb-3 max-w-2xl px-4 text-fw-lead text-fw-ink-2">
@@ -487,10 +487,10 @@ export default function HomePage() {
         <SectionHeader id="features-title" eyebrow={t.footer.links.features} title={t.features.title} className="mb-12 md:mb-16" />
         <div className="grid gap-x-8 gap-y-10 md:grid-cols-2 lg:grid-cols-3">
           {t.features.items.map((feature, i) => (
-            <div key={i} data-reveal style={revealDelay(i % 3)} className="flex gap-4">
+            <div key={i} data-reveal style={revealDelay(i % 3)} className="group flex gap-4">
               <IconFrame name={feature.icon} />
               <div>
-                <h3 className="mb-1 font-fw-display text-fw-h3 font-semibold text-fw-ink">{feature.title}</h3>
+                <h3 className={`mb-1 font-fw-display text-fw-h3 font-semibold text-fw-ink ${titleHover}`}>{feature.title}</h3>
                 <p className="text-fw-small text-fw-ink-2">{feature.desc}</p>
               </div>
             </div>
@@ -504,7 +504,7 @@ export default function HomePage() {
         <ol className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
           {t.howItWorks.steps.map((step, i) => (
             <li key={i} data-reveal style={revealDelay(i, 90)} className="border-t border-fw-line-strong pt-5">
-              <span className="font-fw-mono text-fw-data text-fw-violet-300">{step.num.padStart(2, '0')}</span>
+              <span className="font-fw-mono text-fw-data text-fw-indigo-300">{step.num.padStart(2, '0')}</span>
               <h3 className="mb-2 mt-3 font-fw-display text-fw-h3 font-semibold text-fw-ink">{step.title}</h3>
               <p className="text-fw-small text-fw-ink-2">{step.desc}</p>
             </li>
@@ -532,7 +532,7 @@ export default function HomePage() {
           { title: t.integrations.future, items: t.integrations.coming, soon: true },
         ].map((group, g) => (
           <div key={g} data-reveal style={revealDelay(g, 90)} className="mb-8 last:mb-0">
-            <h3 className={`mb-4 text-center font-fw-mono text-fw-eyebrow uppercase ${group.soon ? 'text-fw-ink-3' : 'text-fw-violet-300'}`}>{group.title}</h3>
+            <h3 className={`mb-4 text-center font-fw-mono text-fw-eyebrow uppercase ${group.soon ? 'text-fw-ink-3' : 'text-fw-indigo-300'}`}>{group.title}</h3>
             <ul className="flex flex-wrap justify-center gap-3">
               {group.items.map((int, i) => (
                 <li key={i} className={group.soon ? `${tag} border-dashed bg-transparent text-fw-ink-3` : `${tag} text-fw-ink`}>
@@ -569,7 +569,7 @@ export default function HomePage() {
               key={i}
               data-reveal
               style={revealDelay(i)}
-              className={`flex flex-col rounded-fw-card border bg-fw-panel p-6 ${plan.popular ? 'border-fw-violet-500 shadow-fw-frame' : 'border-fw-line'}`}
+              className={`flex flex-col rounded-fw-card border bg-fw-panel p-6 ${plan.popular ? 'border-fw-indigo-500 shadow-fw-frame' : 'border-fw-line'}`}
             >
               {/* Tag row: reserved on every card from lg up so prices line up across the row */}
               <div className={`mb-3 h-5 ${plan.popular ? "" : "hidden lg:block"}`}>
@@ -586,7 +586,7 @@ export default function HomePage() {
               <ul className="mb-6 flex-grow space-y-3 border-t border-fw-line pt-5">
                 {plan.features.map((f, j) => (
                   <li key={j} className="flex items-start gap-2.5 font-fw-mono text-fw-data text-fw-ink-2">
-                    <FwIcon name="check" size={16} className="mt-[3px] text-fw-violet-400" /> {f}
+                    <FwIcon name="check" size={16} className="mt-[3px] text-fw-indigo-300" /> {f}
                   </li>
                 ))}
               </ul>
@@ -620,7 +620,7 @@ export default function HomePage() {
                 className="flex min-h-[2.75rem] w-full items-center justify-between gap-4 px-6 py-4 text-left transition-colors hover:bg-fw-raised"
               >
                 <span className="font-medium text-fw-ink">{faq.q}</span>
-                <FwIcon name={openFaq === i ? 'minus' : 'plus'} size={20} className="text-fw-violet-400" />
+                <FwIcon name={openFaq === i ? 'minus' : 'plus'} size={20} className="text-fw-indigo-300" />
               </button>
               {openFaq === i && (
                 <div className="px-6 pb-5 text-fw-small text-fw-ink-2">{faq.a}</div>
@@ -636,7 +636,7 @@ export default function HomePage() {
         <ul data-reveal className="flex flex-wrap justify-center gap-3">
           {t.security.items.map((item, i) => (
             <li key={i} className={`${tag} flex items-center gap-2 text-fw-ink-2`}>
-              <FwIcon name="check" size={16} className="text-fw-violet-400" /> {item}
+              <FwIcon name="check" size={16} className="text-fw-indigo-300" /> {item}
             </li>
           ))}
         </ul>
