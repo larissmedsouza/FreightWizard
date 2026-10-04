@@ -2,18 +2,21 @@
 
 import { useState } from 'react';
 import { PLANS } from '../lib/plans';
+import Icon, { type IconName } from './ui/Icon';
+import { Button, Spinner } from './ui/Button';
+import { Tag } from './ui/Tag';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
 export type UpgradeReason = 'trial_expired' | 'trial_limit' | 'analyses_limit' | 'shipments_limit' | 'quotes_limit' | 'documents_blocked';
 
-const REASON_COPY: Record<UpgradeReason, { icon: string; title: string }> = {
-  trial_expired: { icon: '⏰', title: 'Your free trial has ended' },
-  trial_limit: { icon: '📊', title: "You've used all 30 trial analyses" },
-  analyses_limit: { icon: '📧', title: 'Monthly analysis limit reached' },
-  shipments_limit: { icon: '🚢', title: 'Active shipment limit reached' },
-  quotes_limit: { icon: '📋', title: 'Quote limit reached' },
-  documents_blocked: { icon: '🔒', title: 'Document Intelligence requires Professional' },
+const REASON_COPY: Record<UpgradeReason, { icon: IconName; title: string }> = {
+  trial_expired: { icon: 'clock', title: 'Your free trial has ended' },
+  trial_limit: { icon: 'analytics', title: "You've used all 30 trial analyses" },
+  analyses_limit: { icon: 'mail', title: 'Monthly analysis limit reached' },
+  shipments_limit: { icon: 'tracking', title: 'Active shipment limit reached' },
+  quotes_limit: { icon: 'quote', title: 'Quote limit reached' },
+  documents_blocked: { icon: 'lock', title: 'Document Intelligence requires Professional' },
 };
 
 interface UpgradeModalProps {
@@ -23,15 +26,10 @@ interface UpgradeModalProps {
   onLogout?: () => void;
 }
 
-export default function UpgradeModal({ reason, session, darkMode, onLogout }: UpgradeModalProps) {
+/** Blocking plan picker. Renders inside the page root, so it follows the page's data-theme. */
+export default function UpgradeModal({ reason, session, onLogout }: UpgradeModalProps) {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const copy = REASON_COPY[reason];
-
-  const theme = darkMode ? {
-    card: 'bg-[#0a0a1a]', cardBorder: 'border-white/10', text: 'text-white', textMuted: 'text-gray-400',
-  } : {
-    card: 'bg-white', cardBorder: 'border-slate-200', text: 'text-slate-900', textMuted: 'text-slate-600',
-  };
 
   const choosePlan = async (planKey: string) => {
     if (!session) return;
@@ -53,31 +51,33 @@ export default function UpgradeModal({ reason, session, darkMode, onLogout }: Up
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
-      <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl`}>
-        <div className="text-center px-6 pt-8 pb-4">
-          <div className="text-4xl mb-3">{copy.icon}</div>
-          <h2 className={`text-xl font-bold ${theme.text}`}>{copy.title}</h2>
-          <p className={`text-sm ${theme.textMuted} mt-1`}>Choose a plan to continue using FreightWizard</p>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-app-overlay p-4" onClick={e => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-labelledby="upgrade-title"
+        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-fw-card border border-app-line bg-app-card font-fw-sans text-app-ink shadow-app-pop">
+        <div className="px-6 pb-4 pt-8 text-center">
+          <span className="mx-auto mb-3 flex size-11 items-center justify-center rounded-fw-card border border-app-line text-app-accent">
+            <Icon name={copy.icon} size={20} />
+          </span>
+          <h2 id="upgrade-title" className="font-fw-display text-app-title-sm font-normal">{copy.title}</h2>
+          <p className="mt-1 text-app-ui text-app-ink-2">Choose a plan to continue using FreightWizard</p>
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-3 px-6 pb-6">
+        <div className="grid gap-3 px-6 pb-6 sm:grid-cols-3">
           {PLANS.map(p => (
-            <div key={p.key} className={`rounded-xl border ${p.popular ? 'border-[#9E14FB]/60' : theme.cardBorder} p-4 flex flex-col`}>
-              {p.popular && <span className="text-[10px] font-semibold text-[#9E14FB] mb-1">MOST POPULAR</span>}
-              <p className={`font-bold ${theme.text}`}>{p.name}</p>
-              <p className={`text-2xl font-bold ${theme.text} mb-1`}>${p.price}<span className={`text-xs font-normal ${theme.textMuted}`}>/mo</span></p>
-              <p className={`text-xs ${theme.textMuted} mb-3`}>{p.users}</p>
-              <button onClick={() => choosePlan(p.key)} disabled={loadingPlan === p.key}
-                className="mt-auto w-full py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
-                {loadingPlan === p.key ? 'Loading...' : 'Choose this plan'}
-              </button>
+            <div key={p.key} className={`flex flex-col rounded-fw-card border p-4 ${p.popular ? 'border-app-accent-fill' : 'border-app-line'}`}>
+              <div className="mb-2 h-5">{p.popular && <Tag tone="accent">Most popular</Tag>}</div>
+              <p className="text-app-ui font-semibold">{p.name}</p>
+              <p className="mb-1 font-fw-display text-app-kpi font-normal">${p.price}<span className="font-fw-mono text-app-mono-xs text-app-ink-3">/mo</span></p>
+              <p className="mb-4 text-app-ui-sm text-app-ink-2">{p.users}</p>
+              <Button variant={p.popular ? 'primary' : 'secondary'} className="mt-auto w-full" onClick={() => choosePlan(p.key)} disabled={loadingPlan === p.key}>
+                {loadingPlan === p.key ? <><Spinner className="size-3.5" /> Loading...</> : 'Choose this plan'}
+              </Button>
             </div>
           ))}
         </div>
 
-        <div className="text-center pb-6">
-          <button onClick={logout} className={`text-xs ${theme.textMuted} hover:underline`}>Log out</button>
+        <div className="pb-6 text-center">
+          <button onClick={logout} className="text-app-ui-sm text-app-ink-2 hover:underline">Log out</button>
         </div>
       </div>
     </div>

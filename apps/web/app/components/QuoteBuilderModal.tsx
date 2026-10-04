@@ -1,6 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Icon from './ui/Icon';
+import { Button } from './ui/Button';
+import { inputClass, inputInlineClass, selectClass, textareaClass, Field, DataLabel } from './ui/Field';
+import { toneClass } from './ui/tones';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
@@ -72,7 +76,7 @@ interface QuoteBuilderModalProps {
   onSent?: (quote: Quote) => void;
 }
 
-export default function QuoteBuilderModal({ darkMode, session, initial, onClose, onSaved, onSent }: QuoteBuilderModalProps) {
+export default function QuoteBuilderModal({ session, initial, onClose, onSaved, onSent }: QuoteBuilderModalProps) {
   const [quote, setQuote] = useState<Quote>({ ...EMPTY_QUOTE, ...initial, charges: initial.charges?.length ? initial.charges : [{ name: 'Ocean Freight', amount: 0 }] });
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
@@ -107,18 +111,6 @@ export default function QuoteBuilderModal({ darkMode, session, initial, onClose,
       charges: rate.sell_rate != null ? [{ name: `${rate.mode === 'ocean' ? 'Ocean' : rate.mode === 'air' ? 'Air' : rate.mode === 'road' ? 'Road' : 'Rail'} Freight — ${rate.carrier}`, amount: Number(rate.sell_rate) }] : prev.charges,
     }));
     setSuggestedRates([]);
-  };
-
-  const theme = darkMode ? {
-    card: 'bg-[#0a0a1a]', cardBorder: 'border-white/5', text: 'text-white',
-    textMuted: 'text-gray-400', textDim: 'text-gray-500',
-    hover: 'hover:bg-white/5', input: 'bg-[#0f0f1f] border-white/10 text-white placeholder-gray-600',
-    previewBg: 'bg-white text-slate-900',
-  } : {
-    card: 'bg-white', cardBorder: 'border-slate-200', text: 'text-slate-900',
-    textMuted: 'text-slate-600', textDim: 'text-slate-500',
-    hover: 'hover:bg-slate-100', input: 'bg-white border-slate-200 text-slate-900 placeholder-slate-400',
-    previewBg: 'bg-white text-slate-900',
   };
 
   const total = quoteTotal(quote);
@@ -178,8 +170,15 @@ export default function QuoteBuilderModal({ darkMode, session, initial, onClose,
 
   const handleDownloadPdf = () => window.print();
 
+  const text = (label: string, key: keyof Quote, opts: { placeholder?: string; mono?: boolean; type?: string } = {}) => (
+    <Field label={label}>
+      <input type={opts.type || 'text'} value={quote[key] as string} onChange={e => set(key, e.target.value as any)} placeholder={opts.placeholder}
+        className={`${inputClass} ${opts.mono ? 'font-fw-mono' : ''}`} />
+    </Field>
+  );
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 print:p-0 print:bg-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-app-overlay p-4 print:bg-white print:p-0">
       <style>{`
         @media print {
           body * { visibility: hidden; }
@@ -187,38 +186,42 @@ export default function QuoteBuilderModal({ darkMode, session, initial, onClose,
           #quote-print-area { position: fixed; inset: 0; width: 100%; padding: 24px; }
         }
       `}</style>
-      <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-6xl max-h-[92vh] shadow-2xl flex flex-col print:max-w-none print:max-h-none print:shadow-none print:border-0 print:rounded-none`}>
+      <div role="dialog" aria-modal="true" aria-labelledby="quote-builder-title"
+        className="flex max-h-[92vh] w-full max-w-6xl flex-col rounded-fw-card border border-app-line bg-app-card font-fw-sans text-app-ink shadow-app-pop print:max-h-none print:max-w-none print:rounded-none print:border-0 print:shadow-none">
         {/* Header */}
-        <div className={`flex items-center justify-between px-6 py-4 border-b ${theme.cardBorder} flex-shrink-0 print:hidden`}>
-          <h2 className={`font-bold text-lg ${theme.text}`}>Quote Builder — {quoteNumber(quote)}</h2>
-          <button onClick={onClose} className={`${theme.textDim} hover:text-red-400 text-xl`}>✕</button>
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-app-line px-5 py-3.5 print:hidden">
+          <h2 id="quote-builder-title" className="flex items-center gap-2 font-fw-display text-app-title-sm font-normal">
+            <Icon name="quote" size={18} className="text-app-accent" />
+            Quote Builder <span className="font-fw-mono text-app-mono text-app-ink-3">{quoteNumber(quote)}</span>
+          </h2>
+          <Button variant="ghost" size="icon-sm" icon="close" onClick={onClose} aria-label="Close" />
         </div>
 
         {notice && (
-          <div className={`mx-6 mt-3 px-4 py-2 rounded-lg text-sm text-white flex-shrink-0 print:hidden ${notice.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
-            {notice.msg}
+          <div className={`mx-5 mt-3 flex flex-shrink-0 items-center gap-2 rounded-fw-btn border border-app-line px-3 py-2 text-app-ui-sm print:hidden ${toneClass[notice.type === 'success' ? 'ok' : 'danger'].tag}`}>
+            <Icon name={notice.type === 'success' ? 'check' : 'alert'} size={14} /> {notice.msg}
           </div>
         )}
 
         {/* Body: form + preview */}
-        <div className="flex-1 overflow-hidden grid md:grid-cols-2 print:block">
+        <div className="grid flex-1 overflow-hidden md:grid-cols-2 print:block">
           {/* LEFT — Form */}
-          <div className={`overflow-y-auto p-6 space-y-4 border-r ${theme.cardBorder} print:hidden`}>
+          <div className="space-y-4 overflow-y-auto border-r border-app-line p-5 print:hidden">
             {suggestedRates.length > 0 && (
-              <div className={`rounded-xl border border-[#9E14FB]/30 ${darkMode ? 'bg-[#9E14FB]/5' : 'bg-purple-50'} p-3`}>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-[#9E14FB]">💡 Suggested Rates</p>
-                  <span className={`text-[10px] ${theme.textDim}`}>AI matched from your rate cards</span>
+              <div className="rounded-fw-card border border-app-line bg-app-panel p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="flex items-center gap-1.5 text-app-ui-sm font-semibold text-app-ink"><Icon name="sparkle" size={14} className="text-app-accent" /> Suggested Rates</p>
+                  <span className="text-app-ui-sm text-app-ink-3">AI matched from your rate cards</span>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-3">
                   {suggestedRates.map(r => (
                     <button key={r.id} onClick={() => applySuggestedRate(r)}
-                      className={`text-left p-2 rounded-lg border ${theme.cardBorder} ${theme.card} hover:border-[#9E14FB]/60 transition`}>
-                      <p className={`text-xs font-semibold ${theme.text}`}>{r.carrier}</p>
-                      <p className={`text-[10px] ${theme.textMuted}`}>{r.container_type || '—'}</p>
-                      <p className="text-xs font-bold text-[#9E14FB] mt-1">{r.sell_rate != null ? `${r.currency} ${Number(r.sell_rate).toFixed(2)}` : '—'}</p>
-                      <p className={`text-[10px] ${theme.textDim}`}>{r.transit_time || '—'}</p>
-                      {r.validity_end && <p className={`text-[9px] ${theme.textDim}`}>Valid until {r.validity_end}</p>}
+                      className="rounded-fw-btn border border-app-line bg-app-card p-2 text-left transition-colors hover:border-app-accent-fill">
+                      <p className="text-app-ui-sm font-semibold">{r.carrier}</p>
+                      <p className="font-fw-mono text-app-mono-xs text-app-ink-2">{r.container_type || '—'}</p>
+                      <p className="mt-1 font-fw-mono text-app-mono font-medium text-app-accent">{r.sell_rate != null ? `${r.currency} ${Number(r.sell_rate).toFixed(2)}` : '—'}</p>
+                      <p className="text-app-ui-sm text-app-ink-3">{r.transit_time || '—'}</p>
+                      {r.validity_end && <p className="font-fw-mono text-app-mono-xs text-app-ink-3">Valid until {r.validity_end}</p>}
                     </button>
                   ))}
                 </div>
@@ -226,180 +229,122 @@ export default function QuoteBuilderModal({ darkMode, session, initial, onClose,
             )}
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Customer Name</label>
-                <input value={quote.customer_name} onChange={e => set('customer_name', e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Customer Email</label>
-                <input value={quote.customer_email} onChange={e => set('customer_email', e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Origin</label>
-                <input value={quote.origin} onChange={e => set('origin', e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Destination</label>
-                <input value={quote.destination} onChange={e => set('destination', e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Mode</label>
-                <select value={quote.mode} onChange={e => set('mode', e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}>
+              {text('Customer Name', 'customer_name')}
+              {text('Customer Email', 'customer_email')}
+              {text('Origin', 'origin', { mono: true })}
+              {text('Destination', 'destination', { mono: true })}
+              <Field label="Mode">
+                <select value={quote.mode} onChange={e => set('mode', e.target.value)} className={selectClass}>
                   <option value="">Select mode</option>
-                  <option value="ocean">🚢 Ocean</option>
-                  <option value="air">✈️ Air</option>
-                  <option value="road">🚛 Road</option>
-                  <option value="rail">🚂 Rail</option>
+                  <option value="ocean">Ocean</option>
+                  <option value="air">Air</option>
+                  <option value="road">Road</option>
+                  <option value="rail">Rail</option>
                 </select>
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Incoterm</label>
-                <input value={quote.incoterm} onChange={e => set('incoterm', e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Carrier</label>
-                <input value={quote.carrier} onChange={e => set('carrier', e.target.value)}
-                  placeholder="e.g. Maersk"
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Commodity</label>
-                <input value={quote.commodity} onChange={e => set('commodity', e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Container Type</label>
-                <input value={quote.container_type} onChange={e => set('container_type', e.target.value)}
-                  placeholder="e.g. 1x40HC"
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Weight</label>
-                <input value={quote.weight} onChange={e => set('weight', e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Currency</label>
-                <select value={quote.currency} onChange={e => set('currency', e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}>
+              </Field>
+              {text('Incoterm', 'incoterm', { mono: true })}
+              {text('Carrier', 'carrier', { placeholder: 'e.g. Maersk' })}
+              {text('Commodity', 'commodity')}
+              {text('Container Type', 'container_type', { placeholder: 'e.g. 1x40HC', mono: true })}
+              {text('Weight', 'weight', { mono: true })}
+              <Field label="Currency">
+                <select value={quote.currency} onChange={e => set('currency', e.target.value)} className={selectClass}>
                   <option value="USD">USD</option>
                   <option value="EUR">EUR</option>
                   <option value="BRL">BRL</option>
                 </select>
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Transit Time</label>
-                <input value={quote.transit_time} onChange={e => set('transit_time', e.target.value)}
-                  placeholder="e.g. 25-30 days"
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Validity Date</label>
-                <input type="date" value={quote.validity_date} onChange={e => set('validity_date', e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
+              </Field>
+              {text('Transit Time', 'transit_time', { placeholder: 'e.g. 25-30 days' })}
+              {text('Validity Date', 'validity_date', { type: 'date', mono: true })}
             </div>
 
             {/* Charges breakdown */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className={`text-xs font-medium ${theme.textDim}`}>Charges Breakdown</label>
-                <button onClick={addCharge} className="text-xs text-[#9E14FB] hover:underline font-medium">+ Add charge</button>
+              <div className="mb-2 flex items-center justify-between">
+                <DataLabel>Charges Breakdown</DataLabel>
+                <Button variant="ghost" size="xs" icon="plus" onClick={addCharge}>Add charge</Button>
               </div>
               <div className="space-y-2">
                 {quote.charges.map((c, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <input value={c.name} onChange={e => updateCharge(i, 'name', e.target.value)}
-                      placeholder="e.g. Ocean Freight"
-                      className={`flex-1 px-3 py-1.5 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-                    <input type="number" value={c.amount} onChange={e => updateCharge(i, 'amount', e.target.value)}
-                      placeholder="0.00"
-                      className={`w-28 px-3 py-1.5 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-                    <button onClick={() => removeCharge(i)} className="text-red-400 hover:text-red-500 text-sm px-1">✕</button>
+                    <input value={c.name} onChange={e => updateCharge(i, 'name', e.target.value)} placeholder="e.g. Ocean Freight" aria-label="Charge name"
+                      className={`${inputInlineClass} min-w-0 flex-1`} />
+                    <input type="number" value={c.amount} onChange={e => updateCharge(i, 'amount', e.target.value)} placeholder="0.00" aria-label="Charge amount"
+                      className={`${inputInlineClass} w-28 flex-none font-fw-mono`} />
+                    <Button variant="danger" size="icon-sm" icon="close" onClick={() => removeCharge(i)} aria-label="Remove charge" className="h-9 w-9" />
                   </div>
                 ))}
-                {quote.charges.length === 0 && <p className={`text-xs ${theme.textDim}`}>No charges added yet.</p>}
+                {quote.charges.length === 0 && <p className="text-app-ui-sm text-app-ink-3">No charges added yet.</p>}
               </div>
-              <p className={`text-sm font-semibold mt-2 ${theme.text}`}>Total: {quote.currency} {total.toFixed(2)}</p>
+              <p className="mt-2 text-app-ui font-semibold">Total: <span className="font-fw-mono">{quote.currency} {total.toFixed(2)}</span></p>
             </div>
 
-            <div>
-              <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Additional Notes</label>
-              <textarea value={quote.notes} onChange={e => set('notes', e.target.value)} rows={3}
-                className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF] resize-none`} />
-            </div>
+            <Field label="Additional Notes">
+              <textarea value={quote.notes} onChange={e => set('notes', e.target.value)} rows={3} className={textareaClass} />
+            </Field>
           </div>
 
-          {/* RIGHT — Live Preview */}
-          <div className={`overflow-y-auto p-6 print:overflow-visible print:p-0`} id="quote-print-area">
-            <div className={`${theme.previewBg} rounded-xl border border-slate-200 p-6 shadow-sm print:shadow-none print:border-0`}>
-              <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
-                <div className="flex items-center gap-2">
-                  <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className="h-8 w-8 object-contain brightness-0" />
-                  <span className="font-bold text-lg">FreightWizard</span>
-                </div>
-                <h3 className="text-xl font-bold tracking-wide text-right">FREIGHT<br />QUOTATION</h3>
+          {/* RIGHT — Live Preview: a white paper document in both modes (and in print). */}
+          <div data-theme="light" className="overflow-y-auto bg-app-panel p-5 print:overflow-visible print:bg-white print:p-0" id="quote-print-area">
+            <div className="rounded-fw-frame border border-app-line bg-app-bg p-6 font-fw-sans text-app-ink print:border-0">
+              <div className="mb-4 flex items-center justify-between border-b border-app-line pb-4">
+                <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-6 w-auto invert" />
+                <h3 className="text-right font-fw-display text-app-title-sm font-light tracking-wide">FREIGHT<br />QUOTATION</h3>
               </div>
 
-              <div className="flex items-center justify-between text-sm mb-4">
+              <div className="mb-4 flex items-center justify-between text-app-ui">
                 <div>
-                  <p className="font-semibold">{quoteNumber(quote)}</p>
-                  <p className="text-slate-500">Date: {new Date().toLocaleDateString()}</p>
-                  <p className="text-slate-500">Valid until: {quote.validity_date || '—'}</p>
+                  <p className="font-fw-mono text-app-mono font-medium">{quoteNumber(quote)}</p>
+                  <p className="text-app-ink-2">Date: <span className="font-fw-mono">{new Date().toLocaleDateString()}</span></p>
+                  <p className="text-app-ink-2">Valid until: <span className="font-fw-mono">{quote.validity_date || '—'}</span></p>
                 </div>
                 <div className="text-right">
-                  <p className="text-slate-500 text-xs uppercase tracking-wide">To</p>
+                  <DataLabel>To</DataLabel>
                   <p className="font-medium">{quote.customer_name || '—'}</p>
-                  <p className="text-slate-500">{quote.customer_email || '—'}</p>
+                  <p className="text-app-ink-2">{quote.customer_email || '—'}</p>
                 </div>
               </div>
 
-              <table className="w-full text-sm mb-4 border-collapse">
+              <table className="mb-4 w-full border-collapse text-app-ui">
                 <tbody>
                   {[
                     ['Origin', quote.origin], ['Destination', quote.destination], ['Mode', quote.mode],
                     ['Commodity', quote.commodity], ['Container', quote.container_type],
                     ['Weight', quote.weight], ['Incoterm', quote.incoterm], ['Carrier', quote.carrier],
                   ].map(([label, value]) => (
-                    <tr key={label} className="border-b border-slate-100">
-                      <td className="py-1.5 text-slate-500">{label}</td>
-                      <td className="py-1.5 text-right font-medium">{value || '—'}</td>
+                    <tr key={label} className="border-b border-app-line">
+                      <td className="py-1.5 text-app-ink-2">{label}</td>
+                      <td className="py-1.5 text-right font-fw-mono text-app-mono">{value || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
 
-              <table className="w-full text-sm mb-4 border-collapse">
+              <table className="mb-4 w-full border-collapse text-app-ui">
                 <thead>
-                  <tr className="border-b-2 border-slate-300">
-                    <th className="text-left py-1.5 font-semibold">Charge</th>
-                    <th className="text-right py-1.5 font-semibold">Amount</th>
+                  <tr className="border-b border-app-line-strong">
+                    <th className="py-1.5 text-left font-fw-mono text-app-mono-xs font-normal uppercase text-app-ink-3">Charge</th>
+                    <th className="py-1.5 text-right font-fw-mono text-app-mono-xs font-normal uppercase text-app-ink-3">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {quote.charges.map((c, i) => (
-                    <tr key={i} className="border-b border-slate-100">
+                    <tr key={i} className="border-b border-app-line">
                       <td className="py-1.5">{c.name || '—'}</td>
-                      <td className="py-1.5 text-right">{quote.currency} {Number(c.amount || 0).toFixed(2)}</td>
+                      <td className="py-1.5 text-right font-fw-mono text-app-mono">{quote.currency} {Number(c.amount || 0).toFixed(2)}</td>
                     </tr>
                   ))}
                   <tr>
-                    <td className="py-2 font-bold">TOTAL</td>
-                    <td className="py-2 text-right font-bold">{quote.currency} {total.toFixed(2)}</td>
+                    <td className="py-2 font-semibold">TOTAL</td>
+                    <td className="py-2 text-right font-fw-mono text-app-mono font-semibold">{quote.currency} {total.toFixed(2)}</td>
                   </tr>
                 </tbody>
               </table>
 
-              <p className="text-sm mb-2"><span className="text-slate-500">Transit time:</span> {quote.transit_time || '—'}</p>
-              {quote.notes && <p className="text-sm mb-2"><span className="text-slate-500">Notes:</span> {quote.notes}</p>}
+              <p className="mb-2 text-app-ui"><span className="text-app-ink-2">Transit time:</span> {quote.transit_time || '—'}</p>
+              {quote.notes && <p className="mb-2 text-app-ui"><span className="text-app-ink-2">Notes:</span> {quote.notes}</p>}
 
-              <p className="text-xs text-slate-400 mt-6 pt-4 border-t border-slate-200">
+              <p className="mt-6 border-t border-app-line pt-4 text-app-ui-sm text-app-ink-3">
                 This quotation is valid until {quote.validity_date || 'the date above'}.
               </p>
             </div>
@@ -407,19 +352,10 @@ export default function QuoteBuilderModal({ darkMode, session, initial, onClose,
         </div>
 
         {/* Bottom action bar */}
-        <div className={`flex gap-3 px-6 py-4 border-t ${theme.cardBorder} flex-shrink-0 print:hidden`}>
-          <button onClick={handleSaveDraft} disabled={saving}
-            className={`px-5 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm font-medium disabled:opacity-50`}>
-            {saving ? 'Saving...' : 'Save Draft'}
-          </button>
-          <button onClick={handleSendQuote} disabled={sending}
-            className="flex-1 py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
-            {sending ? 'Sending...' : 'Send Quote'}
-          </button>
-          <button onClick={handleDownloadPdf}
-            className={`px-5 py-2.5 border ${theme.cardBorder} ${theme.hover} rounded-xl text-sm font-medium ${theme.text}`}>
-            Download PDF
-          </button>
+        <div className="flex flex-shrink-0 gap-3 border-t border-app-line px-5 py-3 print:hidden">
+          <Button icon="draft" onClick={handleSaveDraft} disabled={saving}>{saving ? 'Saving...' : 'Save Draft'}</Button>
+          <Button variant="primary" icon="send" className="flex-1" onClick={handleSendQuote} disabled={sending}>{sending ? 'Sending...' : 'Send Quote'}</Button>
+          <Button icon="download" onClick={handleDownloadPdf}>Download PDF</Button>
         </div>
       </div>
     </div>

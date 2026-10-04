@@ -4,6 +4,17 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PLANS, PLAN_LABELS } from '../lib/plans';
+import Icon, { type IconName } from '../components/ui/Icon';
+import TopBar from '../components/ui/TopBar';
+import Modal from '../components/ui/Modal';
+import Toggle from '../components/ui/Toggle';
+import SettingsTabs from '../components/ui/SettingsTabs';
+import { appRootClass, PageHeader, SectionTitle, EmptyState, Notice } from '../components/ui/Panel';
+import { Button, ButtonLink, Spinner } from '../components/ui/Button';
+import { inputClass, selectClass, textareaClass, Field, DataLabel } from '../components/ui/Field';
+import { Tag, Chip } from '../components/ui/Tag';
+import { Toast, Stat, Segmented } from '../components/ui/Data';
+import { toneClass, priorityTone, type Tone } from '../components/ui/tones';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
@@ -23,18 +34,14 @@ interface Usage {
   active_shipments: number;
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  trialing: 'bg-[#9E14FB]/20 text-[#9E14FB]',
-  active: 'bg-green-500/20 text-green-400',
-  past_due: 'bg-red-500/20 text-red-400',
-  cancelled: 'bg-gray-500/20 text-gray-400',
-  expired: 'bg-red-500/20 text-red-400',
+const STATUS_TONE: Record<string, Tone> = {
+  trialing: 'accent', active: 'ok', past_due: 'danger', cancelled: 'neutral', expired: 'danger',
 };
 
-function barColor(pct: number) {
-  if (pct > 90) return 'bg-red-500';
-  if (pct >= 70) return 'bg-yellow-500';
-  return 'bg-green-500';
+function usageTone(pct: number): Tone {
+  if (pct > 90) return 'danger';
+  if (pct >= 70) return 'warn';
+  return 'ok';
 }
 
 export default function BillingPage() {
@@ -42,6 +49,7 @@ export default function BillingPage() {
   const router = useRouter();
   const [session, setSession] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(true);
+  const [language, setLanguage] = useState<'en' | 'pt' | 'nl'>('en');
   const [sub, setSub] = useState<Subscription | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -50,6 +58,8 @@ export default function BillingPage() {
   useEffect(() => {
     const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('fw_theme') : null;
     if (savedTheme) setDarkMode(savedTheme === 'dark');
+    const savedLang = typeof window !== 'undefined' ? localStorage.getItem('fw_lang') as 'en' | 'pt' | 'nl' | null : null;
+    if (savedLang) setLanguage(savedLang);
 
     const sid = searchParams.get('session') || (typeof window !== 'undefined' ? localStorage.getItem('fw_session') : null);
     if (!sid) { router.replace('/dashboard'); return; }
@@ -62,13 +72,9 @@ export default function BillingPage() {
     fetch(`${API_URL}/api/billing/usage?session=${session}`).then(r => r.json()).then(d => { if (d.analyses_this_month !== undefined) setUsage(d); });
   }, [session]);
 
-  const theme = darkMode ? {
-    bg: 'bg-gradient-to-br from-[#050510] via-[#0a0a1a] to-[#050510]',
-    card: 'bg-[#0a0a1a]', cardBorder: 'border-white/5', text: 'text-white', textMuted: 'text-gray-400', textDim: 'text-gray-500',
-  } : {
-    bg: 'bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-50',
-    card: 'bg-white/80 backdrop-blur-sm', cardBorder: 'border-slate-200/50', text: 'text-slate-900', textMuted: 'text-slate-600', textDim: 'text-slate-500',
-  };
+
+  const toggleTheme = () => { setDarkMode(!darkMode); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); };
+  const changeLang = (l: 'en' | 'pt' | 'nl') => { setLanguage(l); localStorage.setItem('fw_lang', l); };
 
   const openPortal = async () => {
     setPortalLoading(true);
@@ -92,114 +98,96 @@ export default function BillingPage() {
     setCheckoutLoading(null);
   };
 
-  if (!sub) return <div className={`min-h-screen ${theme.bg} flex items-center justify-center`}><div className="w-8 h-8 border-4 border-[#5200FF] border-t-transparent rounded-full animate-spin" /></div>;
+  if (!sub) return <div data-theme={darkMode ? 'dark' : 'light'} className={`${appRootClass} flex items-center justify-center`}><Spinner className="size-8 text-app-accent" /></div>;
 
   const isPaid = sub.plan !== 'trial';
   const showUpgrade = sub.plan === 'trial' || sub.plan === 'starter';
+  const usageBar = (label: string, used: number, max: number) => {
+    const pct = Math.min(100, (used / max) * 100);
+    return (
+      <div key={label}>
+        <div className="mb-1 flex justify-between text-app-ui-sm"><span className="text-app-ink-2">{label}</span><span className="font-fw-mono">{used}/{max}</span></div>
+        <div className="h-1.5 bg-app-raised" aria-hidden><div className={`h-full ${toneClass[usageTone(pct)].dot}`} style={{ width: `${pct}%` }} /></div>
+      </div>
+    );
+  };
 
   return (
-    <div className={`min-h-screen ${theme.bg} ${theme.text}`}>
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">Billing</h1>
-          <Link href={`/dashboard?session=${session}`} className={`text-sm ${theme.textMuted} hover:underline`}>← Back to Inbox</Link>
-        </div>
+    <div data-theme={darkMode ? 'dark' : 'light'} className={appRootClass}>
+      <TopBar session={session} user={null} darkMode={darkMode} language={language} onToggleTheme={toggleTheme} onChangeLanguage={changeLang} />
+
+      <main className="mx-auto max-w-3xl space-y-5 px-4 py-6">
+        <ButtonLink href={`/dashboard?session=${session}`} variant="ghost" size="xs" icon="arrow-left">Back to Inbox</ButtonLink>
+        <PageHeader title="Billing" />
 
         {/* Settings sub-nav */}
-        <div className={`flex gap-1 p-1 mb-6 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl w-fit`}>
-          <Link href={`/settings/integrations?session=${session}`} className={`px-4 py-1.5 text-sm rounded-lg font-medium ${theme.textMuted} hover:bg-white/5`}>Integrations</Link>
-          <span className="px-4 py-1.5 text-sm rounded-lg font-medium bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white">Billing</span>
-        </div>
+        <SettingsTabs active="billing" session={session} />
 
         {/* Current Plan */}
-        <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-6 mb-4`}>
-          <div className="flex items-center justify-between flex-wrap gap-3">
+        <section className="rounded-fw-card border border-app-line bg-app-card p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className={`text-xs ${theme.textDim} uppercase tracking-wide mb-1`}>Current Plan</p>
-              <p className="text-2xl font-bold flex items-center gap-2">
+              <DataLabel className="mb-1">Current Plan</DataLabel>
+              <p className="flex items-center gap-2 font-fw-display text-app-title-sm font-normal">
                 {PLAN_LABELS[sub.plan as keyof typeof PLAN_LABELS] || sub.plan}
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[sub.status] || ''}`}>
-                  {sub.status === 'past_due' ? 'Past Due' : sub.status[0].toUpperCase() + sub.status.slice(1)}
-                </span>
+                <Tag tone={STATUS_TONE[sub.status] || 'neutral'}>{sub.status === 'past_due' ? 'Past Due' : sub.status[0].toUpperCase() + sub.status.slice(1)}</Tag>
               </p>
             </div>
             {isPaid && (
-              <button onClick={openPortal} disabled={portalLoading}
-                className={`px-4 py-2 border ${theme.cardBorder} rounded-xl text-sm font-medium hover:bg-white/5 disabled:opacity-50`}>
-                {portalLoading ? 'Loading...' : 'Manage Subscription'}
-              </button>
+              <Button icon="external" onClick={openPortal} disabled={portalLoading}>{portalLoading ? 'Loading...' : 'Manage Subscription'}</Button>
             )}
           </div>
 
           {!isPaid ? (
             <div className="mt-4 space-y-3">
-              <p className={`text-sm ${theme.textMuted}`}>{sub.trial_days_remaining} days remaining · {sub.trial_analyses_remaining} analyses remaining</p>
-              <div>
-                <div className="flex justify-between text-xs mb-1"><span className={theme.textDim}>Days</span><span>{14 - sub.trial_days_remaining}/14</span></div>
-                <div className={`h-2 rounded-full ${darkMode ? 'bg-white/10' : 'bg-slate-200'}`}><div className={`h-full rounded-full ${barColor(((14 - sub.trial_days_remaining) / 14) * 100)}`} style={{ width: `${Math.min(100, ((14 - sub.trial_days_remaining) / 14) * 100)}%` }} /></div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs mb-1"><span className={theme.textDim}>Analyses</span><span>{sub.trial_analyses_used}/30</span></div>
-                <div className={`h-2 rounded-full ${darkMode ? 'bg-white/10' : 'bg-slate-200'}`}><div className={`h-full rounded-full ${barColor((sub.trial_analyses_used / 30) * 100)}`} style={{ width: `${Math.min(100, (sub.trial_analyses_used / 30) * 100)}%` }} /></div>
-              </div>
+              <p className="text-app-ui text-app-ink-2"><span className="font-fw-mono">{sub.trial_days_remaining}</span> days remaining · <span className="font-fw-mono">{sub.trial_analyses_remaining}</span> analyses remaining</p>
+              {usageBar('Days', 14 - sub.trial_days_remaining, 14)}
+              {usageBar('Analyses', sub.trial_analyses_used, 30)}
             </div>
           ) : (
-            <p className={`mt-3 text-sm ${theme.textMuted}`}>
+            <p className="mt-3 text-app-ui text-app-ink-2">
               {sub.cancel_at_period_end ? 'Cancels on ' : 'Renews on '}
-              {sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : '—'}
+              <span className="font-fw-mono">{sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : '—'}</span>
             </p>
           )}
-        </div>
+        </section>
 
         {/* Usage */}
-        <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-6 mb-4`}>
-          <p className="font-semibold mb-3">Usage</p>
+        <section className="rounded-fw-card border border-app-line bg-app-card p-5">
+          <SectionTitle className="mb-3">Usage</SectionTitle>
           {isPaid && sub.plan !== 'starter' ? (
-            <div className="flex gap-2 flex-wrap">
-              {['Analyses', 'Shipments', 'Quotes'].map(label => (
-                <span key={label} className="text-xs px-3 py-1.5 rounded-full bg-green-500/20 text-green-400 font-medium">{label}: Unlimited</span>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              {['Analyses', 'Shipments', 'Quotes'].map(label => <Tag key={label} tone="ok">{label}: Unlimited</Tag>)}
             </div>
           ) : usage ? (
             <div className="space-y-3">
-              {[
-                { label: sub.plan === 'trial' ? 'Analyses' : 'Analyses this month', used: sub.plan === 'trial' ? sub.trial_analyses_used : usage.analyses_this_month, max: sub.plan === 'trial' ? 30 : 200 },
-                { label: sub.plan === 'trial' ? 'Shipments' : 'Active shipments', used: usage.active_shipments, max: sub.plan === 'trial' ? 5 : 10 },
-                { label: sub.plan === 'trial' ? 'Quotes' : 'Quotes this month', used: usage.quotes_this_month, max: sub.plan === 'trial' ? 5 : 20 },
-              ].map(row => {
-                const pct = Math.min(100, (row.used / row.max) * 100);
-                return (
-                  <div key={row.label}>
-                    <div className="flex justify-between text-xs mb-1"><span className={theme.textDim}>{row.label}</span><span>{row.used}/{row.max}</span></div>
-                    <div className={`h-2 rounded-full ${darkMode ? 'bg-white/10' : 'bg-slate-200'}`}><div className={`h-full rounded-full ${barColor(pct)}`} style={{ width: `${pct}%` }} /></div>
-                  </div>
-                );
-              })}
+              {usageBar(sub.plan === 'trial' ? 'Analyses' : 'Analyses this month', sub.plan === 'trial' ? sub.trial_analyses_used : usage.analyses_this_month, sub.plan === 'trial' ? 30 : 200)}
+              {usageBar(sub.plan === 'trial' ? 'Shipments' : 'Active shipments', usage.active_shipments, sub.plan === 'trial' ? 5 : 10)}
+              {usageBar(sub.plan === 'trial' ? 'Quotes' : 'Quotes this month', usage.quotes_this_month, sub.plan === 'trial' ? 5 : 20)}
             </div>
-          ) : <p className={`text-sm ${theme.textDim}`}>Loading...</p>}
-        </div>
+          ) : <p className="flex items-center gap-2 text-app-ui-sm text-app-ink-3"><Spinner className="size-3" /> Loading...</p>}
+        </section>
 
         {/* Upgrade */}
         {showUpgrade && (
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-6 mb-4`}>
-            <p className="font-semibold mb-3">Upgrade your plan</p>
-            <div className="grid sm:grid-cols-3 gap-3">
+          <section className="rounded-fw-card border border-app-line bg-app-card p-5">
+            <SectionTitle className="mb-3">Upgrade your plan</SectionTitle>
+            <div className="grid gap-3 sm:grid-cols-3">
               {PLANS.filter(p => p.key !== sub.plan).map(p => (
-                <div key={p.key} className={`rounded-xl border ${p.popular ? 'border-[#9E14FB]/60' : theme.cardBorder} p-4`}>
-                  <p className="font-bold text-sm">{p.name}</p>
-                  <p className="text-xl font-bold">${p.price}<span className={`text-xs font-normal ${theme.textDim}`}>/mo</span></p>
-                  <button onClick={() => upgrade(p.key)} disabled={checkoutLoading === p.key}
-                    className="w-full mt-3 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-lg text-white text-xs font-medium disabled:opacity-50">
+                <div key={p.key} className={`flex flex-col rounded-fw-card border p-4 ${p.popular ? 'border-app-accent-fill' : 'border-app-line'}`}>
+                  <p className="text-app-ui font-semibold">{p.name}</p>
+                  <p className="font-fw-display text-app-kpi font-normal">${p.price}<span className="font-fw-mono text-app-mono-xs text-app-ink-3">/mo</span></p>
+                  <Button variant={p.popular ? 'primary' : 'secondary'} size="sm" className="mt-3 w-full" onClick={() => upgrade(p.key)} disabled={checkoutLoading === p.key}>
                     {checkoutLoading === p.key ? 'Loading...' : 'Upgrade'}
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
-        <p className={`text-center text-xs ${theme.textDim}`}>🔒 Powered by Stripe</p>
-      </div>
+        <p className="flex items-center justify-center gap-1.5 text-center text-app-ui-sm text-app-ink-3"><Icon name="lock" size={13} /> Powered by Stripe</p>
+      </main>
     </div>
   );
 }

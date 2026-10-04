@@ -1,16 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import confetti from 'canvas-confetti';
 import { PLAN_LABELS } from '../../lib/plans';
+import Icon from '../../components/ui/Icon';
+import { appRootClass } from '../../components/ui/Panel';
+import { buttonClass } from '../../components/ui/Button';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
 export default function BillingSuccessPage() {
-  const router = useRouter();
   const [session, setSession] = useState<string | null>(null);
   const [plan, setPlan] = useState<string | null>(null);
+  const [darkMode, setDarkMode] = useState(true);
 
   useEffect(() => {
     confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
@@ -19,6 +21,8 @@ export default function BillingSuccessPage() {
   }, []);
 
   useEffect(() => {
+    const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('fw_theme') : null;
+    if (savedTheme) setDarkMode(savedTheme === 'dark');
     const sid = typeof window !== 'undefined' ? localStorage.getItem('fw_session') : null;
     setSession(sid);
     if (sid) {
@@ -34,16 +38,17 @@ export default function BillingSuccessPage() {
   const planLabel = plan ? PLAN_LABELS[plan as keyof typeof PLAN_LABELS] || plan : 'Pro';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#050510] via-[#0a0a1a] to-[#050510] text-white flex items-center justify-center p-6">
-      <div className="text-center max-w-sm">
-        <div className="text-5xl mb-4">🎉</div>
-        <h1 className="text-2xl font-bold mb-2">Welcome to FreightWizard {planLabel}!</h1>
-        <p className="text-gray-400 mb-6">Your subscription is now active</p>
-        <a href={`/dashboard${session ? `?session=${session}` : ''}`}
-          className="inline-block px-6 py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full font-medium">
+    <div data-theme={darkMode ? 'dark' : 'light'} className={`${appRootClass} flex items-center justify-center p-6`}>
+      <div className="max-w-sm text-center">
+        <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-fw-card border border-app-line text-app-ok-ink">
+          <Icon name="check" size={24} />
+        </span>
+        <h1 className="mb-2 font-fw-display text-app-title font-light">Welcome to FreightWizard {planLabel}!</h1>
+        <p className="mb-6 text-app-ink-2">Your subscription is now active</p>
+        <a href={`/dashboard${session ? `?session=${session}` : ''}`} className={buttonClass('primary', 'lg')}>
           Go to Dashboard
         </a>
-        <p className="text-xs text-gray-500 mt-4">Redirecting automatically in a few seconds...</p>
+        <p className="mt-4 text-app-ui-sm text-app-ink-3">Redirecting automatically in a few seconds...</p>
       </div>
     </div>
   );

@@ -9,6 +9,9 @@ const controlBase =
 
 export const inputClass = `w-full py-2 ${controlBase}`
 
+/** Input without a width, for rows that size their own fields (e.g. charge name + amount). */
+export const inputInlineClass = `py-2 ${controlBase}`
+
 export const textareaClass = `${inputClass} resize-none`
 
 export const selectClass = `${inputClass} pr-8`

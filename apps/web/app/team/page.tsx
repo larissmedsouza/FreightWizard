@@ -4,6 +4,17 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import TrialBanner from '../components/TrialBanner';
+import Icon, { type IconName } from '../components/ui/Icon';
+import TopBar from '../components/ui/TopBar';
+import Modal from '../components/ui/Modal';
+import Toggle from '../components/ui/Toggle';
+import SettingsTabs from '../components/ui/SettingsTabs';
+import { appRootClass, PageHeader, SectionTitle, EmptyState, Notice } from '../components/ui/Panel';
+import { Button, ButtonLink, Spinner } from '../components/ui/Button';
+import { inputClass, selectClass, textareaClass, Field, DataLabel } from '../components/ui/Field';
+import { Tag, Chip } from '../components/ui/Tag';
+import { Toast, Stat, Segmented } from '../components/ui/Data';
+import { toneClass, priorityTone, type Tone } from '../components/ui/tones';
 
 const API_URL = 'https://freightwizard-production.up.railway.app';
 
@@ -14,10 +25,6 @@ const formatTime = (minutes: number): string => {
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 };
-
-const Icon = ({ name, className = "w-6 h-6", style }: { name: string; className?: string; style?: React.CSSProperties }) => (
-  <img src={`/icons/${name}.svg`} alt={name} className={className} style={style} />
-);
 
 interface MemberStats {
   analyzed: number;
@@ -52,15 +59,6 @@ interface TeamProfile {
 
 type Language = 'en' | 'pt' | 'nl';
 
-const NAV_ITEMS = [
-  { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_analytics_total email' },
-  { href: '/shipments', label: { en: 'Shipments', pt: 'Embarques', nl: 'Zendingen' }, icon: 'Dashboard_tracking' },
-  { href: '/quotes', label: { en: 'Quotes', pt: 'Cotações', nl: 'Offertes' }, icon: 'Dashboard_quotation' },
-  { href: '/rates', label: { en: 'Rates', pt: 'Tarifas', nl: 'Tarieven' }, icon: 'Dashboard_quotation' },
-  { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
-  { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
-  { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
-];
 
 export default function TeamPage() {
   const searchParams = useSearchParams();
@@ -83,27 +81,6 @@ export default function TeamPage() {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
-  const theme = darkMode ? {
-    bg: 'bg-[#050510]',
-    card: 'bg-[#0a0a1a]',
-    cardBorder: 'border-white/5',
-    text: 'text-white',
-    textMuted: 'text-gray-400',
-    textDim: 'text-gray-500',
-    hover: 'hover:bg-white/5',
-    input: 'bg-[#0f0f1f] border-white/10 text-white',
-    iconFilter: { filter: 'brightness(0) invert(1)' },
-  } : {
-    bg: 'bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-50',
-    card: 'bg-white/80 backdrop-blur-sm',
-    cardBorder: 'border-slate-200/50',
-    text: 'text-slate-900',
-    textMuted: 'text-slate-600',
-    textDim: 'text-slate-500',
-    hover: 'hover:bg-slate-100/50',
-    input: 'bg-white border-slate-200 text-slate-900',
-    iconFilter: { filter: 'brightness(0) saturate(100%) invert(19%) sepia(96%) saturate(5765%) hue-rotate(268deg) brightness(102%) contrast(101%)' },
-  };
 
   const notify = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
@@ -207,13 +184,6 @@ export default function TeamPage() {
     }
   };
 
-  const getMedalBg = (index: number) => {
-    if (index === 0) return 'border-yellow-400/30 bg-yellow-400/5';
-    if (index === 1) return 'border-gray-300/30 bg-gray-300/5';
-    if (index === 2) return 'border-orange-400/30 bg-orange-400/5';
-    return `${theme.card} ${theme.cardBorder}`;
-  };
-
   const toggleTheme = () => {
     setDarkMode(!darkMode);
     localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light');
@@ -226,158 +196,63 @@ export default function TeamPage() {
   };
 
   if (loading) return (
-    <div className={`min-h-screen ${theme.bg} ${theme.text} flex items-center justify-center`}>
-      <div className="w-10 h-10 border-4 border-[#5200FF] border-t-transparent rounded-full animate-spin"></div>
+    <div data-theme={darkMode ? 'dark' : 'light'} className={`${appRootClass} flex items-center justify-center`}>
+      <Spinner className="size-8 text-app-accent" />
     </div>
   );
 
+  const rankOf = (id: string) => (data?.leaderboard.findIndex(m => m.id === id) ?? 0) + 1;
+
   return (
-    <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors`}>
-      {notification && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-xl text-white ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
-          {notification.msg}
-        </div>
-      )}
+    <div data-theme={darkMode ? 'dark' : 'light'} className={appRootClass}>
+      <Toast notification={notification} />
 
-      {/* Header */}
-      <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-3 flex items-center justify-between sticky top-0 z-40`}>
-        {/* Logo */}
-        <Link href={`/dashboard?session=${session}`} className="flex items-center gap-2 flex-shrink-0">
-          <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
-          <span className="text-base font-bold">FreightWizard</span>
-        </Link>
-
-        {/* Right: Nav + Controls */}
-        <div className="flex items-center gap-2">
-          {NAV_ITEMS.map(item => (
-            <Link key={item.href} href={`${item.href}?session=${session}`}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${
-                pathname?.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')
-                  ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40'
-                  : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`
-              }`}>
-              <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
-              {item.label[language]}
-            </Link>
-          ))}
-
-          <div className={`w-px h-5 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
-
-          {/* Invite button for managers */}
-          {profile?.teams && profile.role === 'manager' && (
-            <button onClick={() => setShowInviteModal(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
-              <Icon name="Dashboard_team_crown" className="w-3.5 h-3.5" style={{ filter: 'brightness(0) invert(1)' }} />
-              Invite
-            </button>
-          )}
-
-          {/* Language */}
-          <div className="relative">
-            <button onClick={() => setLangMenuOpen(!langMenuOpen)}
-              className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover} flex items-center gap-1`}>
-              {language.toUpperCase()} <span className="text-xs">▼</span>
-            </button>
-            {langMenuOpen && (
-              <div className={`absolute top-full right-0 mt-2 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-xl z-50 overflow-hidden`}>
-                {(['en', 'pt', 'nl'] as Language[]).map(l => (
-                  <button key={l} onClick={() => changeLang(l)}
-                    className={`w-full px-4 py-2 text-left text-sm ${theme.hover} ${language === l ? 'text-[#9E14FB] font-medium' : theme.textMuted}`}>
-                    {l.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Theme */}
-          <button onClick={toggleTheme} className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
-            {darkMode
-              ? <Icon name="Dashboard_team_sun_light_mode" className="w-4 h-4" style={theme.iconFilter} />
-              : <Icon name="Dashboard_team_moon_dark_mode" className="w-4 h-4" style={theme.iconFilter} />
-            }
-          </button>
-
-          {/* Settings (Billing lives inside Settings) */}
-          <Link href={`/settings/integrations?session=${session}`} title="Settings"
-            className={`relative p-2 rounded-full ${theme.hover} border ${theme.cardBorder} transition`}>
-            <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${theme.textMuted}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-            {billingUrgent && <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
-          </Link>
-        </div>
-      </header>
+      <TopBar session={session} user={null} darkMode={darkMode} language={language} onToggleTheme={toggleTheme} onChangeLanguage={changeLang} alert={billingUrgent} />
 
       <TrialBanner session={session} onSubscription={(sub) => setBillingUrgent(sub.plan === 'trial' && sub.trial_days_remaining < 3)} />
 
-      <div className="max-w-7xl mx-auto p-6">
+      <main className="mx-auto max-w-7xl p-4 lg:p-6">
 
         {/* Invite Modal */}
         {showInviteModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-8 max-w-md w-full shadow-2xl`}>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold">Invite Team Members</h2>
-                <button onClick={() => setShowInviteModal(false)} className={`${theme.textMuted} hover:text-white text-xl`}>✕</button>
+          <Modal title="Invite Team Members" icon="team" onClose={() => setShowInviteModal(false)}>
+            <div className="space-y-4 p-5">
+              <p className="text-app-ui text-app-ink-2">Share this code with your team members so they can join:</p>
+              <div className="flex items-center gap-3 rounded-fw-card border border-app-line bg-app-panel p-4">
+                <span className="flex-1 font-fw-mono text-[1.75rem] font-medium tracking-wider text-app-accent">{profile?.teams?.invite_code}</span>
+                <Button variant="primary" icon={copiedCode ? 'check' : 'copy'} onClick={copyInviteCode}>{copiedCode ? 'Copied!' : 'Copy'}</Button>
               </div>
-              <p className={`text-sm ${theme.textMuted} mb-4`}>Share this code with your team members so they can join:</p>
-              <div className={`flex items-center gap-3 p-4 ${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl border ${theme.cardBorder} mb-4`}>
-                <span className="text-3xl font-mono font-bold bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] bg-clip-text text-transparent flex-1">
-                  {profile?.teams?.invite_code}
-                </span>
-                <button onClick={copyInviteCode}
-                  className="px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-lg text-white text-sm font-medium">
-                  {copiedCode ? '✓ Copied!' : 'Copy'}
-                </button>
-              </div>
-              <p className={`text-xs ${theme.textDim}`}>Team members enter this code when they visit the Team page for the first time.</p>
+              <p className="text-app-ui-sm text-app-ink-3">Team members enter this code when they visit the Team page for the first time.</p>
             </div>
-          </div>
+          </Modal>
         )}
 
         {/* Setup Modal */}
         {showSetup && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-8 max-w-md w-full shadow-2xl`}>
-              <h2 className="text-2xl font-bold mb-2">Join or Create a Team</h2>
-              <p className={`${theme.textMuted} mb-6 text-sm`}>Connect with your colleagues to see the leaderboard.</p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-app-overlay p-4">
+            <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-fw-card border border-app-line bg-app-card p-6 shadow-app-pop">
+              <h2 className="mb-1 font-fw-display text-app-title-sm font-normal">Join or Create a Team</h2>
+              <p className="mb-5 text-app-ui text-app-ink-2">Connect with your colleagues to see the leaderboard.</p>
               {!setupMode ? (
                 <div className="flex flex-col gap-3">
-                  <button onClick={() => setSetupMode('create')}
-                    className="w-full py-4 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white flex items-center justify-center gap-2">
-                    <Icon name="Dashboard_team_crown" className="w-5 h-5" style={{ filter: 'brightness(0) invert(1)' }} />
-                    Create a Team (Manager)
-                  </button>
-                  <button onClick={() => setSetupMode('join')}
-                    className={`w-full py-4 border ${theme.cardBorder} rounded-xl font-medium ${theme.hover} flex items-center justify-center gap-2`}>
-                    <Icon name="Dashboard_team_employee" className="w-5 h-5" style={theme.iconFilter} />
-                    Join with Invite Code
-                  </button>
+                  <Button variant="primary" size="lg" icon="owner" className="w-full" onClick={() => setSetupMode('create')}>Create a Team (Manager)</Button>
+                  <Button size="lg" icon="user" className="w-full" onClick={() => setSetupMode('join')}>Join with Invite Code</Button>
                 </div>
               ) : setupMode === 'create' ? (
-                <div>
-                  <button onClick={() => setSetupMode(null)} className={`text-sm ${theme.textMuted} mb-4 flex items-center gap-1`}>← Back</button>
-                  <label className={`text-sm ${theme.textMuted} mb-2 block`}>Team Name</label>
-                  <input value={teamName} onChange={e => setTeamName(e.target.value)}
-                    placeholder="e.g. Rotterdam Freight Team"
-                    className={`w-full px-4 py-3 rounded-xl border ${theme.input} mb-4 focus:outline-none focus:border-[#5200FF]`} />
-                  <button onClick={createTeam} disabled={setupLoading || !teamName.trim()}
-                    className="w-full py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white disabled:opacity-50">
-                    {setupLoading ? 'Creating...' : 'Create Team'}
-                  </button>
+                <div className="space-y-4">
+                  <Button variant="ghost" size="xs" icon="arrow-left" onClick={() => setSetupMode(null)}>Back</Button>
+                  <Field label="Team Name">
+                    <input value={teamName} onChange={e => setTeamName(e.target.value)} placeholder="e.g. Rotterdam Freight Team" className={inputClass} />
+                  </Field>
+                  <Button variant="primary" className="w-full" onClick={createTeam} disabled={setupLoading || !teamName.trim()}>{setupLoading ? 'Creating...' : 'Create Team'}</Button>
                 </div>
               ) : (
-                <div>
-                  <button onClick={() => setSetupMode(null)} className={`text-sm ${theme.textMuted} mb-4 flex items-center gap-1`}>← Back</button>
-                  <label className={`text-sm ${theme.textMuted} mb-2 block`}>Invite Code</label>
-                  <input value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())}
-                    placeholder="e.g. FW-X7K2"
-                    className={`w-full px-4 py-3 rounded-xl border ${theme.input} mb-4 focus:outline-none focus:border-[#5200FF] font-mono`} />
-                  <button onClick={joinTeam} disabled={setupLoading || !inviteCode.trim()}
-                    className="w-full py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white disabled:opacity-50">
-                    {setupLoading ? 'Joining...' : 'Join Team'}
-                  </button>
+                <div className="space-y-4">
+                  <Button variant="ghost" size="xs" icon="arrow-left" onClick={() => setSetupMode(null)}>Back</Button>
+                  <Field label="Invite Code">
+                    <input value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())} placeholder="e.g. FW-X7K2" className={`${inputClass} font-fw-mono`} />
+                  </Field>
+                  <Button variant="primary" className="w-full" onClick={joinTeam} disabled={setupLoading || !inviteCode.trim()}>{setupLoading ? 'Joining...' : 'Join Team'}</Button>
                 </div>
               )}
             </div>
@@ -386,205 +261,145 @@ export default function TeamPage() {
 
         {/* Team Header */}
         {profile?.teams && (
-          <div className="mb-8 flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">{profile.teams.name}</h1>
-              <p className={`${theme.textMuted} text-sm mt-1`}>
-                {data?.leaderboard.length || 0} members •{' '}
-                {profile.role === 'manager' ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Icon name="Dashboard_team_crown" className="w-3 h-3" style={theme.iconFilter} /> Manager
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1">
-                    <Icon name="Dashboard_team_employee" className="w-3 h-3" style={theme.iconFilter} /> Employee
-                  </span>
-                )}
-              </p>
-            </div>
-            {profile.role !== 'manager' && (
-              <div className={`px-4 py-2 ${theme.card} border ${theme.cardBorder} rounded-full text-sm ${theme.textMuted}`}>
-                Your rank: #{(data?.leaderboard.findIndex(m => m.id === data.currentUserId) || 0) + 1}
-              </div>
-            )}
-          </div>
+          <PageHeader
+            className="mb-6"
+            title={profile.teams.name}
+            description={
+              <span className="inline-flex items-center gap-2">
+                <span><span className="font-fw-mono">{data?.leaderboard.length || 0}</span> members</span>
+                <span className="text-app-ink-3">·</span>
+                <span className="inline-flex items-center gap-1"><Icon name={profile.role === 'manager' ? 'owner' : 'user'} size={14} className="text-app-ink-3" />{profile.role === 'manager' ? 'Manager' : 'Employee'}</span>
+              </span>
+            }
+            actions={<>
+              {profile.role !== 'manager' && data && (
+                <Chip className="h-9 px-3 text-app-ui">Your rank: <span className="font-fw-mono">#{rankOf(data.currentUserId)}</span></Chip>
+              )}
+              {profile.role === 'manager' && (
+                <Button variant="primary" icon="team" onClick={() => setShowInviteModal(true)}>Invite</Button>
+              )}
+            </>}
+          />
         )}
 
         {!data || data.leaderboard.length === 0 ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <Icon name="Dashboard_team_employee" className="w-16 h-16 mx-auto mb-4" style={theme.iconFilter} />
-              <p className={`${theme.textMuted} mb-2`}>No team members yet.</p>
-              <p className={`text-sm ${theme.textDim}`}>Share your invite code to add teammates.</p>
-            </div>
+          <div className="rounded-fw-card border border-app-line bg-app-card">
+            <EmptyState icon="team" title="No team members yet." text="Share your invite code to add teammates." />
           </div>
         ) : (
-          <div className="grid lg:grid-cols-3 gap-6">
+          <div className="grid gap-6 lg:grid-cols-3">
             {/* Leaderboard */}
-            <div className="space-y-3">
-              <h2 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                <Icon name="Dashboard_team_ranking" className="w-5 h-5" style={theme.iconFilter} />
-                Rankings
-              </h2>
+            <div className="space-y-2">
+              <SectionTitle icon="analytics" className="mb-3">Rankings</SectionTitle>
               {data.leaderboard.map((member, index) => (
-                <div key={member.id} onClick={() => setSelected(member)}
-                  className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                    selected?.id === member.id
-                      ? 'border-[#5200FF]/50 bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10'
-                      : `${getMedalBg(index)} ${theme.hover}`
-                  } ${member.id === data.currentUserId ? 'ring-1 ring-[#5200FF]/30' : ''}`}>
+                <button key={member.id} type="button" onClick={() => setSelected(member)}
+                  className={`w-full rounded-fw-card border p-4 text-left transition-colors ${
+                    selected?.id === member.id ? 'border-app-accent-fill bg-app-selected' : 'border-app-line bg-app-card hover:bg-app-raised'
+                  }`}>
                   <div className="flex items-center gap-3">
-                    <div className="w-8 flex items-center justify-center">
-                      {index < 3 ? (
-                        <Icon name="Dashboard_team_medal" className="w-7 h-7"
-                          style={{ filter: index === 0
-                            ? 'brightness(0) saturate(100%) invert(83%) sepia(61%) saturate(1000%) hue-rotate(0deg) brightness(103%) contrast(101%)'
-                            : index === 1
-                            ? 'brightness(0) saturate(100%) invert(80%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(90%)'
-                            : 'brightness(0) saturate(100%) invert(60%) sepia(40%) saturate(800%) hue-rotate(0deg) brightness(90%)'
-                          }} />
-                      ) : (
-                        <span className={`text-sm font-bold ${theme.textDim}`}>#{index + 1}</span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
+                    <span className={`flex size-8 flex-none items-center justify-center rounded-fw-btn border font-fw-mono text-app-mono ${index < 3 ? 'border-transparent bg-app-accent-bg text-app-accent-ink' : 'border-app-line text-app-ink-3'}`}>
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium truncate">{member.name}</p>
-                        {member.id === data.currentUserId && <span className="text-xs px-2 py-0.5 bg-[#5200FF]/20 text-[#9E14FB] rounded-full">You</span>}
-                        {member.role === 'manager' && <Icon name="Dashboard_team_crown" className="w-3 h-3" style={theme.iconFilter} />}
+                        <p className="truncate text-app-ui font-medium">{member.name}</p>
+                        {member.id === data.currentUserId && <Tag tone="accent">You</Tag>}
+                        {member.role === 'manager' && <Icon name="owner" size={13} className="text-app-ink-3" />}
                       </div>
-                      <p className={`text-xs ${theme.textDim} truncate`}>{member.email}</p>
+                      <p className="truncate text-app-ui-sm text-app-ink-3">{member.email}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">{member.stats.analyzed}</p>
-                      <p className={`text-xs ${theme.textDim}`}>analyzed</p>
+                      <p className="font-fw-mono text-app-mono font-semibold">{member.stats.analyzed}</p>
+                      <p className="text-app-ui-sm text-app-ink-3">analyzed</p>
                     </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-sm font-medium">{member.stats.replyRate}%</p>
-                      <p className={`text-xs ${theme.textDim}`}>reply rate</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{formatTime(member.stats.avgResponseTime)}</p>
-                      <p className={`text-xs ${theme.textDim}`}>avg time</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{member.stats.uniqueCustomers}</p>
-                      <p className={`text-xs ${theme.textDim}`}>customers</p>
-                    </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 border-t border-app-line pt-3 text-center">
+                    <div><p className="font-fw-mono text-app-mono">{member.stats.replyRate}%</p><p className="text-app-ui-sm text-app-ink-3">reply rate</p></div>
+                    <div><p className="font-fw-mono text-app-mono">{formatTime(member.stats.avgResponseTime)}</p><p className="text-app-ui-sm text-app-ink-3">avg time</p></div>
+                    <div><p className="font-fw-mono text-app-mono">{member.stats.uniqueCustomers}</p><p className="text-app-ui-sm text-app-ink-3">customers</p></div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
 
             {/* Detail Panel */}
             {selected && (
-              <div className="lg:col-span-2 space-y-4">
-                <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-6`}>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 flex items-center justify-center">
-                        <Icon name={selected.role === 'manager' ? 'Dashboard_team_crown' : 'Dashboard_team_employee'} className="w-6 h-6" style={theme.iconFilter} />
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-bold">{selected.name}</h2>
-                        <p className={`text-sm ${theme.textMuted}`}>{selected.email}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-sm ${theme.textMuted}`}>Rank</p>
-                      <p className="text-3xl font-bold">#{(data.leaderboard.findIndex(m => m.id === selected.id) || 0) + 1}</p>
+              <section className="space-y-5 rounded-fw-card border border-app-line bg-app-card p-5 lg:col-span-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-11 items-center justify-center rounded-fw-card border border-app-line text-app-accent">
+                      <Icon name={selected.role === 'manager' ? 'owner' : 'user'} size={20} />
+                    </span>
+                    <div>
+                      <h2 className="font-fw-display text-app-title-sm font-normal">{selected.name}</h2>
+                      <p className="text-app-ui-sm text-app-ink-2">{selected.email}</p>
                     </div>
                   </div>
+                  <div className="text-right">
+                    <DataLabel>Rank</DataLabel>
+                    <p className="font-fw-display text-app-kpi font-normal">#{rankOf(selected.id)}</p>
+                  </div>
+                </div>
 
-                  {/* KPI Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    {[
-                      { label: 'Emails Analyzed', value: selected.stats.analyzed, icon: 'Dashboard_team_Emails_Analyzed' },
-                      { label: 'Replies Sent', value: selected.stats.replied, icon: 'Dashboard_team_Replies_Sent' },
-                      { label: 'Reply Rate', value: `${selected.stats.replyRate}%`, icon: 'Dashboard_team_reply_Rate' },
-                      { label: 'Avg Response', value: formatTime(selected.stats.avgResponseTime), icon: 'Dashboard_team_Avg-Response' },
-                    ].map((kpi, i) => (
-                      <div key={i} className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-4 text-center`}>
-                        <div className="w-8 h-8 mx-auto mb-2 p-1.5 rounded-lg bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
-                          <Icon name={kpi.icon} className="w-full h-full" style={theme.iconFilter} />
-                        </div>
-                        <p className="text-xl font-bold">{kpi.value}</p>
-                        <p className={`text-xs ${theme.textDim}`}>{kpi.label}</p>
+                {/* KPI Grid */}
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  <Stat label="Emails Analyzed" value={selected.stats.analyzed} icon="sparkle" />
+                  <Stat label="Replies Sent" value={selected.stats.replied} icon="reply" />
+                  <Stat label="Reply Rate" value={`${selected.stats.replyRate}%`} icon="check" />
+                  <Stat label="Avg Response" value={formatTime(selected.stats.avgResponseTime)} icon="clock" />
+                </div>
+
+                {/* Transport Mode */}
+                <div>
+                  <DataLabel className="mb-2">Transport Mode</DataLabel>
+                  <div className="grid grid-cols-4 gap-3">
+                    {(['ocean', 'air', 'road', 'rail'] as const).map(mode => (
+                      <div key={mode} className="rounded-fw-btn border border-app-line bg-app-panel p-3 text-center">
+                        <Icon name={mode} size={20} className="mx-auto mb-1.5 text-app-accent" />
+                        <p className="font-fw-mono text-app-mono font-semibold">{selected.stats.modeBreakdown[mode] || 0}</p>
+                        <p className="text-app-ui-sm capitalize text-app-ink-3">{mode}</p>
                       </div>
                     ))}
                   </div>
+                </div>
 
-                  {/* Transport Mode */}
-                  <div className="mb-6">
-                    <h3 className={`text-sm font-semibold ${theme.textMuted} mb-3 uppercase tracking-wider`}>Transport Mode</h3>
-                    <div className="grid grid-cols-4 gap-3">
-                      {[
-                        { mode: 'ocean', icon: 'Dashboard_team_ocean', color: '#1BA1FF' },
-                        { mode: 'air', icon: 'Dashboard_team_air', color: '#9E14FB' },
-                        { mode: 'road', icon: 'Dashboard_team_road', color: '#00D4AA' },
-                        { mode: 'rail', icon: 'Dashboard_team_rail', color: '#FFB84D' },
-                      ].map(({ mode, icon, color }) => (
-                        <div key={mode} className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-3 text-center`}>
-                          <div className="w-8 h-8 mx-auto mb-2">
-                            <Icon name={icon} className="w-full h-full" style={theme.iconFilter} />
-                          </div>
-                          <p className="text-lg font-bold" style={{ color }}>
-                            {selected.stats.modeBreakdown[mode as keyof typeof selected.stats.modeBreakdown] || 0}
-                          </p>
-                          <p className={`text-xs ${theme.textDim} capitalize`}>{mode}</p>
+                {/* Import vs Export */}
+                <div>
+                  <DataLabel className="mb-2">Import / Export</DataLabel>
+                  <div className="flex gap-4">
+                    {([
+                      { label: 'Import', value: selected.stats.importExport.import },
+                      { label: 'Export', value: selected.stats.importExport.export },
+                    ]).map(row => (
+                      <div key={row.label} className="flex-1">
+                        <div className="mb-1 flex justify-between text-app-ui-sm">
+                          <span className="text-app-ink-2">{row.label}</span>
+                          <span className="font-fw-mono">{row.value}</span>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Import vs Export */}
-                  <div className="mb-6">
-                    <h3 className={`text-sm font-semibold ${theme.textMuted} mb-3 uppercase tracking-wider`}>Import / Export</h3>
-                    <div className="flex gap-4">
-                      <div className="flex-1">
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>🟢 Import</span>
-                          <span>{selected.stats.importExport.import}</span>
-                        </div>
-                        <div className={`h-3 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-full overflow-hidden`}>
-                          <div className="h-full bg-green-500 rounded-full transition-all"
-                            style={{ width: `${selected.stats.analyzed > 0 ? (selected.stats.importExport.import / selected.stats.analyzed) * 100 : 0}%` }} />
+                        <div className="h-2 bg-app-raised" aria-hidden>
+                          <div className="h-full bg-app-accent transition-all" style={{ width: `${selected.stats.analyzed > 0 ? (row.value / selected.stats.analyzed) * 100 : 0}%` }} />
                         </div>
                       </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>🔵 Export</span>
-                          <span>{selected.stats.importExport.export}</span>
-                        </div>
-                        <div className={`h-3 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-full overflow-hidden`}>
-                          <div className="h-full bg-blue-500 rounded-full transition-all"
-                            style={{ width: `${selected.stats.analyzed > 0 ? (selected.stats.importExport.export / selected.stats.analyzed) * 100 : 0}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Customers */}
-                  <div>
-                    <h3 className={`text-sm font-semibold ${theme.textMuted} mb-3 uppercase tracking-wider`}>Customers</h3>
-                    <div className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-4 flex items-center justify-between`}>
-                      <div>
-                        <p className="text-3xl font-bold">{selected.stats.uniqueCustomers}</p>
-                        <p className={`text-sm ${theme.textDim}`}>Unique customers handled</p>
-                      </div>
-                      <div className="w-12 h-12">
-                        <Icon name="Dasboard_team_customers" className="w-full h-full" style={theme.iconFilter} />
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
-              </div>
+
+                {/* Customers */}
+                <div>
+                  <DataLabel className="mb-2">Customers</DataLabel>
+                  <div className="flex items-center justify-between rounded-fw-btn border border-app-line bg-app-panel p-4">
+                    <div>
+                      <p className="font-fw-display text-app-kpi font-normal">{selected.stats.uniqueCustomers}</p>
+                      <p className="text-app-ui-sm text-app-ink-3">Unique customers handled</p>
+                    </div>
+                    <Icon name="building" size={28} className="text-app-accent" />
+                  </div>
+                </div>
+              </section>
             )}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

@@ -210,7 +210,7 @@ export default function ComparePage() {
     <div data-theme={darkMode ? 'dark' : 'light'} className={appRootClass}>
       <Toast notification={notification} />
 
-      <TopBar session={session} user={null} showSettings={false} darkMode={darkMode} language={language} onToggleTheme={toggleTheme} onChangeLanguage={changeLang} />
+      <TopBar session={session} user={null} darkMode={darkMode} language={language} onToggleTheme={toggleTheme} onChangeLanguage={changeLang} />
 
       <main className="mx-auto max-w-7xl p-4 lg:p-6">
         <PageHeader className="mb-6" title="Document Comparison"

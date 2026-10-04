@@ -5,6 +5,17 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../../components/header';
 import CountryIntegrations from '../../components/CountryIntegrations';
+import Icon, { type IconName } from '../../components/ui/Icon';
+import TopBar from '../../components/ui/TopBar';
+import Modal from '../../components/ui/Modal';
+import Toggle from '../../components/ui/Toggle';
+import SettingsTabs from '../../components/ui/SettingsTabs';
+import { appRootClass, PageHeader, SectionTitle, EmptyState, Notice } from '../../components/ui/Panel';
+import { Button, ButtonLink, Spinner } from '../../components/ui/Button';
+import { inputClass, selectClass, textareaClass, Field, DataLabel } from '../../components/ui/Field';
+import { Tag, Chip } from '../../components/ui/Tag';
+import { Toast, Stat, Segmented } from '../../components/ui/Data';
+import { toneClass, priorityTone, type Tone } from '../../components/ui/tones';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
@@ -27,7 +38,7 @@ const T = {
     cnpjInvalid: 'Invalid CNPJ checksum', cnpjValid: 'Valid CNPJ ✓',
     // Section 2
     s2Title: 'SERPRO Integra Comex', s2Badge1: 'Restricted API', s2Badge2: 'Full Data',
-    s2SecurityTitle: '🔐 Security Notice',
+    s2SecurityTitle: 'Security Notice',
     s2SecurityDesc: 'All credentials are encrypted with AES-256-GCM before storage. Your certificate and secrets are never exposed after saving.',
     s2Desc: 'The SERPRO Integra Comex Restricted API provides full CE Mercante status, AFRMM values, cargo situation, and dispatch document links. Each company must contract this service directly with SERPRO at ',
     s2DescEnd: ' and receive their own API credentials.',
@@ -35,7 +46,7 @@ const T = {
     environment: 'Environment', sandbox: 'sandbox', production: 'production',
     certificate: 'e-CPF Certificate (.pfx / .p12)',
     certReplace: 'Replace Certificate', certUpload: 'Upload Certificate',
-    certLoaded: '🔐 Certificate loaded (encrypted)', certHint: 'Max 2MB — .pfx or .p12 only',
+    certLoaded: 'Certificate loaded (encrypted)', certHint: 'Max 2MB — .pfx or .p12 only',
     certErrExt: 'Only .pfx or .p12 files are accepted', certErrSize: 'Certificate file must be under 2MB',
     certPassword: 'Certificate Password', certCnpj: 'CNPJ Linked to Certificate',
     certCnpjHint: 'Auto-filled from Company Profile if left blank',
@@ -44,7 +55,7 @@ const T = {
     // Section 3
     s3Title: 'Siscomex Carga', s3Badge1: 'Public API', s3Badge2: 'No Auth Required',
     s3Status: 'Status', s3Auth: 'Auth Required', s3Endpoint: 'Endpoint', s3Data: 'Data Available',
-    s3StatusVal: '🟢 Available (always on)', s3AuthVal: 'None',
+    s3StatusVal: 'Available (always on)', s3AuthVal: 'None',
     s3DataVal: 'CE last modified, Manifesto, Escala/Vessel',
     s3Docs: 'View API Docs ↗',
     // Section 4
@@ -77,7 +88,7 @@ const T = {
     contactName: 'Nome do Contato', contactEmail: 'E-mail do Contato', contactPhone: 'Telefone do Contato',
     cnpjInvalid: 'CNPJ inválido', cnpjValid: 'CNPJ válido ✓',
     s2Title: 'SERPRO Integra Comex', s2Badge1: 'API Restrita', s2Badge2: 'Dados Completos',
-    s2SecurityTitle: '🔐 Aviso de Segurança',
+    s2SecurityTitle: 'Aviso de Segurança',
     s2SecurityDesc: 'Todas as credenciais são criptografadas com AES-256-GCM antes do armazenamento. Seu certificado e segredos nunca são expostos após salvar.',
     s2Desc: 'A API Restrita SERPRO Integra Comex fornece status completo do CE Mercante, valores AFRMM, situação da carga e links de documentos de despacho. Cada empresa deve contratar este serviço diretamente com o SERPRO em ',
     s2DescEnd: ' e receber suas próprias credenciais de API.',
@@ -85,7 +96,7 @@ const T = {
     environment: 'Ambiente', sandbox: 'homologação', production: 'produção',
     certificate: 'Certificado e-CPF (.pfx / .p12)',
     certReplace: 'Substituir Certificado', certUpload: 'Enviar Certificado',
-    certLoaded: '🔐 Certificado carregado (criptografado)', certHint: 'Máx 2MB — apenas .pfx ou .p12',
+    certLoaded: 'Certificado carregado (criptografado)', certHint: 'Máx 2MB — apenas .pfx ou .p12',
     certErrExt: 'Apenas arquivos .pfx ou .p12 são aceitos', certErrSize: 'O arquivo deve ter menos de 2MB',
     certPassword: 'Senha do Certificado', certCnpj: 'CNPJ Vinculado ao Certificado',
     certCnpjHint: 'Preenchido automaticamente do Perfil da Empresa se vazio',
@@ -93,7 +104,7 @@ const T = {
     testBtn: 'Testar Conexão', removeBtn: 'Remover Credenciais',
     s3Title: 'Siscomex Carga', s3Badge1: 'API Pública', s3Badge2: 'Sem Autenticação',
     s3Status: 'Status', s3Auth: 'Autenticação', s3Endpoint: 'Endpoint', s3Data: 'Dados Disponíveis',
-    s3StatusVal: '🟢 Disponível (sempre ativo)', s3AuthVal: 'Nenhuma',
+    s3StatusVal: 'Disponível (sempre ativo)', s3AuthVal: 'Nenhuma',
     s3DataVal: 'Última modificação CE, Manifesto, Escala/Navio',
     s3Docs: 'Ver Documentação da API ↗',
     s4Title: 'Fallback & Modo Manual',
@@ -124,7 +135,7 @@ const T = {
     contactName: 'Primaire Contactpersoon', contactEmail: 'Contact E-mail', contactPhone: 'Telefoonnummer',
     cnpjInvalid: 'Ongeldig CNPJ', cnpjValid: 'Geldig CNPJ ✓',
     s2Title: 'SERPRO Integra Comex', s2Badge1: 'Beperkte API', s2Badge2: 'Volledige Data',
-    s2SecurityTitle: '🔐 Beveiligingsmelding',
+    s2SecurityTitle: 'Beveiligingsmelding',
     s2SecurityDesc: 'Alle inloggegevens worden versleuteld opgeslagen met AES-256-GCM. Uw certificaat en geheimen worden nooit blootgesteld na opslaan.',
     s2Desc: 'De SERPRO Integra Comex Beperkte API biedt volledige CE Mercante status, AFRMM-waarden, ladingstatus en verzendingsdocumentlinks. Elk bedrijf moet deze dienst rechtstreeks bij SERPRO contracteren via ',
     s2DescEnd: ' en eigen API-inloggegevens ontvangen.',
@@ -132,7 +143,7 @@ const T = {
     environment: 'Omgeving', sandbox: 'sandbox', production: 'productie',
     certificate: 'e-CPF Certificaat (.pfx / .p12)',
     certReplace: 'Certificaat Vervangen', certUpload: 'Certificaat Uploaden',
-    certLoaded: '🔐 Certificaat geladen (versleuteld)', certHint: 'Max 2MB — alleen .pfx of .p12',
+    certLoaded: 'Certificaat geladen (versleuteld)', certHint: 'Max 2MB — alleen .pfx of .p12',
     certErrExt: 'Alleen .pfx of .p12 bestanden zijn toegestaan', certErrSize: 'Bestand moet kleiner zijn dan 2MB',
     certPassword: 'Certificaatwachtwoord', certCnpj: 'CNPJ Gekoppeld aan Certificaat',
     certCnpjHint: 'Automatisch ingevuld vanuit Bedrijfsprofiel indien leeg',
@@ -140,7 +151,7 @@ const T = {
     testBtn: 'Verbinding Testen', removeBtn: 'Inloggegevens Verwijderen',
     s3Title: 'Siscomex Carga', s3Badge1: 'Publieke API', s3Badge2: 'Geen Auth Vereist',
     s3Status: 'Status', s3Auth: 'Authenticatie', s3Endpoint: 'Endpoint', s3Data: 'Beschikbare Data',
-    s3StatusVal: '🟢 Beschikbaar (altijd actief)', s3AuthVal: 'Geen',
+    s3StatusVal: 'Beschikbaar (altijd actief)', s3AuthVal: 'Geen',
     s3DataVal: 'CE laatste wijziging, Manifesto, Schip/Escala',
     s3Docs: 'API Documentatie Bekijken ↗',
     s4Title: 'Fallback & Handmatige Modus',
@@ -271,36 +282,22 @@ export default function IntegrationsPage() {
     }
   }, [session]);
 
-  const theme = darkMode ? {
-    bg: 'bg-[#050510]', card: 'bg-[#0a0a1a]', cardBorder: 'border-white/5',
-    text: 'text-white', textMuted: 'text-gray-400', textDim: 'text-gray-500',
-    input: 'bg-[#0a0a1a] border-white/10 text-white placeholder-gray-600',
-    hover: 'hover:bg-white/5', iconFilter: { filter: 'brightness(0) invert(1)' },
-    section: 'bg-[#080814]',
-  } : {
-    bg: 'bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-50',
-    card: 'bg-white/80 backdrop-blur-sm', cardBorder: 'border-slate-200/50',
-    text: 'text-slate-900', textMuted: 'text-slate-600', textDim: 'text-slate-500',
-    input: 'bg-white border-slate-200 text-slate-900 placeholder-slate-400',
-    hover: 'hover:bg-slate-50', iconFilter: {},
-    section: 'bg-slate-50/60',
-  };
 
   const serproConfigured = saved?.hasSerproSecret && saved?.serproClientId;
   const certExpiringSoon = saved?.serproCertExpiry
     ? (new Date(saved.serproCertExpiry).getTime() - Date.now()) / 86400000 < 30
     : false;
 
-  const serproStatusBadge = () => {
+  const serproStatusBadge = (): { tone: Tone; text: string } => {
     const t = T[language];
-    if (!serproConfigured) return { icon: '⚪', text: t.statusNotConfigured, color: 'text-gray-400' };
+    if (!serproConfigured) return { tone: 'neutral', text: t.statusNotConfigured };
     if (saved?.serproStatus === 'connected' && certExpiringSoon) {
       const days = Math.ceil((new Date(saved.serproCertExpiry!).getTime() - Date.now()) / 86400000);
-      return { icon: '🟡', text: t.statusCertWarning.replace('{days}', String(days)), color: 'text-yellow-400' };
+      return { tone: 'warn', text: t.statusCertWarning.replace('{days}', String(days)) };
     }
-    if (saved?.serproStatus === 'connected') return { icon: '🟢', text: t.statusConnected.replace('{date}', saved.serproCertExpiry || 'unknown'), color: 'text-green-400' };
-    if (saved?.serproStatus === 'error') return { icon: '🔴', text: t.statusError, color: 'text-red-400' };
-    return { icon: '⚪', text: t.statusNotConfigured, color: 'text-gray-400' };
+    if (saved?.serproStatus === 'connected') return { tone: 'ok', text: t.statusConnected.replace('{date}', saved.serproCertExpiry || 'unknown') };
+    if (saved?.serproStatus === 'error') return { tone: 'danger', text: t.statusError };
+    return { tone: 'neutral', text: t.statusNotConfigured };
   };
 
   const handleCertUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -357,80 +354,75 @@ export default function IntegrationsPage() {
     setRemoving(false); setShowRemoveModal(false);
   };
 
-  const field = (label: string, value: string, onChange: (v: string) => void, opts?: { type?: string; placeholder?: string; error?: string | null; hint?: string; showToggle?: boolean; onToggle?: () => void; shown?: boolean }) => (
+  const field = (label: string, value: string, onChange: (v: string) => void, opts?: { type?: string; placeholder?: string; error?: string | null; hint?: string; showToggle?: boolean; onToggle?: () => void; shown?: boolean; mono?: boolean }) => (
     <div>
-      <label className={`block text-xs font-medium ${theme.textMuted} mb-1.5`}>{label}</label>
+      <label className="mb-1 block text-app-ui-sm font-medium text-app-ink-2">{label}</label>
       <div className="relative">
         <input
           type={opts?.showToggle ? (opts.shown ? 'text' : 'password') : (opts?.type || 'text')}
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder={opts?.placeholder}
-          className={`w-full px-3 py-2.5 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF] transition ${opts?.error ? 'border-red-500' : ''}`}
+          aria-label={label}
+          className={`${inputClass} ${opts?.mono || opts?.showToggle ? 'font-fw-mono' : ''} ${opts?.showToggle ? 'pr-10' : ''} ${opts?.error ? 'border-app-danger-dot' : ''}`}
         />
         {opts?.showToggle && (
-          <button type="button" onClick={opts.onToggle} className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${theme.textDim} hover:${theme.textMuted}`}>
-            {opts.shown ? '🙈' : '👁'}
+          <button type="button" onClick={opts.onToggle} aria-label={opts.shown ? 'Hide value' : 'Show value'}
+            className="absolute right-2 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-fw-btn text-app-ink-3 hover:text-app-ink">
+            <Icon name="eye" size={15} />
           </button>
         )}
       </div>
-      {opts?.error && <p className="text-xs text-red-400 mt-1">{opts.error}</p>}
-      {opts?.hint && !opts?.error && <p className={`text-xs ${theme.textDim} mt-1`}>{opts.hint}</p>}
+      {opts?.error && <p className="mt-1 text-app-ui-sm text-app-danger-ink">{opts.error}</p>}
+      {opts?.hint && !opts?.error && <p className="mt-1 text-app-ui-sm text-app-ink-3">{opts.hint}</p>}
     </div>
   );
 
   const sectionCard = (children: React.ReactNode, className = '') => (
-    <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-6 space-y-5 ${className}`}>{children}</div>
+    <section className={`space-y-5 rounded-fw-card border border-app-line bg-app-card p-5 ${className}`}>{children}</section>
   );
 
-  const badge = (text: string, color: string) => (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${color}`}>{text}</span>
+  const sectionHead = (icon: IconName, title: string, extra?: React.ReactNode) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Icon name={icon} size={18} className="text-app-accent" />
+      <h2 className="font-fw-display text-app-title-sm font-normal">{title}</h2>
+      {extra}
+    </div>
   );
 
   const status = serproStatusBadge();
+  const toggleTheme = () => { setDarkMode(d => !d); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); };
 
   return (
-    <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors`}>
-      {saveMsg && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-xl text-white ${saveMsg.ok ? 'bg-green-500' : 'bg-red-500'}`}>{saveMsg.text}</div>
-      )}
+    <div data-theme={darkMode ? 'dark' : 'light'} className={appRootClass}>
+      <Toast notification={saveMsg ? { type: saveMsg.ok ? 'success' : 'error', msg: saveMsg.text } : null} />
 
       <Header
         session={session} user={user} darkMode={darkMode} language={language}
-        onToggleTheme={() => { setDarkMode(d => !d); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); }}
+        onToggleTheme={toggleTheme}
         onChangeLanguage={l => { setLanguage(l); localStorage.setItem('fw_lang', l); }}
       />
 
-      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-        {/* Page header */}
-        <div className="flex items-center gap-3 mb-2">
-          <Link href={`/dashboard?session=${session}`} className={`text-sm ${theme.textDim} hover:${theme.textMuted} transition`}>{T[language].backToInbox}</Link>
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold mb-1">{T[language].pageTitle}</h1>
-          <p className={`text-sm ${theme.textDim}`}>{T[language].pageDesc}</p>
-        </div>
+      <main className="mx-auto max-w-3xl space-y-5 px-4 py-6">
+        <ButtonLink href={`/dashboard?session=${session}`} variant="ghost" size="xs" icon="arrow-left">{T[language].backToInbox.replace(/^←\s*/, '')}</ButtonLink>
+        <PageHeader title={T[language].pageTitle} description={T[language].pageDesc} />
 
         {/* Settings sub-nav */}
-        <div className={`flex gap-1 p-1 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl w-fit`}>
-          <span className="px-4 py-1.5 text-sm rounded-lg font-medium bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white">Integrations</span>
-          <Link href={`/billing?session=${session}`} className={`px-4 py-1.5 text-sm rounded-lg font-medium ${theme.textMuted} ${theme.hover}`}>Billing</Link>
-        </div>
+        <SettingsTabs active="integrations" session={session} />
 
         {/* ── SECTION 1: Company Profile ─────────────────────────────────── */}
         {sectionCard(<>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-base">🏢</span>
-            <h2 className="text-base font-semibold">{T[language].s1Title}</h2>
+          <div>
+            {sectionHead('building', T[language].s1Title)}
+            <p className="mt-1 text-app-ui-sm text-app-ink-3">{T[language].s1Desc}</p>
           </div>
-          <p className={`text-xs ${theme.textDim} -mt-3`}>{T[language].s1Desc}</p>
 
           <div className="grid grid-cols-2 gap-4">
             {field(T[language].companyName, form.companyName, v => setForm(f => ({ ...f, companyName: v })), { placeholder: 'Empresa Ltda.' })}
             <div>
-              <label className={`block text-xs font-medium ${theme.textMuted} mb-1.5`}>{T[language].cnpj}</label>
+              <label className="mb-1 block text-app-ui-sm font-medium text-app-ink-2">{T[language].cnpj}</label>
               <input
-                type="text" value={form.cnpj}
+                type="text" value={form.cnpj} aria-label={T[language].cnpj}
                 onChange={e => {
                   const v = formatCNPJ(e.target.value);
                   setForm(f => ({ ...f, cnpj: v }));
@@ -438,70 +430,55 @@ export default function IntegrationsPage() {
                   setCnpjValid(digits.length === 14 ? validateCNPJ(v) : null);
                 }}
                 placeholder="00.000.000/0001-00"
-                className={`w-full px-3 py-2.5 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF] transition ${cnpjValid === false ? 'border-red-500' : cnpjValid === true ? 'border-green-500' : ''}`}
+                className={`${inputClass} font-fw-mono ${cnpjValid === false ? 'border-app-danger-dot' : cnpjValid === true ? 'border-app-ok-dot' : ''}`}
               />
-              {cnpjValid === false && <p className="text-xs text-red-400 mt-1">{T[language].cnpjInvalid}</p>}
-              {cnpjValid === true && <p className="text-xs text-green-400 mt-1">{T[language].cnpjValid}</p>}
+              {cnpjValid === false && <p className="mt-1 text-app-ui-sm text-app-danger-ink">{T[language].cnpjInvalid}</p>}
+              {cnpjValid === true && <p className="mt-1 text-app-ui-sm text-app-ok-ink">{T[language].cnpjValid}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             {field(T[language].tradeName, form.tradeName, v => setForm(f => ({ ...f, tradeName: v })), { placeholder: 'My Freight Co.' })}
-            <div>
-              <label className={`block text-xs font-medium ${theme.textMuted} mb-1.5`}>{T[language].country}</label>
-              <select value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))}
-                className={`w-full px-3 py-2.5 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}>
+            <Field label={T[language].country}>
+              <select value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))} className={selectClass}>
                 <option value="Brazil">Brazil</option>
                 <option value="Portugal">Portugal</option>
                 <option value="Netherlands">Netherlands</option>
                 <option value="Other">Other</option>
               </select>
-            </div>
+            </Field>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
             {field(T[language].contactName, form.contactName, v => setForm(f => ({ ...f, contactName: v })), { placeholder: 'João Silva' })}
             {field(T[language].contactEmail, form.contactEmail, v => setForm(f => ({ ...f, contactEmail: v })), { type: 'email', placeholder: 'joao@empresa.com.br' })}
-            <div>
-              <label className={`block text-xs font-medium ${theme.textMuted} mb-1.5`}>{T[language].contactPhone}</label>
-              <input type="text" value={form.contactPhone}
-                onChange={e => setForm(f => ({ ...f, contactPhone: formatPhone(e.target.value) }))}
-                placeholder="(11) 99999-9999"
-                className={`w-full px-3 py-2.5 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}
-              />
-            </div>
+            {field(T[language].contactPhone, form.contactPhone, v => setForm(f => ({ ...f, contactPhone: formatPhone(v) })), { placeholder: '(11) 99999-9999', mono: true })}
           </div>
         </>)}
 
         {/* ── SECTION 2: SERPRO Integra Comex ─────────────────────────────── */}
         {sectionCard(<>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-base">🔒</span>
-              <h2 className="text-base font-semibold">{T[language].s2Title}</h2>
-              {badge(T[language].s2Badge1, 'bg-purple-500/20 text-purple-400')}
-              {badge(T[language].s2Badge2, 'bg-green-500/20 text-green-400')}
-            </div>
-            <span className={`text-xs font-medium ${status.color}`}>{status.icon} {status.text}</span>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {sectionHead('lock', T[language].s2Title, <>
+              <Tag tone="accent">{T[language].s2Badge1}</Tag>
+              <Tag tone="ok">{T[language].s2Badge2}</Tag>
+            </>)}
+            <span className={`inline-flex items-center gap-1.5 text-app-ui-sm font-medium ${toneClass[status.tone].text}`}>
+              <span aria-hidden className={`size-2 rounded-full ${toneClass[status.tone].dot}`} />{status.text}
+            </span>
           </div>
 
-          {/* Encryption info box */}
-          <div className={`p-3 rounded-xl border ${darkMode ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-200'}`}>
-            <p className="text-xs text-blue-400 font-medium mb-1">{T[language].s2SecurityTitle}</p>
-            <p className={`text-xs ${theme.textDim}`}>{T[language].s2SecurityDesc}</p>
-          </div>
+          <Notice tone="info" icon="lock" title={T[language].s2SecurityTitle}>{T[language].s2SecurityDesc}</Notice>
 
-          <div className={`p-3 rounded-xl border ${darkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-            <p className={`text-xs ${theme.textDim} leading-relaxed`}>
-              {T[language].s2Desc}
-              <a href="https://atendimento.serpro.gov.br/integracomex" target="_blank" rel="noopener noreferrer" className="text-[#9E14FB] hover:underline">atendimento.serpro.gov.br/integracomex</a>
-              {T[language].s2DescEnd}
-            </p>
-          </div>
+          <p className="rounded-fw-btn border border-app-line bg-app-panel p-3 text-app-ui-sm leading-relaxed text-app-ink-2">
+            {T[language].s2Desc}
+            <a href="https://atendimento.serpro.gov.br/integracomex" target="_blank" rel="noopener noreferrer" className="font-fw-mono text-app-accent hover:underline">atendimento.serpro.gov.br/integracomex</a>
+            {T[language].s2DescEnd}
+          </p>
 
           <div className="grid grid-cols-2 gap-4">
             {field(T[language].clientId, form.serproClientId, v => setForm(f => ({ ...f, serproClientId: v })), {
-              placeholder: saved?.serproClientId ? '••••••' + (saved.serproClientId?.slice(-4) || '') : 'Enter client ID',
+              placeholder: saved?.serproClientId ? '••••••' + (saved.serproClientId?.slice(-4) || '') : 'Enter client ID', mono: true,
             })}
             {field(T[language].clientSecret, form.serproClientSecret, v => setForm(f => ({ ...f, serproClientSecret: v })), {
               showToggle: true, shown: showSecret, onToggle: () => setShowSecret(s => !s),
@@ -511,31 +488,24 @@ export default function IntegrationsPage() {
 
           {/* Environment toggle */}
           <div>
-            <label className={`block text-xs font-medium ${theme.textMuted} mb-2`}>{T[language].environment}</label>
-            <div className="flex rounded-xl overflow-hidden border border-white/10 w-fit">
-              {(['sandbox', 'production'] as const).map(env => (
-                <button key={env} onClick={() => setForm(f => ({ ...f, serproEnvironment: env }))}
-                  className={`px-5 py-2 text-sm font-medium transition capitalize ${form.serproEnvironment === env ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : `${darkMode ? 'bg-white/5 text-gray-400' : 'bg-slate-100 text-slate-500'} hover:bg-white/10`}`}>
-                  {env === 'sandbox' ? T[language].sandbox : T[language].production}
-                </button>
-              ))}
-            </div>
+            <p className="mb-1 text-app-ui-sm font-medium text-app-ink-2">{T[language].environment}</p>
+            <Segmented label={T[language].environment} value={form.serproEnvironment} onChange={env => setForm(f => ({ ...f, serproEnvironment: env }))}
+              options={(['sandbox', 'production'] as const).map(env => ({ value: env, label: env === 'sandbox' ? T[language].sandbox : T[language].production }))} />
           </div>
 
           {/* Certificate upload */}
           <div>
-            <label className={`block text-xs font-medium ${theme.textMuted} mb-1.5`}>{T[language].certificate}</label>
-            <div className={`flex items-center gap-3 p-3 rounded-xl border-2 border-dashed ${darkMode ? 'border-white/10' : 'border-slate-200'} ${certError ? 'border-red-500' : ''}`}>
+            <p className="mb-1 text-app-ui-sm font-medium text-app-ink-2">{T[language].certificate}</p>
+            <div className={`flex items-center gap-3 rounded-fw-btn border border-dashed p-3 ${certError ? 'border-app-danger-dot' : 'border-app-line-strong'}`}>
               <input ref={certRef} type="file" accept=".pfx,.p12" onChange={handleCertUpload} className="hidden" />
-              <button type="button" onClick={() => certRef.current?.click()}
-                className={`px-4 py-2 rounded-lg text-sm font-medium ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} transition`}>
+              <Button size="sm" icon="upload" onClick={() => certRef.current?.click()}>
                 {saved?.hasCertificate ? T[language].certReplace : T[language].certUpload}
-              </button>
-              <span className={`text-sm ${theme.textDim}`}>
-                {certFileName ? certFileName : saved?.hasCertificate ? T[language].certLoaded : T[language].certHint}
+              </Button>
+              <span className="flex items-center gap-1.5 text-app-ui-sm text-app-ink-2">
+                {certFileName ? <span className="font-fw-mono">{certFileName}</span> : saved?.hasCertificate ? <><Icon name="lock" size={13} className="text-app-ok-ink" />{T[language].certLoaded}</> : T[language].certHint}
               </span>
             </div>
-            {certError && <p className="text-xs text-red-400 mt-1">{certError}</p>}
+            {certError && <p className="mt-1 text-app-ui-sm text-app-danger-ink">{certError}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -544,177 +514,138 @@ export default function IntegrationsPage() {
               placeholder: saved?.hasCertPassword ? T[language].secretPlaceholder : 'Certificate password',
             })}
             {field(T[language].certCnpj, form.serproCertCnpj, v => setForm(f => ({ ...f, serproCertCnpj: formatCNPJ(v) })), {
-              placeholder: form.cnpj || '00.000.000/0001-00',
-              hint: T[language].certCnpjHint,
+              placeholder: form.cnpj || '00.000.000/0001-00', hint: T[language].certCnpjHint, mono: true,
             })}
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-3 flex-wrap pt-1">
-            <button onClick={handleTest} disabled={testing || !saved?.hasSerproSecret}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition border ${!saved?.hasSerproSecret ? 'opacity-40 cursor-not-allowed' : ''} ${darkMode ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}>
-              {testing ? <span className="w-4 h-4 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin inline-block" /> : '🔌'}
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <Button icon={testing ? undefined : 'plug'} onClick={handleTest} disabled={testing || !saved?.hasSerproSecret}>
+              {testing && <Spinner className="size-3.5 text-app-accent" />}
               {T[language].testBtn}
-            </button>
+            </Button>
             {testResult && (
-              <span className={`text-sm font-medium ${testResult.success ? 'text-green-400' : 'text-red-400'}`}>
-                {testResult.success ? '✅' : '❌'} {testResult.message}
+              <span className={`flex items-center gap-1.5 text-app-ui-sm font-medium ${testResult.success ? 'text-app-ok-ink' : 'text-app-danger-ink'}`}>
+                <Icon name={testResult.success ? 'check' : 'alert'} size={14} /> {testResult.message}
               </span>
             )}
             <div className="flex-1" />
             {serproConfigured && (
-              <button onClick={() => setShowRemoveModal(true)}
-                className="px-4 py-2.5 rounded-xl text-sm font-medium text-red-400 border border-red-400/30 hover:bg-red-400/10 transition">
-                {T[language].removeBtn}
-              </button>
+              <Button variant="danger" icon="trash" onClick={() => setShowRemoveModal(true)}>{T[language].removeBtn}</Button>
             )}
           </div>
         </>)}
 
         {/* ── SECTION 3: Siscomex Carga Public ─────────────────────────────── */}
         {sectionCard(<>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-base">📡</span>
-            <h2 className="text-base font-semibold">{T[language].s3Title}</h2>
-            {badge(T[language].s3Badge1, 'bg-blue-500/20 text-blue-400')}
-            {badge(T[language].s3Badge2, 'bg-gray-500/20 text-gray-400')}
-          </div>
+          {sectionHead('globe', T[language].s3Title, <>
+            <Tag tone="info">{T[language].s3Badge1}</Tag>
+            <Tag tone="neutral">{T[language].s3Badge2}</Tag>
+          </>)}
 
-          <div className={`p-3 rounded-xl border ${darkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-            <p className={`text-xs ${theme.textDim} leading-relaxed`}>{T[language].siscomexDesc}</p>
-          </div>
+          <p className="rounded-fw-btn border border-app-line bg-app-panel p-3 text-app-ui-sm leading-relaxed text-app-ink-2">{T[language].siscomexDesc}</p>
 
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            {[
-              [T[language].s3Status, <span className="text-green-400 font-medium">{T[language].s3StatusVal}</span>],
-              [T[language].s3Auth, <span className={theme.textDim}>{T[language].s3AuthVal}</span>],
-              [T[language].s3Endpoint, <span className={`text-xs font-mono ${theme.textDim}`}>siscomex-carga.estaleiro.serpro.gov.br</span>],
-              [T[language].s3Data, <span className={theme.textDim}>{T[language].s3DataVal}</span>],
-            ].map(([label, value]) => (
-              <div key={label as string} className={`p-3 rounded-xl ${darkMode ? 'bg-white/3' : 'bg-white/60'} border ${theme.cardBorder}`}>
-                <p className={`text-[10px] ${theme.textDim} mb-1`}>{label as string}</p>
+          <dl className="grid grid-cols-2 gap-3">
+            {([
+              [T[language].s3Status, <span className="inline-flex items-center gap-1.5 font-medium text-app-ok-ink"><span aria-hidden className="size-2 rounded-full bg-app-ok-dot" />{T[language].s3StatusVal}</span>],
+              [T[language].s3Auth, <span className="text-app-ink-2">{T[language].s3AuthVal}</span>],
+              [T[language].s3Endpoint, <span className="break-all font-fw-mono text-app-mono-xs text-app-ink-2">siscomex-carga.estaleiro.serpro.gov.br</span>],
+              [T[language].s3Data, <span className="text-app-ink-2">{T[language].s3DataVal}</span>],
+            ] as [string, React.ReactNode][]).map(([label, value]) => (
+              <div key={label} className="rounded-fw-btn border border-app-line bg-app-panel p-3 text-app-ui-sm">
+                <DataLabel className="mb-1">{label}</DataLabel>
                 {value}
               </div>
             ))}
-          </div>
+          </dl>
 
           <a href="https://www.gov.br/receitafederal/pt-br/assuntos/aduaneiro/siscomex" target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm text-[#9E14FB] hover:underline">
-            {T[language].s3Docs}
+            className="inline-flex items-center gap-1.5 text-app-ui text-app-accent hover:underline">
+            {T[language].s3Docs.replace(/\s*↗$/, '')} <Icon name="external" size={13} />
           </a>
         </>)}
 
         {/* ── SECTION 3b: Brazil — RADAR & MAPA ────────────────────────────── */}
         {sectionCard(<>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-base">🇧🇷</span>
-            <h2 className="text-base font-semibold">Additional Compliance</h2>
-          </div>
+          {sectionHead('compliance', 'Additional Compliance', <span className="inline-flex h-5 items-center rounded-fw-btn border border-app-line px-1 font-fw-mono text-app-mono-xs text-app-ink-2">BR</span>)}
 
-          <div>
-            <label className={`block text-xs font-medium ${theme.textMuted} mb-1.5`}>RADAR Status</label>
-            <select value={form.radarStatus} onChange={e => setForm(f => ({ ...f, radarStatus: e.target.value }))}
-              className={`w-full px-3 py-2.5 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}>
+          <Field label="RADAR Status">
+            <select value={form.radarStatus} onChange={e => setForm(f => ({ ...f, radarStatus: e.target.value }))} className={selectClass}>
               <option value="">Not set</option>
               <option value="Ilimitada">Ilimitada</option>
               <option value="Limitada">Limitada</option>
               <option value="Suspensa">Suspensa</option>
             </select>
-          </div>
+          </Field>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <p className={`text-sm font-medium ${theme.text}`}>MAPA-regulated shipments</p>
-              <p className={`text-xs ${theme.textDim}`}>This company ships agricultural/food products regulated by MAPA</p>
+              <p className="text-app-ui font-medium">MAPA-regulated shipments</p>
+              <p className="text-app-ui-sm text-app-ink-3">This company ships agricultural/food products regulated by MAPA</p>
             </div>
-            <button onClick={() => setForm(f => ({ ...f, mapaEnabled: !f.mapaEnabled }))}
-              className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${form.mapaEnabled ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF]' : (darkMode ? 'bg-white/20' : 'bg-slate-300')}`}>
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${form.mapaEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
-            </button>
+            <Toggle checked={form.mapaEnabled} onChange={() => setForm(f => ({ ...f, mapaEnabled: !f.mapaEnabled }))} label="MAPA-regulated shipments" />
           </div>
 
           {form.mapaEnabled && (
-            <div>
-              <label className={`block text-xs font-medium ${theme.textMuted} mb-1.5`}>MAPA Registration Number</label>
-              <input value={form.mapaRegistrationNumber} onChange={e => setForm(f => ({ ...f, mapaRegistrationNumber: e.target.value }))}
-                className={`w-full px-3 py-2.5 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              <p className={`text-xs ${theme.textDim} mt-1`}>When enabled, quote-request emails involving Brazil and regulated commodities (food, grain, coffee, wood, etc.) will show a MAPA alert.</p>
-            </div>
+            <Field label="MAPA Registration Number" hint="When enabled, quote-request emails involving Brazil and regulated commodities (food, grain, coffee, wood, etc.) will show a MAPA alert.">
+              <input value={form.mapaRegistrationNumber} onChange={e => setForm(f => ({ ...f, mapaRegistrationNumber: e.target.value }))} className={`${inputClass} font-fw-mono`} />
+            </Field>
           )}
         </>)}
 
         {/* ── SECTION 4: Fallback & Manual Mode ────────────────────────────── */}
         {sectionCard(<>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-base">⚙️</span>
-            <h2 className="text-base font-semibold">{T[language].s4Title}</h2>
-          </div>
+          {sectionHead('settings', T[language].s4Title)}
 
-          <div className={`p-3 rounded-xl border ${darkMode ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-            <p className={`text-xs ${theme.textDim}`}>{T[language].s4Desc}</p>
-          </div>
+          <p className="rounded-fw-btn border border-app-line bg-app-panel p-3 text-app-ui-sm text-app-ink-2">{T[language].s4Desc}</p>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium">{T[language].autoToggle}</p>
-              <p className={`text-xs ${theme.textDim}`}>{T[language].autoToggleDesc}</p>
+              <p className="text-app-ui font-medium">{T[language].autoToggle}</p>
+              <p className="text-app-ui-sm text-app-ink-3">{T[language].autoToggleDesc}</p>
             </div>
-            <button onClick={() => setForm(f => ({ ...f, autoRequestMissing: !f.autoRequestMissing }))}
-              className={`w-11 h-6 rounded-full transition-colors relative ${form.autoRequestMissing ? 'bg-[#9E14FB]' : darkMode ? 'bg-white/20' : 'bg-slate-300'}`}>
-              <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${form.autoRequestMissing ? 'left-5.5 translate-x-0.5' : 'left-0.5'}`} />
-            </button>
+            <Toggle checked={form.autoRequestMissing} onChange={() => setForm(f => ({ ...f, autoRequestMissing: !f.autoRequestMissing }))} label={T[language].autoToggle} />
           </div>
 
           {form.autoRequestMissing && (
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className={`text-xs font-medium ${theme.textMuted}`}>{T[language].templateLabel}</label>
-                <button onClick={() => setForm(f => ({ ...f, missingDataTemplate: DEFAULT_TEMPLATE }))}
-                  className={`text-xs ${theme.textDim} hover:text-[#9E14FB] transition`}>{T[language].resetTemplate}</button>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-app-ui-sm font-medium text-app-ink-2">{T[language].templateLabel}</label>
+                <Button variant="ghost" size="xs" icon="restore" onClick={() => setForm(f => ({ ...f, missingDataTemplate: DEFAULT_TEMPLATE }))}>{T[language].resetTemplate}</Button>
               </div>
-              <div className={`text-xs ${theme.textDim} mb-2 flex gap-2 flex-wrap`}>
+              <div className="mb-2 flex flex-wrap gap-1.5">
                 {['{{client_name}}', '{{shipment_route}}', '{{missing_fields}}'].map(v => (
-                  <code key={v} className={`px-1.5 py-0.5 rounded ${darkMode ? 'bg-white/10' : 'bg-slate-200'}`}>{v}</code>
+                  <code key={v} className="rounded-fw-btn border border-app-line bg-app-panel px-1.5 py-0.5 font-fw-mono text-app-mono-xs text-app-ink-2">{v}</code>
                 ))}
               </div>
-              <textarea value={form.missingDataTemplate}
-                onChange={e => setForm(f => ({ ...f, missingDataTemplate: e.target.value }))}
-                rows={8}
-                className={`w-full px-3 py-2.5 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF] resize-none font-mono`}
-              />
+              <textarea value={form.missingDataTemplate} onChange={e => setForm(f => ({ ...f, missingDataTemplate: e.target.value }))} rows={8}
+                aria-label={T[language].templateLabel} className={`${textareaClass} font-fw-mono text-app-mono`} />
             </div>
           )}
         </>)}
 
         {/* Save button */}
         <div className="flex justify-end">
-          <button onClick={handleSave} disabled={saving}
-            className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white font-semibold text-sm hover:opacity-90 transition disabled:opacity-50 flex items-center gap-2">
-            {saving && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+          <Button variant="primary" size="lg" onClick={handleSave} disabled={saving}>
+            {saving && <Spinner className="size-3.5" />}
             {saving ? T[language].saving : T[language].saveSettings}
-          </button>
+          </Button>
         </div>
 
-        <div className={`border-t ${theme.cardBorder} pt-6 pb-8`}>
+        <div className="border-t border-app-line pb-8 pt-6">
           <CountryIntegrations session={session} darkMode={darkMode} />
         </div>
-      </div>
+      </main>
 
       {/* Remove credentials confirmation modal */}
       {showRemoveModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-6 w-full max-w-sm shadow-2xl`}>
-            <h3 className="text-base font-semibold mb-2">{T[language].removeModalTitle}</h3>
-            <p className={`text-sm ${theme.textDim} mb-5`}>{T[language].removeModalDesc}</p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowRemoveModal(false)} className={`flex-1 py-2.5 rounded-xl text-sm font-medium ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} transition`}>{T[language].cancel}</button>
-              <button onClick={handleRemove} disabled={removing}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition disabled:opacity-50">
-                {removing ? T[language].removing : T[language].remove}
-              </button>
-            </div>
-          </div>
-        </div>
+        <Modal title={T[language].removeModalTitle} icon="alert" size="sm" onClose={() => setShowRemoveModal(false)}
+          footer={<>
+            <Button onClick={() => setShowRemoveModal(false)}>{T[language].cancel}</Button>
+            <Button variant="danger" icon="trash" onClick={handleRemove} disabled={removing}>{removing ? T[language].removing : T[language].remove}</Button>
+          </>}>
+          <p className="p-5 text-app-ui text-app-ink-2">{T[language].removeModalDesc}</p>
+        </Modal>
       )}
     </div>
   );
