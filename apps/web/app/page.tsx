@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import FreightGlobe from '@/app/components/FreightGlobe';
-import Image from 'next/image';
-
-// Icon component for easy SVG usage
-const Icon = ({ name, className = "w-6 h-6" }: { name: string; className?: string }) => (
-  <img src={`/icons/${name}.svg`} alt={name} className={className} />
-);
+import RevealObserver from '@/app/components/marketing/RevealObserver';
+import CountUp from '@/app/components/marketing/CountUp';
+import { ButtonLink } from '@/app/components/marketing/Button';
+import { Eyebrow, Section, SectionHeader } from '@/app/components/marketing/Section';
+import FeatureCard, { IconFrame, revealDelay } from '@/app/components/marketing/FeatureCard';
+import FwIcon, { type FwIconName } from '@/app/components/marketing/FwIcon';
 
 // Translations
 const translations = {
@@ -28,27 +28,27 @@ const translations = {
       desc: 'Freight forwarding operations rely heavily on email communication. Quote requests, shipment updates, documentation questions, and follow-ups arrive continuously throughout the day. Managing this inbox manually slows teams down and increases the risk of missed opportunities.',
       desc2: 'FreightWizard uses artificial intelligence to analyze incoming freight emails, extract key shipment information, and suggest the appropriate actions automatically.',
       features: [
-        { icon: 'web_page_AI Email Understanding', title: 'AI Email Understanding', desc: 'Automatically reads freight emails and extracts shipment details such as ports, container types, cargo information, and delivery dates.' },
-        { icon: 'web_page_Smart_Workflow_Suggestions', title: 'Smart Workflow Suggestions', desc: 'Identifies whether an email is a quote request, booking update, documentation request, or status inquiry and suggests the correct next step.' },
-        { icon: 'web_page_AI Drafted Responses', title: 'AI Drafted Responses', desc: 'Generates professional reply drafts that your team can review and send in seconds.' },
-        { icon: 'web_page_Inbox Prioritization', title: 'Inbox Prioritization', desc: 'Highlights urgent requests and high-value quote opportunities so nothing falls through the cracks.' },
+        { icon: 'email' as FwIconName, title: 'AI Email Understanding', desc: 'Automatically reads freight emails and extracts shipment details such as ports, container types, cargo information, and delivery dates.' },
+        { icon: 'workflow' as FwIconName, title: 'Smart Workflow Suggestions', desc: 'Identifies whether an email is a quote request, booking update, documentation request, or status inquiry and suggests the correct next step.' },
+        { icon: 'reply' as FwIconName, title: 'AI Drafted Responses', desc: 'Generates professional reply drafts that your team can review and send in seconds.' },
+        { icon: 'priority' as FwIconName, title: 'Inbox Prioritization', desc: 'Highlights urgent requests and high-value quote opportunities so nothing falls through the cracks.' },
       ],
     },
     features: {
       title: 'Key Features',
       items: [
-        { icon: 'web_page_Data Extraction', title: 'Shipment Data Extraction', desc: 'Detects ports, container types, cargo details, vessel names, and shipment references automatically.' },
-        { icon: 'web_page_Email Intent Detection', title: 'Email Intent Detection', desc: 'Classifies incoming emails as quotes, updates, documentation requests, or tracking inquiries.' },
-        { icon: 'web_page_Reply Assistant', title: 'Reply Assistant', desc: 'AI generates accurate and professional responses based on the email context.' },
-        { icon: 'web_page_Activity Timeline', title: 'Activity Timeline', desc: 'Track communication history for every shipment conversation.' },
-        { icon: 'web_page_Smart Notifications', title: 'Smart Notifications', desc: 'Get alerted when high-priority emails arrive or deadlines approach.' },
-        { icon: 'web_page_Analytics Dashboard', title: 'Analytics Dashboard', desc: 'Monitor email volume, response times, and team productivity.' },
-        { icon: 'web_page_AI Drafted Responses', title: 'Quote Builder', desc: 'Pre-fills quotes from extracted email data so you can review and send them directly.' },
-        { icon: 'web_page_Shipment Tracker', title: 'Shipment Tracker', desc: 'Kanban board that auto-detects shipments from your emails and keeps their status current.' },
-        { icon: 'web_page_Customer Portal', title: 'Customer Portal', desc: 'Shareable tracking link your customer can open with no login required.' },
-        { icon: 'web_page_Analytics Dashboard', title: 'Rate Card Storage', desc: 'Save carrier rates per lane and have them auto-suggested inside the quote builder.' },
-        { icon: 'web_page_Country Compliance', title: 'Country Compliance', desc: 'Brazil MAPA/SERPRO, Netherlands Portbase/EORI, and USA ACE checks built in.' },
-        { icon: 'web_page_Document Intelligence', title: 'Document Intelligence', desc: 'Upload a BL, AWB, or invoice and AI extracts the fields and flags risks.' },
+        { icon: 'extract' as FwIconName, title: 'Shipment Data Extraction', desc: 'Detects ports, container types, cargo details, vessel names, and shipment references automatically.' },
+        { icon: 'intent' as FwIconName, title: 'Email Intent Detection', desc: 'Classifies incoming emails as quotes, updates, documentation requests, or tracking inquiries.' },
+        { icon: 'assistant' as FwIconName, title: 'Reply Assistant', desc: 'AI generates accurate and professional responses based on the email context.' },
+        { icon: 'timeline' as FwIconName, title: 'Activity Timeline', desc: 'Track communication history for every shipment conversation.' },
+        { icon: 'bell' as FwIconName, title: 'Smart Notifications', desc: 'Get alerted when high-priority emails arrive or deadlines approach.' },
+        { icon: 'analytics' as FwIconName, title: 'Analytics Dashboard', desc: 'Monitor email volume, response times, and team productivity.' },
+        { icon: 'quote' as FwIconName, title: 'Quote Builder', desc: 'Pre-fills quotes from extracted email data so you can review and send them directly.' },
+        { icon: 'tracking' as FwIconName, title: 'Shipment Tracker', desc: 'Kanban board that auto-detects shipments from your emails and keeps their status current.' },
+        { icon: 'portal' as FwIconName, title: 'Customer Portal', desc: 'Shareable tracking link your customer can open with no login required.' },
+        { icon: 'rates' as FwIconName, title: 'Rate Card Storage', desc: 'Save carrier rates per lane and have them auto-suggested inside the quote builder.' },
+        { icon: 'compliance' as FwIconName, title: 'Country Compliance', desc: 'Brazil MAPA/SERPRO, Netherlands Portbase/EORI, and USA ACE checks built in.' },
+        { icon: 'docs' as FwIconName, title: 'Document Intelligence', desc: 'Upload a BL, AWB, or invoice and AI extracts the fields and flags risks.' },
       ],
     },
     howItWorks: {
@@ -64,10 +64,10 @@ const translations = {
       title: 'Built for freight forwarding teams',
       desc: 'FreightWizard is designed specifically for companies whose operations depend on managing large volumes of freight communication.',
       cases: [
-        { icon: 'web_page_Freight Forwarding Companies', title: 'Freight Forwarding Companies', desc: 'Automate inbox processing and respond faster to quote requests.' },
-        { icon: 'web_page_Operations Teams', title: 'Operations Teams', desc: 'Reduce time spent sorting emails and extracting shipment data.' },
-        { icon: 'web_page_Sales Teams', title: 'Sales Teams', desc: 'Never miss a potential shipment opportunity hidden in your inbox.' },
-        { icon: 'web_page_Small Forwarders', title: 'Small Forwarders', desc: 'Scale operations without hiring additional staff.' },
+        { icon: 'forwarder' as FwIconName, title: 'Freight Forwarding Companies', desc: 'Automate inbox processing and respond faster to quote requests.' },
+        { icon: 'operations' as FwIconName, title: 'Operations Teams', desc: 'Reduce time spent sorting emails and extracting shipment data.' },
+        { icon: 'sales' as FwIconName, title: 'Sales Teams', desc: 'Never miss a potential shipment opportunity hidden in your inbox.' },
+        { icon: 'small' as FwIconName, title: 'Small Forwarders', desc: 'Scale operations without hiring additional staff.' },
       ],
     },
     integrations: {
@@ -146,27 +146,27 @@ const translations = {
       desc: 'Operações de freight forwarding dependem muito da comunicação por e-mail. Pedidos de cotação, atualizações de embarque e follow-ups chegam continuamente.',
       desc2: 'O FreightWizard usa inteligência artificial para analisar e-mails, extrair informações de embarque e sugerir ações automaticamente.',
       features: [
-        { icon: 'web_page_AI Email Understanding', title: 'Compreensão de E-mail por IA', desc: 'Lê automaticamente e-mails de frete e extrai detalhes como portos, tipos de container e datas.' },
-        { icon: 'web_page_Smart_Workflow_Suggestions', title: 'Sugestões Inteligentes', desc: 'Identifica se o e-mail é pedido de cotação, atualização de booking ou consulta de status.' },
-        { icon: 'web_page_AI Drafted Responses', title: 'Respostas com IA', desc: 'Gera rascunhos profissionais que sua equipe pode revisar e enviar em segundos.' },
-        { icon: 'web_page_Inbox Prioritization', title: 'Priorização de Inbox', desc: 'Destaca pedidos urgentes e oportunidades de alto valor.' },
+        { icon: 'email' as FwIconName, title: 'Compreensão de E-mail por IA', desc: 'Lê automaticamente e-mails de frete e extrai detalhes como portos, tipos de container e datas.' },
+        { icon: 'workflow' as FwIconName, title: 'Sugestões Inteligentes', desc: 'Identifica se o e-mail é pedido de cotação, atualização de booking ou consulta de status.' },
+        { icon: 'reply' as FwIconName, title: 'Respostas com IA', desc: 'Gera rascunhos profissionais que sua equipe pode revisar e enviar em segundos.' },
+        { icon: 'priority' as FwIconName, title: 'Priorização de Inbox', desc: 'Destaca pedidos urgentes e oportunidades de alto valor.' },
       ],
     },
     features: {
       title: 'Recursos Principais',
       items: [
-        { icon: 'web_page_Data Extraction', title: 'Extração de Dados', desc: 'Detecta portos, tipos de container, detalhes de carga e referências automaticamente.' },
-        { icon: 'web_page_Email Intent Detection', title: 'Detecção de Intenção', desc: 'Classifica e-mails como cotações, atualizações ou consultas de rastreamento.' },
-        { icon: 'web_page_Reply Assistant', title: 'Assistente de Resposta', desc: 'IA gera respostas precisas e profissionais baseadas no contexto.' },
-        { icon: 'web_page_Activity Timeline', title: 'Linha do Tempo', desc: 'Acompanhe o histórico de comunicação de cada conversa.' },
-        { icon: 'web_page_Smart Notifications', title: 'Notificações', desc: 'Seja alertado quando e-mails urgentes chegarem.' },
-        { icon: 'web_page_Analytics Dashboard', title: 'Painel Analytics', desc: 'Monitore volume de e-mails e produtividade da equipe.' },
-        { icon: 'web_page_AI Drafted Responses', title: 'Construtor de Cotações', desc: 'Pré-preenche cotações com os dados extraídos do e-mail para revisar e enviar direto.' },
-        { icon: 'web_page_Shipment Tracker', title: 'Rastreador de Embarques', desc: 'Quadro Kanban que detecta embarques nos seus e-mails e mantém o status atualizado.' },
-        { icon: 'web_page_Customer Portal', title: 'Portal do Cliente', desc: 'Link de rastreamento compartilhável que o cliente abre sem precisar de login.' },
-        { icon: 'web_page_Analytics Dashboard', title: 'Tabela de Tarifas', desc: 'Salve tarifas de transportadoras por rota e receba sugestões no construtor de cotações.' },
-        { icon: 'web_page_Country Compliance', title: 'Compliance por País', desc: 'MAPA/SERPRO no Brasil, Portbase/EORI na Holanda e ACE nos EUA já integrados.' },
-        { icon: 'web_page_Document Intelligence', title: 'Inteligência de Documentos', desc: 'Envie um BL, AWB ou fatura e a IA extrai os campos e sinaliza riscos.' },
+        { icon: 'extract' as FwIconName, title: 'Extração de Dados', desc: 'Detecta portos, tipos de container, detalhes de carga e referências automaticamente.' },
+        { icon: 'intent' as FwIconName, title: 'Detecção de Intenção', desc: 'Classifica e-mails como cotações, atualizações ou consultas de rastreamento.' },
+        { icon: 'assistant' as FwIconName, title: 'Assistente de Resposta', desc: 'IA gera respostas precisas e profissionais baseadas no contexto.' },
+        { icon: 'timeline' as FwIconName, title: 'Linha do Tempo', desc: 'Acompanhe o histórico de comunicação de cada conversa.' },
+        { icon: 'bell' as FwIconName, title: 'Notificações', desc: 'Seja alertado quando e-mails urgentes chegarem.' },
+        { icon: 'analytics' as FwIconName, title: 'Painel Analytics', desc: 'Monitore volume de e-mails e produtividade da equipe.' },
+        { icon: 'quote' as FwIconName, title: 'Construtor de Cotações', desc: 'Pré-preenche cotações com os dados extraídos do e-mail para revisar e enviar direto.' },
+        { icon: 'tracking' as FwIconName, title: 'Rastreador de Embarques', desc: 'Quadro Kanban que detecta embarques nos seus e-mails e mantém o status atualizado.' },
+        { icon: 'portal' as FwIconName, title: 'Portal do Cliente', desc: 'Link de rastreamento compartilhável que o cliente abre sem precisar de login.' },
+        { icon: 'rates' as FwIconName, title: 'Tabela de Tarifas', desc: 'Salve tarifas de transportadoras por rota e receba sugestões no construtor de cotações.' },
+        { icon: 'compliance' as FwIconName, title: 'Compliance por País', desc: 'MAPA/SERPRO no Brasil, Portbase/EORI na Holanda e ACE nos EUA já integrados.' },
+        { icon: 'docs' as FwIconName, title: 'Inteligência de Documentos', desc: 'Envie um BL, AWB ou fatura e a IA extrai os campos e sinaliza riscos.' },
       ],
     },
     howItWorks: {
@@ -182,10 +182,10 @@ const translations = {
       title: 'Feito para equipes de freight forwarding',
       desc: 'FreightWizard é projetado para empresas que dependem de grandes volumes de comunicação de frete.',
       cases: [
-        { icon: 'web_page_Freight Forwarding Companies', title: 'Freight Forwarders', desc: 'Automatize o processamento de inbox e responda mais rápido.' },
-        { icon: 'web_page_Operations Teams', title: 'Equipes de Operações', desc: 'Reduza tempo gasto classificando e-mails.' },
-        { icon: 'web_page_Sales Teams', title: 'Equipes de Vendas', desc: 'Nunca perca uma oportunidade escondida no inbox.' },
-        { icon: 'web_page_Small Forwarders', title: 'Pequenos Forwarders', desc: 'Escale operações sem contratar mais funcionários.' },
+        { icon: 'forwarder' as FwIconName, title: 'Freight Forwarders', desc: 'Automatize o processamento de inbox e responda mais rápido.' },
+        { icon: 'operations' as FwIconName, title: 'Equipes de Operações', desc: 'Reduza tempo gasto classificando e-mails.' },
+        { icon: 'sales' as FwIconName, title: 'Equipes de Vendas', desc: 'Nunca perca uma oportunidade escondida no inbox.' },
+        { icon: 'small' as FwIconName, title: 'Pequenos Forwarders', desc: 'Escale operações sem contratar mais funcionários.' },
       ],
     },
     integrations: {
@@ -253,27 +253,27 @@ const translations = {
       desc: 'Freight forwarding operaties zijn sterk afhankelijk van e-mailcommunicatie. Offerteaanvragen, updates en follow-ups komen continu binnen.',
       desc2: 'FreightWizard gebruikt AI om e-mails te analyseren, zendingsinformatie te extraheren en acties automatisch voor te stellen.',
       features: [
-        { icon: 'web_page_AI Email Understanding', title: 'AI E-mail Begrip', desc: 'Leest automatisch vracht-e-mails en extraheert details zoals havens, containertypes en data.' },
-        { icon: 'web_page_Smart_Workflow_Suggestions', title: 'Slimme Suggesties', desc: 'Identificeert of een e-mail een offerteaanvraag, boeking of statusvraag is.' },
-        { icon: 'web_page_AI Drafted Responses', title: 'AI Antwoorden', desc: 'Genereert professionele concepten die je team in seconden kan versturen.' },
-        { icon: 'web_page_Inbox Prioritization', title: 'Inbox Prioritering', desc: 'Markeert urgente verzoeken en waardevolle kansen.' },
+        { icon: 'email' as FwIconName, title: 'AI E-mail Begrip', desc: 'Leest automatisch vracht-e-mails en extraheert details zoals havens, containertypes en data.' },
+        { icon: 'workflow' as FwIconName, title: 'Slimme Suggesties', desc: 'Identificeert of een e-mail een offerteaanvraag, boeking of statusvraag is.' },
+        { icon: 'reply' as FwIconName, title: 'AI Antwoorden', desc: 'Genereert professionele concepten die je team in seconden kan versturen.' },
+        { icon: 'priority' as FwIconName, title: 'Inbox Prioritering', desc: 'Markeert urgente verzoeken en waardevolle kansen.' },
       ],
     },
     features: {
       title: 'Belangrijkste Functies',
       items: [
-        { icon: 'web_page_Data Extraction', title: 'Zendingsdata Extractie', desc: 'Detecteert havens, containertypes, lading en referenties automatisch.' },
-        { icon: 'web_page_Email Intent Detection', title: 'Intentie Detectie', desc: 'Classificeert e-mails als offertes, updates of tracking vragen.' },
-        { icon: 'web_page_Reply Assistant', title: 'Antwoord Assistent', desc: 'AI genereert accurate en professionele antwoorden.' },
-        { icon: 'web_page_Activity Timeline', title: 'Activiteit Tijdlijn', desc: 'Volg communicatiegeschiedenis voor elk gesprek.' },
-        { icon: 'web_page_Smart Notifications', title: 'Notificaties', desc: 'Ontvang alerts bij urgente e-mails.' },
-        { icon: 'web_page_Analytics Dashboard', title: 'Analytics Dashboard', desc: 'Monitor e-mailvolume en teamproductiviteit.' },
-        { icon: 'web_page_AI Drafted Responses', title: 'Offerte Bouwer', desc: 'Vult offertes vooraf in met data uit de e-mail zodat je ze direct kunt versturen.' },
-        { icon: 'web_page_Shipment Tracker', title: 'Zending Tracker', desc: 'Kanban-bord dat zendingen uit je e-mails detecteert en de status actueel houdt.' },
-        { icon: 'web_page_Customer Portal', title: 'Klantportaal', desc: 'Deelbare tracking-link die je klant zonder login kan openen.' },
-        { icon: 'web_page_Analytics Dashboard', title: 'Tarievenkaart Opslag', desc: 'Sla vervoerderstarieven per traject op en krijg ze voorgesteld in de offerte bouwer.' },
-        { icon: 'web_page_Country Compliance', title: 'Land Compliance', desc: 'MAPA/SERPRO in Brazilië, Portbase/EORI in Nederland en ACE in de VS ingebouwd.' },
-        { icon: 'web_page_Document Intelligence', title: 'Document Intelligentie', desc: 'Upload een BL, AWB of factuur en AI extraheert de velden en markeert risico\'s.' },
+        { icon: 'extract' as FwIconName, title: 'Zendingsdata Extractie', desc: 'Detecteert havens, containertypes, lading en referenties automatisch.' },
+        { icon: 'intent' as FwIconName, title: 'Intentie Detectie', desc: 'Classificeert e-mails als offertes, updates of tracking vragen.' },
+        { icon: 'assistant' as FwIconName, title: 'Antwoord Assistent', desc: 'AI genereert accurate en professionele antwoorden.' },
+        { icon: 'timeline' as FwIconName, title: 'Activiteit Tijdlijn', desc: 'Volg communicatiegeschiedenis voor elk gesprek.' },
+        { icon: 'bell' as FwIconName, title: 'Notificaties', desc: 'Ontvang alerts bij urgente e-mails.' },
+        { icon: 'analytics' as FwIconName, title: 'Analytics Dashboard', desc: 'Monitor e-mailvolume en teamproductiviteit.' },
+        { icon: 'quote' as FwIconName, title: 'Offerte Bouwer', desc: 'Vult offertes vooraf in met data uit de e-mail zodat je ze direct kunt versturen.' },
+        { icon: 'tracking' as FwIconName, title: 'Zending Tracker', desc: 'Kanban-bord dat zendingen uit je e-mails detecteert en de status actueel houdt.' },
+        { icon: 'portal' as FwIconName, title: 'Klantportaal', desc: 'Deelbare tracking-link die je klant zonder login kan openen.' },
+        { icon: 'rates' as FwIconName, title: 'Tarievenkaart Opslag', desc: 'Sla vervoerderstarieven per traject op en krijg ze voorgesteld in de offerte bouwer.' },
+        { icon: 'compliance' as FwIconName, title: 'Land Compliance', desc: 'MAPA/SERPRO in Brazilië, Portbase/EORI in Nederland en ACE in de VS ingebouwd.' },
+        { icon: 'docs' as FwIconName, title: 'Document Intelligentie', desc: 'Upload een BL, AWB of factuur en AI extraheert de velden en markeert risico\'s.' },
       ],
     },
     howItWorks: {
@@ -289,10 +289,10 @@ const translations = {
       title: 'Gebouwd voor freight forwarding teams',
       desc: 'FreightWizard is ontworpen voor bedrijven die afhankelijk zijn van grote volumes vrachtcommunicatie.',
       cases: [
-        { icon: 'web_page_Freight Forwarding Companies', title: 'Freight Forwarders', desc: 'Automatiseer inbox-verwerking en reageer sneller.' },
-        { icon: 'web_page_Operations Teams', title: 'Operations Teams', desc: 'Verminder tijd besteed aan e-mail sorteren.' },
-        { icon: 'web_page_Sales Teams', title: 'Sales Teams', desc: 'Mis nooit een kans verborgen in je inbox.' },
-        { icon: 'web_page_Small Forwarders', title: 'Kleine Forwarders', desc: 'Schaal operaties zonder extra personeel.' },
+        { icon: 'forwarder' as FwIconName, title: 'Freight Forwarders', desc: 'Automatiseer inbox-verwerking en reageer sneller.' },
+        { icon: 'operations' as FwIconName, title: 'Operations Teams', desc: 'Verminder tijd besteed aan e-mail sorteren.' },
+        { icon: 'sales' as FwIconName, title: 'Sales Teams', desc: 'Mis nooit een kans verborgen in je inbox.' },
+        { icon: 'small' as FwIconName, title: 'Kleine Forwarders', desc: 'Schaal operaties zonder extra personeel.' },
       ],
     },
     integrations: {
@@ -358,386 +358,330 @@ export default function HomePage() {
   const t = translations[language];
   const langLabels: Record<Language, string> = { en: 'EN', pt: 'PT', nl: 'NL' };
 
+  const navLink = 'text-fw-small text-fw-ink-2 transition-colors hover:text-fw-ink';
+  const langButton = 'flex min-h-[2.75rem] items-center gap-1.5 rounded-fw-btn border border-fw-line px-3 font-fw-mono text-fw-data text-fw-ink-2 transition-colors hover:border-fw-line-strong hover:text-fw-ink';
+  const tag = 'rounded-fw-btn border border-fw-line bg-fw-panel px-3 py-1.5 font-fw-mono text-fw-data';
+  const statusTag = 'rounded-fw-btn bg-fw-violet-tint px-2 py-0.5 font-fw-mono text-fw-data-xs uppercase text-fw-violet-200';
+
+  const langMenu = langMenuOpen && (
+    <div className="absolute right-0 top-full mt-2 overflow-hidden rounded-fw-card border border-fw-line bg-fw-raised shadow-fw-frame">
+      {(['en', 'pt', 'nl'] as Language[]).map((l) => (
+        <button key={l} onClick={() => { setLanguage(l); setLangMenuOpen(false); }} className="w-full px-4 py-2 text-left font-fw-mono text-fw-data text-fw-ink-2 hover:bg-fw-panel hover:text-fw-ink">
+          {langLabels[l]}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-[#050510] text-white">
+    <div className="min-h-screen overflow-x-clip bg-fw-canvas font-fw-sans text-fw-body text-fw-ink antialiased selection:bg-fw-violet-500 selection:text-fw-white [&_:focus-visible]:rounded-[2px] [&_:focus-visible]:outline [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-offset-[3px] [&_:focus-visible]:outline-fw-violet-400">
+      <RevealObserver />
+
       {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 bg-[#050510]/90 backdrop-blur-md border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <nav className="fixed top-0 z-50 w-full border-b border-fw-line bg-fw-canvas/90 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-10">
           <Link href="/" className="flex items-center">
             <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-7 w-auto" />
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#product" className="text-gray-400 hover:text-white transition text-sm">{t.nav.whatWeDo}</a>
-            <a href="#how-it-works" className="text-gray-400 hover:text-white transition text-sm">{t.nav.howItWorks}</a>
-            <a href="#use-cases" className="text-gray-400 hover:text-white transition text-sm">{t.nav.useCases}</a>
-            <a href="#pricing" className="text-gray-400 hover:text-white transition text-sm">{t.nav.pricing}</a>
-            <a href="#about" className="text-gray-400 hover:text-white transition text-sm">{t.nav.aboutUs}</a>
+          <div className="hidden items-center gap-8 md:flex">
+            <a href="#product" className={navLink}>{t.nav.whatWeDo}</a>
+            <a href="#how-it-works" className={navLink}>{t.nav.howItWorks}</a>
+            <a href="#use-cases" className={navLink}>{t.nav.useCases}</a>
+            <a href="#pricing" className={navLink}>{t.nav.pricing}</a>
+            <a href="#about" className={navLink}>{t.nav.aboutUs}</a>
           </div>
 
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden items-center gap-4 md:flex">
             {/* Language Selector */}
             <div className="relative">
-              <button onClick={() => setLangMenuOpen(!langMenuOpen)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-white px-3 py-2 rounded-lg border border-white/10">
-                {langLabels[language]} <span className="text-xs">▼</span>
+              <button onClick={() => setLangMenuOpen(!langMenuOpen)} aria-expanded={langMenuOpen} className={langButton}>
+                {langLabels[language]} <FwIcon name="chevron" size={14} />
               </button>
-              {langMenuOpen && (
-                <div className="absolute top-full right-0 mt-2 bg-[#0a0a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden">
-                  {(['en', 'pt', 'nl'] as Language[]).map((l) => (
-                    <button key={l} onClick={() => { setLanguage(l); setLangMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-white/10">
-                      {langLabels[l]}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {langMenu}
             </div>
-            
-            <Link href="/dashboard" className="text-gray-400 hover:text-white transition text-sm">{t.nav.signIn}</Link>
-            <Link href="/dashboard" className="px-5 py-2.5 bg-white text-black rounded-md font-medium text-sm hover:opacity-90 transition">
-              {t.nav.signUp}
-            </Link>
+
+            <Link href="/dashboard" className={navLink}>{t.nav.signIn}</Link>
+            <ButtonLink href="/dashboard">{t.nav.signUp}</ButtonLink>
           </div>
 
           {/* Mobile: Language Selector + Menu Button */}
-          <div className="md:hidden flex items-center gap-3">
+          <div className="flex items-center gap-2 md:hidden">
             <div className="relative">
-              <button onClick={() => { setLangMenuOpen(!langMenuOpen); setMobileMenuOpen(false); }} className="flex items-center gap-1 text-sm text-gray-400 hover:text-white px-3 py-1.5 rounded-lg border border-white/10">
-                {langLabels[language]} <span className="text-xs">▼</span>
+              <button onClick={() => { setLangMenuOpen(!langMenuOpen); setMobileMenuOpen(false); }} aria-expanded={langMenuOpen} className={langButton}>
+                {langLabels[language]} <FwIcon name="chevron" size={14} />
               </button>
-              {langMenuOpen && (
-                <div className="absolute top-full right-0 mt-2 bg-[#0a0a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden">
-                  {(['en', 'pt', 'nl'] as Language[]).map((l) => (
-                    <button key={l} onClick={() => { setLanguage(l); setLangMenuOpen(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-white/10">
-                      {langLabels[l]}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {langMenu}
             </div>
-            <button onClick={() => { setMobileMenuOpen(!mobileMenuOpen); setLangMenuOpen(false); }} className="text-2xl">☰</button>
+            <button onClick={() => { setMobileMenuOpen(!mobileMenuOpen); setLangMenuOpen(false); }} aria-expanded={mobileMenuOpen} aria-label="Menu" className="flex size-11 items-center justify-center text-2xl text-fw-ink">☰</button>
           </div>
         </div>
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-[#0a0a1a] border-t border-white/10 px-6 py-4 space-y-4">
-            <a href="#product" className="block text-gray-300">{t.nav.whatWeDo}</a>
-            <a href="#how-it-works" className="block text-gray-300">{t.nav.howItWorks}</a>
-            <a href="#use-cases" className="block text-gray-300">{t.nav.useCases}</a>
-            <a href="#pricing" className="block text-gray-300">{t.nav.pricing}</a>
-            <a href="#about" className="block text-gray-300">{t.nav.aboutUs}</a>
-            <Link href="/dashboard" className="block w-full text-center py-3 bg-white text-black rounded-md font-medium">
-              {t.nav.signUp}
-            </Link>
+          <div className="space-y-4 border-t border-fw-line bg-fw-panel px-4 py-4 md:hidden">
+            <a href="#product" className="block text-fw-ink-2">{t.nav.whatWeDo}</a>
+            <a href="#how-it-works" className="block text-fw-ink-2">{t.nav.howItWorks}</a>
+            <a href="#use-cases" className="block text-fw-ink-2">{t.nav.useCases}</a>
+            <a href="#pricing" className="block text-fw-ink-2">{t.nav.pricing}</a>
+            <a href="#about" className="block text-fw-ink-2">{t.nav.aboutUs}</a>
+            <ButtonLink href="/dashboard" className="w-full">{t.nav.signUp}</ButtonLink>
           </div>
         )}
       </nav>
 
       {/* Hero Section with Immersive Globe */}
-      <section className="min-h-screen relative overflow-hidden bg-[#050510]">
+      <section className="relative min-h-screen overflow-hidden bg-fw-canvas">
         {/* Layer 1: globe */}
         <div className="absolute inset-0 z-0 flex items-start justify-center pt-16">
-          <div className="w-[320px] max-w-[85vw] md:w-[560px] md:max-w-[75vw] shrink-0">
+          <div className="w-[320px] max-w-[85vw] shrink-0 md:w-[560px] md:max-w-[75vw]">
             <FreightGlobe />
           </div>
         </div>
 
         {/* Layer 2: contrast gradients */}
-        <div className="absolute inset-0 z-10 pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-to-t from-[#050510] via-[#050510]/40 to-transparent"></div>
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[60%] h-[50%] bg-[#050510]/40 blur-3xl rounded-full"></div>
+        <div className="pointer-events-none absolute inset-0 z-10">
+          <div className="absolute inset-0 bg-gradient-to-t from-fw-canvas via-fw-canvas/40 to-transparent"></div>
+          <div className="absolute bottom-0 left-1/2 h-[50%] w-[60%] -translate-x-1/2 rounded-full bg-fw-canvas/40 blur-3xl"></div>
         </div>
 
         {/* Layer 3: content */}
-        <div className="relative z-20 flex flex-col items-center justify-start md:justify-end min-h-screen pt-56 md:pt-[40vh] pb-8 md:pb-16 px-6 text-center pointer-events-none">
-          <div className="inline-block px-4 py-2 bg-[#050510]/80 backdrop-blur-sm border border-[#9E14FB]/40 rounded-full text-xs md:text-sm mb-5">
-            <span className="bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] bg-clip-text text-transparent font-medium">
-              {t.hero.badge}
-            </span>
+        <div className="pointer-events-none relative z-20 flex min-h-screen flex-col items-center justify-start px-4 pb-8 pt-56 text-center md:justify-end md:px-6 md:pb-16 md:pt-[40vh]">
+          <div className="mb-6 rounded-fw-btn bg-fw-canvas/80 px-3 py-2 backdrop-blur-sm">
+            <Eyebrow>{t.hero.badge}</Eyebrow>
           </div>
 
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-sans font-medium mb-5 leading-tight">
-            <span className="text-white">{t.hero.title1}</span>
+          <h1 className="mb-6 max-w-4xl font-fw-display text-fw-h1 font-light text-fw-ink">
+            {t.hero.title1}
             <br />
-            <span className="text-white">{t.hero.title2}</span>
-            <span className="bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] bg-clip-text text-transparent">{t.hero.title3}</span>
+            {t.hero.title2}
+            <span className="font-semibold text-fw-violet-400">{t.hero.title3}</span>
           </h1>
 
-          <p className="text-gray-300 text-base md:text-lg mb-3 max-w-2xl px-4">
+          <p className="mb-3 max-w-2xl px-4 text-fw-lead text-fw-ink-2">
             {t.hero.subtitle}
           </p>
-          <p className="text-gray-500 text-sm md:text-base mb-8 max-w-2xl px-4">
+          <p className="mb-8 max-w-2xl px-4 text-fw-small text-fw-ink-3">
             {t.hero.desc}
           </p>
 
-          <Link href="/dashboard" className="pointer-events-auto border border-white/40 text-white px-8 py-3.5 rounded-md hover:border-white/80 hover:bg-white/5 transition">
+          <ButtonLink href="/dashboard" className="pointer-events-auto px-8">
             {t.hero.cta}
-          </Link>
+          </ButtonLink>
         </div>
       </section>
 
       {/* Product Section */}
-      <section id="product" className="py-20 px-6 bg-[#050510]">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.product.title}</h2>
-            <p className="text-gray-400 max-w-3xl mx-auto mb-4">{t.product.desc}</p>
-            <p className="text-gray-400 max-w-3xl mx-auto">{t.product.desc2}</p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {t.product.features.map((feature, i) => (
-              <div key={i} className="bg-gradient-to-br from-[#0a0a1a] to-[#0f0f1f] rounded-2xl p-6 border border-white/5 hover:border-[#5200FF]/50 transition group">
-                <div className="w-12 h-12 mb-4 p-2 rounded-xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
-                  <Icon name={feature.icon} className="w-full h-full" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2 group-hover:bg-gradient-to-r group-hover:from-[#9E14FB] group-hover:to-[#1BA1FF] group-hover:bg-clip-text group-hover:text-transparent transition">{feature.title}</h3>
-                <p className="text-gray-500 text-sm">{feature.desc}</p>
-              </div>
-            ))}
-          </div>
+      <Section id="product" labelledBy="product-title">
+        <SectionHeader
+          id="product-title"
+          eyebrow={t.nav.whatWeDo}
+          title={t.product.title}
+          intro={<><p>{t.product.desc}</p><p>{t.product.desc2}</p></>}
+          className="mb-12 md:mb-16"
+        />
+        <div className="grid gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-4">
+          {t.product.features.map((feature, i) => (
+            <FeatureCard key={i} icon={feature.icon} title={feature.title} text={feature.desc} index={i} />
+          ))}
         </div>
-      </section>
+      </Section>
 
       {/* Features Grid */}
-      <section className="py-20 px-6 bg-gradient-to-b from-[#050510] to-[#0a0a1a]">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-16">{t.features.title}</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {t.features.items.map((feature, i) => (
-              <div key={i} className="flex gap-4">
-                <div className="w-10 h-10 flex-shrink-0 p-2 rounded-lg bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
-                  <Icon name={feature.icon} className="w-full h-full" />
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-1">{feature.title}</h3>
-                  <p className="text-gray-500 text-sm">{feature.desc}</p>
-                </div>
+      <Section labelledBy="features-title">
+        <SectionHeader id="features-title" eyebrow={t.footer.links.features} title={t.features.title} className="mb-12 md:mb-16" />
+        <div className="grid gap-x-8 gap-y-10 md:grid-cols-2 lg:grid-cols-3">
+          {t.features.items.map((feature, i) => (
+            <div key={i} data-reveal style={revealDelay(i % 3)} className="flex gap-4">
+              <IconFrame name={feature.icon} />
+              <div>
+                <h3 className="mb-1 font-fw-display text-fw-h3 font-semibold text-fw-ink">{feature.title}</h3>
+                <p className="text-fw-small text-fw-ink-2">{feature.desc}</p>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
-      </section>
+      </Section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="py-20 px-6 bg-[#050510]">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-16">{t.howItWorks.title}</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {t.howItWorks.steps.map((step, i) => (
-              <div key={i} className="relative">
-                <div className="w-12 h-12 bg-gradient-to-br from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full flex items-center justify-center text-xl font-bold mb-4">
-                  {step.num}
-                </div>
-                <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
-                <p className="text-gray-500 text-sm">{step.desc}</p>
-                {i < 3 && <div className="hidden lg:block absolute top-6 left-14 w-full h-0.5 bg-gradient-to-r from-[#5200FF]/50 to-transparent"></div>}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <Section id="how-it-works" labelledBy="how-title">
+        <SectionHeader id="how-title" eyebrow={t.nav.howItWorks} title={t.howItWorks.title} className="mb-12 md:mb-16" />
+        <ol className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+          {t.howItWorks.steps.map((step, i) => (
+            <li key={i} data-reveal style={revealDelay(i, 90)} className="border-t border-fw-line-strong pt-5">
+              <span className="font-fw-mono text-fw-data text-fw-violet-300">{step.num.padStart(2, '0')}</span>
+              <h3 className="mb-2 mt-3 font-fw-display text-fw-h3 font-semibold text-fw-ink">{step.title}</h3>
+              <p className="text-fw-small text-fw-ink-2">{step.desc}</p>
+            </li>
+          ))}
+        </ol>
+      </Section>
 
       {/* Use Cases */}
-      <section id="use-cases" className="py-20 px-6 bg-gradient-to-b from-[#050510] to-[#0a0a1a]">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.useCases.title}</h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">{t.useCases.desc}</p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {t.useCases.cases.map((useCase, i) => (
-              <div key={i} className="bg-[#0a0a1a] rounded-2xl p-6 border border-white/5 text-center hover:border-[#1BA1FF]/30 transition">
-                <div className="w-16 h-16 mx-auto mb-4 p-3 rounded-2xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
-                  <Icon name={useCase.icon} className="w-full h-full" />
-                </div>
-                <h3 className="font-semibold mb-2">{useCase.title}</h3>
-                <p className="text-gray-500 text-sm">{useCase.desc}</p>
-              </div>
-            ))}
-          </div>
+      <Section id="use-cases" labelledBy="use-cases-title">
+        <SectionHeader id="use-cases-title" eyebrow={t.nav.useCases} title={t.useCases.title} intro={<p>{t.useCases.desc}</p>} className="mb-12 md:mb-16" />
+        <div className="grid gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-4">
+          {t.useCases.cases.map((useCase, i) => (
+            <FeatureCard key={i} icon={useCase.icon} title={useCase.title} text={useCase.desc} index={i} align="center" />
+          ))}
         </div>
-      </section>
+      </Section>
 
       {/* Integrations */}
-      <section id="integrations" className="py-20 px-6 bg-[#050510]">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.integrations.title}</h2>
-            <p className="text-gray-400">{t.integrations.desc}</p>
-          </div>
-          
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold text-center mb-4 text-[#1BA1FF]">{t.integrations.supported}</h3>
-            <div className="flex flex-wrap justify-center gap-4">
-              {t.integrations.current.map((int, i) => (
-                <div key={i} className="px-6 py-3 bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10 rounded-full border border-[#5200FF]/30 hover:border-[#5200FF]/50 transition">
-                  {int}
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold text-center mb-4 text-[#9E14FB]">{t.integrations.complianceTitle}</h3>
-            <div className="flex flex-wrap justify-center gap-4">
-              {t.integrations.compliance.map((int, i) => (
-                <div key={i} className="px-6 py-3 bg-gradient-to-r from-[#9E14FB]/10 to-[#5200FF]/10 rounded-full border border-[#9E14FB]/30">
-                  {int}
-                </div>
-              ))}
-            </div>
-          </div>
+      <Section id="integrations" labelledBy="integrations-title" width="max-w-4xl">
+        <SectionHeader id="integrations-title" eyebrow={t.footer.links.integrations} title={t.integrations.title} intro={<p>{t.integrations.desc}</p>} className="mb-12" />
 
-          <div>
-            <h3 className="text-lg font-semibold text-center mb-4 text-gray-500">{t.integrations.future}</h3>
-            <div className="flex flex-wrap justify-center gap-4">
-              {t.integrations.coming.map((int, i) => (
-                <div key={i} className="px-6 py-3 bg-[#0a0a1a] rounded-full border border-white/10 text-gray-500">
+        {[
+          { title: t.integrations.supported, items: t.integrations.current, soon: false },
+          { title: t.integrations.complianceTitle, items: t.integrations.compliance, soon: false },
+          { title: t.integrations.future, items: t.integrations.coming, soon: true },
+        ].map((group, g) => (
+          <div key={g} data-reveal style={revealDelay(g, 90)} className="mb-8 last:mb-0">
+            <h3 className={`mb-4 text-center font-fw-mono text-fw-eyebrow uppercase ${group.soon ? 'text-fw-ink-3' : 'text-fw-violet-300'}`}>{group.title}</h3>
+            <ul className="flex flex-wrap justify-center gap-3">
+              {group.items.map((int, i) => (
+                <li key={i} className={group.soon ? `${tag} border-dashed bg-transparent text-fw-ink-3` : `${tag} text-fw-ink`}>
                   {int}
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
-        </div>
-      </section>
+        ))}
+      </Section>
 
       {/* Pricing */}
-      <section id="pricing" className="py-20 px-6 bg-gradient-to-b from-[#050510] to-[#0a0a1a]">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-6">{t.pricing.title}</h2>
-          <div className="flex items-center justify-center gap-3 mb-14">
-            <span className={`text-sm ${!annual ? 'text-white' : 'text-gray-500'}`}>{t.pricing.monthly}</span>
-            <button
-              type="button"
-              onClick={() => setAnnual(!annual)}
-              aria-label="Toggle annual pricing"
-              className="relative w-12 h-6 rounded-full bg-white/10 border border-white/20 flex-shrink-0"
-            >
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] transition-transform ${annual ? 'translate-x-6' : 'translate-x-0'}`}></span>
-            </button>
-            <span className={`text-sm ${annual ? 'text-white' : 'text-gray-500'}`}>{t.pricing.annual}</span>
-            <span className="text-xs px-2 py-0.5 rounded bg-[#1BA1FF]/10 text-[#1BA1FF] border border-[#1BA1FF]/20">{t.pricing.annualNote}</span>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
-            {t.pricing.plans.map((plan, i) => (
-              <div key={i} className={`rounded-2xl p-6 border flex flex-col ${plan.popular ? 'bg-gradient-to-br from-[#9E14FB]/10 via-[#5200FF]/10 to-[#1BA1FF]/10 border-[#5200FF]/50' : 'bg-[#0a0a1a] border-white/5'}`}>
-                {plan.popular && <div className="text-xs bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] bg-clip-text text-transparent font-medium mb-2">MOST POPULAR</div>}
-                <h3 className="text-xl font-bold">{plan.name}</h3>
-                <div className="mt-4 mb-2">
-                  <span className="text-3xl font-bold">{plan.monthly == null ? plan.price : `$${annual ? plan.monthly * 10 : plan.monthly}`}</span>
-                  <span className="text-gray-500">{plan.monthly == null ? ` ${plan.period}` : (annual ? t.pricing.perYear : t.pricing.perMonth)}</span>
-                </div>
-                <p className="text-gray-500 text-sm mb-6">{plan.desc}</p>
-                <ul className="space-y-3 mb-6 flex-grow">
-                  {plan.features.map((f, j) => (
-                    <li key={j} className="flex items-center gap-2 text-sm">
-                      <span className="text-[#1BA1FF]">✓</span> {f}
-                    </li>
-                  ))}
-                </ul>
-                <Link href="/dashboard" className={`block w-full text-center py-3 rounded-md font-medium mt-auto ${plan.popular ? 'bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] text-white' : 'border border-white/20 hover:bg-white/5'}`}>
-                  {plan.cta}
-                </Link>
-              </div>
+      <Section id="pricing" labelledBy="pricing-title">
+        <SectionHeader id="pricing-title" eyebrow={t.nav.pricing} title={t.pricing.title} className="mb-8" />
+        <div data-reveal className="mb-12 flex flex-wrap items-center justify-center gap-3 md:mb-14">
+          <div role="group" aria-label="Billing period" className="inline-flex rounded-fw-btn border border-fw-line bg-fw-panel p-1">
+            {[{ label: t.pricing.monthly, value: false }, { label: t.pricing.annual, value: true }].map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                aria-pressed={annual === opt.value}
+                onClick={() => setAnnual(opt.value)}
+                className={`min-h-[2.25rem] rounded-[2px] px-4 text-fw-small transition-colors ${annual === opt.value ? 'bg-fw-raised text-fw-ink' : 'text-fw-ink-3 hover:text-fw-ink'}`}
+              >
+                {opt.label}
+              </button>
             ))}
           </div>
+          <span className={statusTag}>{t.pricing.annualNote}</span>
         </div>
-      </section>
+        <div className="grid items-stretch gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-4">
+          {t.pricing.plans.map((plan, i) => (
+            <div
+              key={i}
+              data-reveal
+              style={revealDelay(i)}
+              className={`flex flex-col rounded-fw-card border bg-fw-panel p-6 ${plan.popular ? 'border-fw-violet-500 shadow-fw-frame' : 'border-fw-line'}`}
+            >
+              {/* Tag row: reserved on every card from lg up so prices line up across the row */}
+              <div className={`mb-3 h-5 ${plan.popular ? "" : "hidden lg:block"}`}>
+                {plan.popular && <span className={statusTag}>MOST POPULAR</span>}
+              </div>
+              <h3 className="font-fw-display text-fw-h3 font-semibold text-fw-ink">{plan.name}</h3>
+              <div className="mb-2 mt-4 flex flex-wrap items-baseline gap-x-1.5">
+                <span className="font-fw-display text-fw-price font-semibold text-fw-ink">
+                  {plan.monthly == null ? plan.price : <CountUp value={annual ? plan.monthly * 10 : plan.monthly} prefix="$" />}
+                </span>
+                <span className={`font-fw-mono text-fw-data text-fw-ink-3 ${plan.monthly == null ? "basis-full [text-wrap:balance]" : ""}`}>{plan.monthly == null ? plan.period : (annual ? t.pricing.perYear : t.pricing.perMonth)}</span>
+              </div>
+              <p className="mb-6 text-fw-small text-fw-ink-2">{plan.desc}</p>
+              <ul className="mb-6 flex-grow space-y-3 border-t border-fw-line pt-5">
+                {plan.features.map((f, j) => (
+                  <li key={j} className="flex items-start gap-2.5 font-fw-mono text-fw-data text-fw-ink-2">
+                    <FwIcon name="check" size={16} className="mt-[3px] text-fw-violet-400" /> {f}
+                  </li>
+                ))}
+              </ul>
+              <ButtonLink href="/dashboard" variant={plan.popular ? 'primary' : 'secondary'} className="mt-auto w-full">
+                {plan.cta}
+              </ButtonLink>
+            </div>
+          ))}
+        </div>
+      </Section>
 
       {/* About Section */}
-      <section id="about" className="py-20 px-6 bg-[#050510]">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-8">{t.about.title}</h2>
-          <div className="space-y-6 text-gray-400 text-lg leading-relaxed">
-            <p>{t.about.p1}</p>
-            <p>{t.about.p2}</p>
-            <p>{t.about.p3}</p>
-          </div>
+      <Section id="about" labelledBy="about-title" width="max-w-4xl">
+        <SectionHeader id="about-title" eyebrow={t.nav.aboutUs} title={t.about.title} className="mb-8" />
+        <div data-reveal className="mx-auto max-w-3xl space-y-6 text-fw-lead text-fw-ink-2">
+          <p>{t.about.p1}</p>
+          <p>{t.about.p2}</p>
+          <p>{t.about.p3}</p>
         </div>
-      </section>
+      </Section>
 
       {/* FAQ */}
-      <section className="py-20 px-6 bg-gradient-to-b from-[#050510] to-[#0a0a1a]">
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-16">{t.faq.title}</h2>
-          <div className="space-y-4">
-            {t.faq.items.map((faq, i) => (
-              <div key={i} className="border border-white/10 rounded-xl overflow-hidden bg-[#0a0a1a]/50">
-                <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-white/5">
-                  <span className="font-medium">{faq.q}</span>
-                  <span className="text-xl text-[#1BA1FF]">{openFaq === i ? '−' : '+'}</span>
-                </button>
-                {openFaq === i && (
-                  <div className="px-6 pb-4 text-gray-400">{faq.a}</div>
-                )}
-              </div>
-            ))}
-          </div>
+      <Section labelledBy="faq-title" width="max-w-3xl">
+        <SectionHeader id="faq-title" title={t.faq.title} className="mb-12 md:mb-16" />
+        <div className="space-y-3">
+          {t.faq.items.map((faq, i) => (
+            <div key={i} data-reveal style={revealDelay(i, 50)} className="overflow-hidden rounded-fw-card border border-fw-line bg-fw-panel">
+              <button
+                onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                aria-expanded={openFaq === i}
+                className="flex min-h-[2.75rem] w-full items-center justify-between gap-4 px-6 py-4 text-left transition-colors hover:bg-fw-raised"
+              >
+                <span className="font-medium text-fw-ink">{faq.q}</span>
+                <FwIcon name={openFaq === i ? 'minus' : 'plus'} size={20} className="text-fw-violet-400" />
+              </button>
+              {openFaq === i && (
+                <div className="px-6 pb-5 text-fw-small text-fw-ink-2">{faq.a}</div>
+              )}
+            </div>
+          ))}
         </div>
-      </section>
+      </Section>
 
       {/* Security */}
-      <section className="py-20 px-6 bg-[#050510]">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.security.title}</h2>
-          <p className="text-gray-400 mb-8">{t.security.desc}</p>
-          <div className="flex flex-wrap justify-center gap-4">
-            {t.security.items.map((item, i) => (
-              <div key={i} className="px-4 py-2 bg-[#1BA1FF]/10 text-[#1BA1FF] rounded-full text-sm border border-[#1BA1FF]/20">
-                ✓ {item}
+      <Section labelledBy="security-title" width="max-w-4xl">
+        <SectionHeader id="security-title" title={t.security.title} intro={<p>{t.security.desc}</p>} className="mb-8" />
+        <ul data-reveal className="flex flex-wrap justify-center gap-3">
+          {t.security.items.map((item, i) => (
+            <li key={i} className={`${tag} flex items-center gap-2 text-fw-ink-2`}>
+              <FwIcon name="check" size={16} className="text-fw-violet-400" /> {item}
+            </li>
+          ))}
+        </ul>
+      </Section>
+
+      {/* Final CTA */}
+      <Section labelledBy="cta-title" width="max-w-4xl">
+        <SectionHeader id="cta-title" title={t.cta.title} intro={<p>{t.cta.desc}</p>} className="mb-8" />
+        <div data-reveal className="text-center">
+          <ButtonLink href="/dashboard" className="px-10">{t.cta.button}</ButtonLink>
+        </div>
+      </Section>
+
+      {/* Footer */}
+      <footer className="border-t border-fw-line bg-fw-canvas px-4 py-12 md:px-10">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-8 grid gap-8 md:grid-cols-4">
+            <div>
+              <div className="mb-4 flex items-center">
+                <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-6 w-auto" />
+              </div>
+              <p className="text-fw-small text-fw-ink-3">{t.footer.desc}</p>
+            </div>
+            {[
+              { title: t.footer.product, links: [['#product', t.footer.links.features], ['#pricing', t.footer.links.pricing], ['#integrations', t.footer.links.integrations]] },
+              { title: t.footer.company, links: [['#about', t.footer.links.about], ['#', t.footer.links.blog], ['#', t.footer.links.careers]] },
+              { title: t.footer.legal, links: [['#', t.footer.links.privacy], ['#', t.footer.links.terms]] },
+            ].map((col) => (
+              <div key={col.title}>
+                <h4 className="mb-4 font-fw-mono text-fw-eyebrow uppercase text-fw-ink-2">{col.title}</h4>
+                <ul className="space-y-2 text-fw-small text-fw-ink-3">
+                  {col.links.map(([href, label]) => (
+                    <li key={label}><a href={href} className="transition-colors hover:text-fw-ink">{label}</a></li>
+                  ))}
+                </ul>
               </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="py-20 px-6 bg-gradient-to-b from-[#050510] to-[#0a0a1a]">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.cta.title}</h2>
-          <p className="text-gray-400 mb-8">{t.cta.desc}</p>
-          <Link href="/dashboard" className="inline-block px-10 py-4 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-md font-medium text-lg hover:opacity-90 shadow-lg shadow-[#5200FF]/25">
-            {t.cta.button}
-          </Link>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-12 px-6 border-t border-white/5 bg-[#050510]">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center mb-4">
-                <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-6 w-auto" />
-              </div>
-              <p className="text-gray-500 text-sm">{t.footer.desc}</p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">{t.footer.product}</h4>
-              <ul className="space-y-2 text-gray-500 text-sm">
-                <li><a href="#product" className="hover:text-white">{t.footer.links.features}</a></li>
-                <li><a href="#pricing" className="hover:text-white">{t.footer.links.pricing}</a></li>
-                <li><a href="#integrations" className="hover:text-white">{t.footer.links.integrations}</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">{t.footer.company}</h4>
-              <ul className="space-y-2 text-gray-500 text-sm">
-                <li><a href="#about" className="hover:text-white">{t.footer.links.about}</a></li>
-                <li><a href="#" className="hover:text-white">{t.footer.links.blog}</a></li>
-                <li><a href="#" className="hover:text-white">{t.footer.links.careers}</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">{t.footer.legal}</h4>
-              <ul className="space-y-2 text-gray-500 text-sm">
-                <li><a href="#" className="hover:text-white">{t.footer.links.privacy}</a></li>
-                <li><a href="#" className="hover:text-white">{t.footer.links.terms}</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-white/5 pt-8 text-center text-gray-600 text-sm">
+          <div className="border-t border-fw-line pt-8 text-center font-fw-mono text-fw-data text-fw-ink-3">
             {t.footer.copy}
           </div>
         </div>

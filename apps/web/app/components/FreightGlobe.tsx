@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from "react"
 import createGlobe from "cobe"
+import { colors, hexToRgb01 } from "@/brand/tokens"
 
 interface PortMarker {
   id: string
@@ -43,10 +44,10 @@ const initialTeu = [4200, 3800, 2900, 1900, 1600, 1300]
 const speed = 0.003
 
 const labelStyle: React.CSSProperties = {
-  fontFamily: "monospace",
-  color: "#ffffff",
-  background: "#0a0a1a",
-  border: "1px solid rgba(158, 20, 251, 0.4)",
+  fontFamily: "var(--font-plex-mono), monospace",
+  color: colors.white,
+  background: colors["globe-label"],
+  border: `1px solid color-mix(in srgb, ${colors["violet-500"]} 40%, transparent)`,
   whiteSpace: "nowrap",
   pointerEvents: "none",
 }
@@ -124,13 +125,13 @@ export default function FreightGlobe() {
         width, height: width,
         phi: 0, theta: 0.2, dark: 1, diffuse: 1.5,
         mapSamples: 16000, mapBrightness: 10,
-        baseColor: [0.3, 0.0, 0.5],
-        markerColor: [0.62, 0.08, 0.98],
-        glowColor: [0.11, 0.63, 1.0],
+        baseColor: hexToRgb01(colors["globe-base"]),
+        markerColor: hexToRgb01(colors["violet-500"]),
+        glowColor: hexToRgb01(colors["globe-glow"]),
         markerElevation: 0.02,
         markers: markers.map((m) => ({ location: m.location, size: 0.012, id: m.id })),
         arcs: arcs.map((a) => ({ from: a.from, to: a.to, id: a.id })),
-        arcColor: [0.62, 0.08, 0.98],
+        arcColor: hexToRgb01(colors["violet-500"]),
         arcWidth: 0.5, arcHeight: 0.25, opacity: 0.7,
       })
       function animate() {
@@ -172,13 +173,13 @@ export default function FreightGlobe() {
       "rotateY(240deg) translateZ(4px) rotateX(19.5deg)",
       "rotateX(-90deg) rotateZ(60deg) translateY(4px)",
     ]
-    const colors = ["#9E14FB", "#7B0ED4", "#5200FF", "#3D00CC"]
+    const faces = [colors["globe-pyramid-1"], colors["globe-pyramid-2"], colors["globe-pyramid-3"], colors["globe-pyramid-4"]]
     return {
       position: "absolute", left: -0.5, top: 0,
       width: 0, height: 0,
       borderLeft: "6.5px solid transparent",
       borderRight: "6.5px solid transparent",
-      borderBottom: `13px solid ${colors[nth]}`,
+      borderBottom: `13px solid ${faces[nth]}`,
       transformOrigin: "center bottom",
       transform: transforms[nth],
     }
@@ -207,7 +208,7 @@ export default function FreightGlobe() {
           <div style={{ width: 12, height: 12, position: "relative", transformStyle: "preserve-3d", animation: "pyramid-spin 4s linear infinite" }}>
             {[0, 1, 2, 3].map((n) => (<div key={n} style={pyramidFaceStyle(n)} />))}
           </div>
-          <span style={{ ...labelStyle, fontSize: "0.55rem", padding: "2px 6px", borderRadius: 3, letterSpacing: "0.05em", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }}>{m.region}</span>
+          <span style={{ ...labelStyle, fontSize: "0.55rem", padding: "2px 6px", borderRadius: 3, letterSpacing: "0.05em" }}>{m.region}</span>
         </div>
       ))}
       {traffic.map((t) => (

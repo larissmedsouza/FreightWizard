@@ -23,3 +23,26 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
 }
+/* ---- Marketing landing page motion ---------------------------------------
+ * Calm, one-shot reveal on scroll (app/components/marketing/RevealObserver).
+ * The hidden start state only applies with JS (html.js) and when the visitor
+ * has no reduced-motion preference, so everyone else sees the final state.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .js [data-reveal] {
+    transition:
+      opacity 700ms cubic-bezier(0.22, 0.61, 0.36, 1),
+      transform 700ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+  .js [data-reveal]:not(.is-visible) {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
