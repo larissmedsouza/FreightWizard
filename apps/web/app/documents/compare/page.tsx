@@ -4,12 +4,17 @@ import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import Icon from '@/app/components/ui/Icon';
+import TopBar from '@/app/components/ui/TopBar';
+import Modal from '@/app/components/ui/Modal';
+import { appRootClass, PageHeader, SectionTitle, EmptyState, Notice } from '@/app/components/ui/Panel';
+import { Button, ButtonLink, Spinner } from '@/app/components/ui/Button';
+import { inputClass, textareaClass, DataLabel } from '@/app/components/ui/Field';
+import { Tag, Chip } from '@/app/components/ui/Tag';
+import { Toast, Segmented, th, tr } from '@/app/components/ui/Data';
+import { toneClass, MODE_ICON, type Tone } from '@/app/components/ui/tones';
 
 const API_URL = 'https://freightwizard-production.up.railway.app';
-
-const Icon = ({ name, className = "w-6 h-6", style }: { name: string; className?: string; style?: React.CSSProperties }) => (
-  <img src={`/icons/${name}.svg`} alt={name} className={className} style={style} />
-);
 
 interface ComparisonField {
   field: string;
@@ -51,27 +56,6 @@ export default function ComparePage() {
   const pathname = usePathname();
   const [language, setLanguage] = useState<'en'|'pt'|'nl'>('en');
 
-  const theme = darkMode ? {
-    bg: 'bg-[#050510]',
-    card: 'bg-[#0a0a1a]',
-    cardBorder: 'border-white/5',
-    text: 'text-white',
-    textMuted: 'text-gray-400',
-    textDim: 'text-gray-500',
-    hover: 'hover:bg-white/5',
-    input: 'bg-[#0f0f1f] border-white/10 text-white placeholder-gray-600',
-    iconFilter: { filter: 'brightness(0) invert(1)' },
-  } : {
-    bg: 'bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-50',
-    card: 'bg-white/80 backdrop-blur-sm',
-    cardBorder: 'border-slate-200/50',
-    text: 'text-slate-900',
-    textMuted: 'text-slate-600',
-    textDim: 'text-slate-500',
-    hover: 'hover:bg-slate-100/50',
-    input: 'bg-white border-slate-200 text-slate-900 placeholder-slate-400',
-    iconFilter: { filter: 'brightness(0) saturate(100%) invert(19%) sepia(96%) saturate(5765%) hue-rotate(268deg) brightness(102%) contrast(101%)' },
-  };
 
   const notify = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
@@ -99,7 +83,7 @@ export default function ComparePage() {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const base64 = (e.target?.result as string).split(',')[1];
-        notify('success', '⏳ Extracting text from file...');
+        notify('success', 'Extracting text from file...');
         try {
           const res = await fetch(`${API_URL}/api/extract-text`, {
             method: 'POST',
@@ -107,7 +91,7 @@ export default function ComparePage() {
             body: JSON.stringify({ base64, mimeType: file.type, fileName: file.name, sessionId: session }),
           });
           const data = await res.json();
-          if (data.text) { setText(data.text); setLoaded(true); notify('success', '✅ Text extracted!'); }
+          if (data.text) { setText(data.text); setLoaded(true); notify('success', 'Text extracted!'); }
           else notify('error', 'Could not extract text from file');
         } catch { notify('error', 'Failed to process file'); }
       };
@@ -141,55 +125,6 @@ export default function ComparePage() {
       notify('error', 'Failed to compare documents');
     }
     setLoading(false);
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'match': return '✅';
-      case 'mismatch': return '⚠️';
-      case 'missing_in_doc1': return '❌';
-      case 'missing_in_doc2': return '❌';
-      case 'both_missing': return '❓';
-      default: return '—';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'match': return 'text-green-400 bg-green-500/10 border-green-500/20';
-      case 'mismatch': return 'text-orange-400 bg-orange-500/10 border-orange-500/20';
-      case 'missing_in_doc1':
-      case 'missing_in_doc2': return 'text-red-400 bg-red-500/10 border-red-500/20';
-      case 'both_missing': return 'text-gray-400 bg-gray-500/10 border-gray-500/20';
-      default: return theme.textDim;
-    }
-  };
-
-  const getSeverityBadge = (severity: string) => {
-    switch (severity) {
-      case 'critical': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'high': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-      case 'medium': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-      case 'low': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      default: return 'bg-gray-500/20 text-gray-400';
-    }
-  };
-
-  const getOverallColor = (status: string) => {
-    switch (status) {
-      case 'match': return 'text-green-400';
-      case 'minor_issues': return 'text-yellow-400';
-      case 'major_issues': return 'text-orange-400';
-      case 'critical_issues': return 'text-red-400';
-      default: return 'text-gray-400';
-    }
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 90) return 'bg-green-500';
-    if (score >= 70) return 'bg-yellow-500';
-    if (score >= 50) return 'bg-orange-500';
-    return 'bg-red-500';
   };
 
   const filteredComparisons = result?.comparisons.filter(c => {
@@ -255,113 +190,70 @@ export default function ComparePage() {
   } : { match: 0, mismatch: 0, missing: 0 };
 
   const filterTabs = [
-    { key: 'all', label: 'All', icon: 'Dashboard_document_comparison_compare_documents' },
-    { key: 'mismatch', label: 'Mismatches', icon: 'Dashboard_document_comparison_mismatches' },
-    { key: 'missing', label: 'Missing', icon: 'Dashboard_document_comparison_missing' },
-    { key: 'match', label: 'Matches', icon: 'Dashboard_document_comparison_matches' },
+    { key: 'all', label: 'All' },
+    { key: 'mismatch', label: 'Mismatches' },
+    { key: 'missing', label: 'Missing' },
+    { key: 'match', label: 'Matches' },
   ] as const;
 
+  const changeLang = (l: 'en' | 'pt' | 'nl') => { setLanguage(l); localStorage.setItem('fw_lang', l); };
+  const toggleTheme = () => { setDarkMode(!darkMode); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); };
+  const discrepancyCount = counts.mismatch + counts.missing;
+  const scoreTone: Tone = !result ? 'neutral' : result.match_score >= 90 ? 'ok' : result.match_score >= 70 ? 'warn' : 'danger';
+  // Display names follow the A/B column labels unless the user named the document.
+  const nameA = doc1Name === 'Document 1' ? 'Document A' : doc1Name;
+  const nameB = doc2Name === 'Document 2' ? 'Document B' : doc2Name;
+  const missingLabel: Record<string, string> = { missing_in_doc1: 'missing in A', missing_in_doc2: 'missing in B', both_missing: 'missing in both' };
+  const isMissing = (s: ComparisonField['status']) => s === 'missing_in_doc1' || s === 'missing_in_doc2' || s === 'both_missing';
+
   return (
-    <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors`}>
-      {notification && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-xl text-white ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
-          {notification.msg}
-        </div>
-      )}
+    <div data-theme={darkMode ? 'dark' : 'light'} className={appRootClass}>
+      <Toast notification={notification} />
 
-      {/* Header */}<header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-3 flex items-center justify-between sticky top-0 z-40`}>
-  <Link href={`/dashboard?session=${session}`} className="flex items-center gap-2 flex-shrink-0">
-    <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
-    <span className="text-base font-bold">FreightWizard</span>
-  </Link>
+      <TopBar session={session} user={null} showSettings={false} darkMode={darkMode} language={language} onToggleTheme={toggleTheme} onChangeLanguage={changeLang} />
 
-  <div className="flex items-center gap-2">
-    {[
-      { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_analytics_total email' },
-      { href: '/shipments', label: { en: 'Shipments', pt: 'Embarques', nl: 'Zendingen' }, icon: 'Dashboard_tracking' },
-      { href: '/quotes', label: { en: 'Quotes', pt: 'Cotações', nl: 'Offertes' }, icon: 'Dashboard_quotation' },
-      { href: '/rates', label: { en: 'Rates', pt: 'Tarifas', nl: 'Tarieven' }, icon: 'Dashboard_quotation' },
-      { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
-      { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
-      { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
-    ].map(item => (
-      <Link key={item.href} href={`${item.href}?session=${session}`}
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${
-          pathname?.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')
-            ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40'
-            : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`
-        }`}>
-        <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
-        {item.label[language]}
-      </Link>
-    ))}
-
-    <div className={`w-px h-5 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
-
-    <div className="relative">
-      <button onClick={() => { const langs: ('en'|'pt'|'nl')[] = ['en','pt','nl']; const next = langs[(langs.indexOf(language)+1)%3]; setLanguage(next); localStorage.setItem('fw_lang', next); }}
-        className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover}`}>
-        {language.toUpperCase()}
-      </button>
-    </div>
-
-    <button onClick={() => { setDarkMode(!darkMode); localStorage.setItem('fw_theme', !darkMode ? 'dark' : 'light'); }}
-      className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
-      <Icon name={darkMode ? 'Dashboard_document_comparison_sun_light_mode' : 'Dashboard_document_comparison_moon_dark_mode'}
-        className="w-4 h-4" style={theme.iconFilter} />
-    </button>
-  </div>
-</header>
-
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-8 flex items-start gap-3">
-  <Icon name="Dashboard_document_comparison_icon" className="w-8 h-8 mt-1" style={theme.iconFilter} />
-  <div>
-    <h1 className="text-3xl font-bold">Document Comparison</h1>
-    <p className={theme.textMuted}>Compare two shipping documents side by side — detect mismatches, missing fields and discrepancies</p>
-  </div>
-</div>
+      <main className="mx-auto max-w-7xl p-4 lg:p-6">
+        <PageHeader className="mb-6" title="Document Comparison"
+          description="Compare two shipping documents side by side — detect mismatches, missing fields and discrepancies" />
 
         {/* Upload Area */}
-        <div className="grid md:grid-cols-2 gap-4 mb-6">
+        <div className="mb-4 grid gap-4 md:grid-cols-2">
           {[
-            { num: 1, text: doc1Text, name: doc1Name, loaded: doc1Loaded, setName: setDoc1Name, setText: setDoc1Text, ref: file1Ref },
-            { num: 2, text: doc2Text, name: doc2Name, loaded: doc2Loaded, setName: setDoc2Name, setText: setDoc2Text, ref: file2Ref },
-          ].map(({ num, text, name, loaded, setName, setText, ref }) => (
-            <div key={num} className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-5`}>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold flex items-center gap-2">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${num === 1 ? 'bg-[#9E14FB]' : 'bg-[#1BA1FF]'}`}>{num}</span>
-                  Document {num}
+            { num: 1, letter: 'A', text: doc1Text, name: doc1Name, loaded: doc1Loaded, setName: setDoc1Name, setText: setDoc1Text, ref: file1Ref },
+            { num: 2, letter: 'B', text: doc2Text, name: doc2Name, loaded: doc2Loaded, setName: setDoc2Name, setText: setDoc2Text, ref: file2Ref },
+          ].map(({ num, letter, text, name, loaded, setName, setText, ref }) => (
+            <section key={num} className="rounded-fw-card border border-app-line bg-app-card p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-app-ui font-semibold">
+                  <span className="flex size-6 items-center justify-center rounded-fw-btn border border-app-line font-fw-mono text-app-mono-xs text-app-accent">{letter}</span>
+                  Document {letter}
                 </h2>
-                {loaded && (
-                  <div className="flex items-center gap-1.5">
-                    <Icon name="Dashboard_document_comparison_loaded" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(60%) sepia(80%) saturate(400%) hue-rotate(80deg)' }} />
-                    <span className="text-xs text-green-400">Loaded</span>
-                  </div>
-                )}
+                {loaded && <Tag tone="ok">Loaded</Tag>}
               </div>
 
               <input
                 value={name === `Document ${num}` ? '' : name}
                 onChange={(e) => setName(e.target.value || `Document ${num}`)}
-                placeholder={`e.g. HBL-2024-001`}
-                className={`w-full px-3 py-2 rounded-xl border ${theme.input} mb-3 text-sm focus:outline-none focus:border-[#5200FF]`}
+                placeholder="e.g. HBL-2024-001"
+                aria-label={`Document ${letter} name`}
+                className={`${inputClass} mb-3 font-fw-mono`}
               />
 
               <textarea
                 value={text}
                 onChange={(e) => { setText(e.target.value); if (e.target.value) { num === 1 ? setDoc1Loaded(true) : setDoc2Loaded(true); } }}
-                placeholder={`Paste Document ${num} text here...`}
+                placeholder={`Paste Document ${letter} text here...`}
+                aria-label={`Document ${letter} text`}
                 rows={5}
-                className={`w-full px-3 py-2 rounded-xl border ${theme.input} mb-3 text-sm focus:outline-none focus:border-[#5200FF] resize-none`}
+                className={`${textareaClass} mb-3 font-fw-mono text-app-mono`}
               />
 
               <button
+                type="button"
                 onClick={() => ref.current?.click()}
-                className={`w-full py-3 border-2 border-dashed ${darkMode ? 'border-white/10 hover:border-[#5200FF]/50' : 'border-slate-200 hover:border-[#5200FF]/50'} rounded-xl text-sm ${theme.textMuted} transition flex items-center justify-center gap-2`}
+                className="flex w-full items-center justify-center gap-2 rounded-fw-btn border border-dashed border-app-line-strong py-3 text-app-ui-sm text-app-ink-2 transition-colors hover:border-app-accent-fill hover:bg-app-raised"
               >
-                <Icon name="Dashboard_document_comparison_or_upload_file" className="w-4 h-4" style={theme.iconFilter} />
+                <Icon name="upload" size={15} />
                 Upload file (PDF, Word, Excel, Image)
               </button>
               <input
@@ -371,225 +263,151 @@ export default function ComparePage() {
                 className="hidden"
                 onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0], num as 1 | 2)}
               />
-            </div>
+            </section>
           ))}
         </div>
 
         {/* Compare Button */}
-        <button
-          onClick={compare}
-          disabled={loading || !doc1Text.trim() || !doc2Text.trim()}
-          className="w-full py-4 mb-8 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-2xl font-semibold text-white disabled:opacity-50 flex items-center justify-center gap-3 text-lg"
-        >
-          {loading ? (
-            <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Comparing Documents...</>
-          ) : (
-            <>
-              <Icon name="Dashboard_document_comparison_compare_documents" className="w-6 h-6" style={{ filter: 'brightness(0) invert(1)' }} />
-              Compare Documents
-            </>
-          )}
-        </button>
+        <Button variant="primary" size="lg" className="mb-8 w-full" icon={loading ? undefined : 'compare'} onClick={compare} disabled={loading || !doc1Text.trim() || !doc2Text.trim()}>
+          {loading ? <><Spinner className="size-4" /> Comparing Documents...</> : 'Compare Documents'}
+        </Button>
 
         {/* Results */}
         {result && (
-          <div className="space-y-6">
-            {/* Score Card */}
-            <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-6`}>
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-xl font-bold mb-1">Comparison Result</h2>
-                  <p className={`text-sm ${theme.textMuted}`}>
-                    <span className="text-[#9E14FB] font-medium">{result.doc1_type}</span>
-                    {' vs '}
-                    <span className="text-[#1BA1FF] font-medium">{result.doc2_type}</span>
-                  </p>
+          <div className="space-y-4">
+            {/* Result header: score + actions */}
+            <section className="rounded-fw-card border border-app-line bg-app-card p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="mb-1 font-fw-mono text-app-mono-xs uppercase text-app-ink-3">Comparison result</p>
+                  <h2 className="font-fw-display text-app-title-sm font-normal">
+                    <span className="font-fw-mono text-app-mono">{nameA}</span> <span className="text-app-ink-3">({result.doc1_type})</span>
+                    <span className="mx-2 text-app-ink-3">vs</span>
+                    <span className="font-fw-mono text-app-mono">{nameB}</span> <span className="text-app-ink-3">({result.doc2_type})</span>
+                  </h2>
+                  <p className="mt-1 text-app-ui-sm capitalize text-app-ink-2">{result.overall_status.replace(/_/g, ' ')}</p>
                 </div>
                 <div className="text-right">
-                  <div className={`text-4xl font-bold ${getOverallColor(result.overall_status)}`}>
-                    {result.match_score}%
-                  </div>
-                  <p className={`text-xs ${theme.textDim} capitalize`}>{result.overall_status.replace(/_/g, ' ')}</p>
-                  <div className={`h-2 w-32 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} rounded-full mt-2 ml-auto`}>
-                    <div className={`h-full rounded-full ${getScoreColor(result.match_score)} transition-all`} style={{ width: `${result.match_score}%` }} />
+                  <p className={`font-fw-display text-app-kpi font-normal ${toneClass[scoreTone].text}`}>{result.match_score}%</p>
+                  <DataLabel>Match score</DataLabel>
+                  <div className="ml-auto mt-1 h-1 w-32 bg-app-raised" aria-hidden>
+                    <div className={`h-full ${toneClass[scoreTone].dot}`} style={{ width: `${result.match_score}%` }} />
                   </div>
                 </div>
               </div>
 
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                {[
-  { label: 'Matched', count: counts.match, color: 'text-green-500', bg: 'bg-green-500/10', icon: 'Dashboard_document_comparison_matches', iconFilter: { filter: 'brightness(0) saturate(100%) invert(55%) sepia(60%) saturate(500%) hue-rotate(80deg)' } },
-  { label: 'Mismatched', count: counts.mismatch, color: 'text-orange-400', bg: 'bg-orange-500/10', icon: 'Dashboard_document_comparison_mismatches', iconFilter: { filter: 'brightness(0) saturate(100%) invert(70%) sepia(80%) saturate(800%) hue-rotate(5deg)' } },
-  { label: 'Missing', count: counts.missing, color: 'text-red-400', bg: 'bg-red-500/10', icon: 'Dashboard_document_comparison_missing', iconFilter: { filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' } },
-].map((stat, i) => (
-  <div key={i} className={`${stat.bg} rounded-xl p-4 text-center`}>
-    <div className="flex justify-center mb-2">
-      <Icon name={stat.icon} className="w-5 h-5" style={stat.iconFilter} />
-    </div>
-    <p className={`text-2xl font-bold ${stat.color}`}>{stat.count}</p>
-    <p className={`text-xs ${theme.textMuted}`}>{stat.label}</p>
-  </div>
-))}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Button size="sm" icon="copy" onClick={generateComparisonReport}>Copy Comparison Report</Button>
+                <Button size="sm" icon="mail" onClick={copyDiscrepancyEmail}>Copy Discrepancy Email</Button>
+                <span className="ml-auto flex flex-wrap items-center gap-1.5">
+                  <Tag tone="ok">{counts.match} matched</Tag>
+                  <Tag tone="warn">{counts.mismatch} mismatched</Tag>
+                  <Tag tone="warn">{counts.missing} missing</Tag>
+                </span>
               </div>
 
               {/* Summary */}
               {result.summary && (
-                <div className={`${darkMode ? 'bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10' : 'bg-gradient-to-r from-purple-50 to-blue-50'} rounded-xl p-4 mb-4`}>
-                  <p className={`text-xs ${theme.textDim} mb-1`}>AI Summary</p>
-                  <p className="text-sm">{result.summary}</p>
+                <div className="mt-4 rounded-fw-btn border border-app-line bg-app-panel p-4">
+                  <DataLabel className="mb-1">AI Summary</DataLabel>
+                  <p className="text-app-ui">{result.summary}</p>
                 </div>
               )}
 
               {/* Critical Mismatches */}
               {result.critical_mismatches?.length > 0 && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-4">
-                  <h3 className="text-red-400 font-semibold text-sm mb-2 flex items-center gap-2">
-                    <Icon name="Dashboard_document_comparison_critical_mismatches" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} />
-                    Critical Mismatches
-                  </h3>
-                  <ul className="space-y-1">
-                    {result.critical_mismatches.map((m, i) => (
-                      <li key={i} className="text-sm text-red-600">• {m}</li>
-                    ))}
-                  </ul>
+                <div className="mt-3">
+                  <Notice tone="danger" icon="alert" title="Critical Mismatches">
+                    <ul className="space-y-1">
+                      {result.critical_mismatches.map((m, i) => (
+                        <li key={i} className="flex items-start gap-2"><span aria-hidden className="mt-1.5 size-1 flex-none rounded-full bg-app-danger-dot" /> {m}</li>
+                      ))}
+                    </ul>
+                  </Notice>
                 </div>
               )}
-
-              {/* Actions */}
-              <div className="flex gap-3">
-                <button
-                  onClick={generateComparisonReport}
-                  className="flex-1 py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2"
-                >
-                  <Icon name="Dashboard_document_comparison_copy_comparison_report" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
-                  Copy Comparison Report
-                </button>
-                <button
-                  onClick={copyDiscrepancyEmail}
-                  className={`flex-1 py-3 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm font-medium flex items-center justify-center gap-2`}
-                >
-                  <Icon name="Dashboard_document_comparison_copy_discrepancy_email" className="w-4 h-4" style={theme.iconFilter} />
-                  Copy Discrepancy Email
-                </button>
-              </div>
-            </div>
+            </section>
 
             {/* Field Comparison Table */}
-            <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl overflow-hidden`}>
-              <div className={`p-4 border-b ${theme.cardBorder} flex items-center justify-between`}>
-                <h2 className="font-semibold">Field by Field Comparison</h2>
-                <div className={`flex gap-1 p-1 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl`}>
-                  {filterTabs.map(f => (
-                    <button
-                      key={f.key}
-                      onClick={() => setActiveFilter(f.key)}
-                      className={`px-3 py-1.5 text-xs rounded-lg transition flex items-center gap-1.5 ${activeFilter === f.key ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}
-                    >
-                      <Icon
-                        name={f.icon}
-                        className="w-3 h-3"
-                        style={activeFilter === f.key ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter}
-                      />
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
+            <section className="overflow-hidden rounded-fw-card border border-app-line bg-app-card" aria-label="Field by field comparison">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-app-line px-4 py-3">
+                <p className="font-fw-mono text-app-mono-xs uppercase text-app-ink-3">Field by field comparison</p>
+                <Segmented label="Filter rows" value={activeFilter} onChange={setActiveFilter}
+                  options={filterTabs.map(f => ({ value: f.key, label: f.label }))} />
               </div>
 
-              {/* Column Headers */}
-              <div className={`grid grid-cols-5 gap-0 px-4 py-2 border-b ${theme.cardBorder} text-xs ${theme.textDim} font-semibold uppercase tracking-wider`}>
-                <div>Field</div>
-                <div>Severity</div>
-                <div className="text-[#9E14FB]">Doc 1</div>
-                <div className="text-[#1BA1FF]">Doc 2</div>
-                <div>Status</div>
+              <div className="max-h-[560px] overflow-auto" tabIndex={0} role="region" aria-label="Comparison table">
+                <table className="w-full min-w-[640px] border-collapse">
+                  <thead className="sticky top-0 z-10 bg-app-card">
+                    <tr className="border-b border-app-line">
+                      <th scope="col" className={th}>Field</th>
+                      <th scope="col" className={th}>Document A</th>
+                      <th scope="col" className={th}>Document B</th>
+                      <th scope="col" className={`${th} text-right`}>Result</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredComparisons.map((c, i) => {
+                      const ok = c.status === 'match';
+                      return (
+                        <tr key={i} className={`${tr} ${ok ? '' : 'bg-app-warn-bg/60'}`}>
+                          <th scope="row" className="px-4 py-3 text-left align-top font-normal">
+                            <p className="text-app-ui font-medium text-app-ink">{c.field}</p>
+                            {!ok && <p className="mt-0.5 font-fw-mono text-app-mono-xs uppercase text-app-ink-3">{c.severity}{isMissing(c.status) ? ` · ${missingLabel[c.status]}` : ''}</p>}
+                            {c.note && <p className="mt-0.5 text-app-ui-sm text-app-ink-3">{c.note}</p>}
+                          </th>
+                          <td className="px-4 py-3 align-top font-fw-mono text-app-mono text-app-ink">
+                            {c.doc1_value || <span className="font-fw-sans text-app-ui-sm italic text-app-ink-3">not found</span>}
+                          </td>
+                          <td className={`px-4 py-3 align-top font-fw-mono text-app-mono ${ok ? 'text-app-ink' : 'font-medium text-app-warn-ink'}`}>
+                            {c.doc2_value || <span className="font-fw-sans text-app-ui-sm font-normal italic text-app-ink-3">not found</span>}
+                          </td>
+                          <td className="px-4 py-3 text-right align-top">
+                            <Tag tone={ok ? 'ok' : 'warn'}>{ok ? 'Match' : 'Check'}</Tag>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {filteredComparisons.length === 0 && (
+                      <tr><td colSpan={4}><EmptyState icon="filter" title="No fields in this view." /></td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-
-              <div className="divide-y divide-white/5 max-h-[500px] overflow-y-auto">
-                {filteredComparisons.map((c, i) => (
-                  <div key={i} className={`grid grid-cols-5 gap-0 px-4 py-3 items-center ${theme.hover} transition`}>
-                    <div>
-                      <p className="text-sm font-medium">{c.field}</p>
-                      {c.note && <p className={`text-xs ${theme.textDim} mt-0.5`}>{c.note}</p>}
-                    </div>
-                    <div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${getSeverityBadge(c.severity)}`}>
-                        {c.severity}
-                      </span>
-                    </div>
-                    <div>
-                      <p className={`text-sm ${c.status === 'missing_in_doc1' || c.status === 'both_missing' ? 'text-red-400 italic' : ''}`}>
-                        {c.doc1_value || <span className="text-red-400 italic text-xs">not found</span>}
-                      </p>
-                    </div>
-                    <div>
-                      <p className={`text-sm ${c.status === 'missing_in_doc2' || c.status === 'both_missing' ? 'text-red-400 italic' : ''}`}>
-                        {c.doc2_value || <span className="text-red-400 italic text-xs">not found</span>}
-                      </p>
-                    </div>
-                    <div>
-                     <span className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1 w-fit ${getStatusColor(c.status)}`}>
-  <Icon
-    name={
-      c.status === 'match' ? 'Dashboard_document_comparison_matches' :
-      c.status === 'mismatch' ? 'Dashboard_document_comparison_mismatches' :
-      'Dashboard_document_comparison_missing'
-    }
-    className="w-3 h-3"
-    style={
-      c.status === 'match' ? { filter: 'brightness(0) saturate(100%) invert(60%) sepia(80%) saturate(400%) hue-rotate(80deg)' } :
-      c.status === 'mismatch' ? { filter: 'brightness(0) saturate(100%) invert(70%) sepia(80%) saturate(800%) hue-rotate(5deg)' } :
-      { filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }
-    }
-  />
-  {c.status.replace(/_/g, ' ')}
-</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+              <p className="border-t border-app-line bg-app-panel px-4 py-3 text-app-ui-sm text-app-ink-2">
+                <span className="font-fw-mono">{discrepancyCount}</span> discrepanc{discrepancyCount === 1 ? 'y' : 'ies'} for operator review
+              </p>
+            </section>
 
             {/* Recommendations */}
             {result.recommendations?.length > 0 && (
-              <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-6`}>
-                <h2 className="font-semibold mb-4 flex items-center gap-2">
-                  <Icon name="Dashboard_document_comparison_recomendations" className="w-5 h-5" style={theme.iconFilter} />
-                  Recommendations
-                </h2>
-                <div className="space-y-2">
+              <section className="rounded-fw-card border border-app-line bg-app-card p-5">
+                <SectionTitle icon="info" className="mb-3">Recommendations</SectionTitle>
+                <ul className="space-y-2">
                   {result.recommendations.map((rec, i) => (
-                    <div key={i} className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-3`}>
-                      <p className="text-sm">• {rec}</p>
-                    </div>
+                    <li key={i} className="flex items-start gap-2 rounded-fw-btn border border-app-line bg-app-panel p-3 text-app-ui">
+                      <Icon name="arrow-right" size={14} className="mt-0.5 flex-none text-app-accent" /> {rec}
+                    </li>
                   ))}
-                </div>
-              </div>
+                </ul>
+              </section>
             )}
           </div>
         )}
 
         {/* Empty State */}
         {!result && !loading && (
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-12 text-center`}>
-            <div className="w-20 h-20 mx-auto mb-4 p-4 rounded-2xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
-              <Icon name="Dashboard_document_comparison_compare_documents" className="w-full h-full" style={theme.iconFilter} />
-            </div>
-            <h3 className="text-xl font-bold mb-2">Compare Two Documents</h3>
-            <p className={`${theme.textMuted} max-w-md mx-auto mb-6`}>
-              Paste or upload two shipping documents above to detect mismatches, missing fields and discrepancies automatically.
-            </p>
-            <div className="flex flex-wrap gap-2 justify-center">
-              {['HBL vs MBL', 'Invoice vs Packing List', 'BL Draft vs Final BL', 'AWB vs Invoice'].map(pair => (
-                <span key={pair} className={`text-xs px-3 py-1.5 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-full ${theme.textMuted}`}>
-                  {pair}
-                </span>
-              ))}
-            </div>
+          <div className="rounded-fw-card border border-app-line bg-app-card">
+            <EmptyState icon="compare" title="Compare Two Documents"
+              text="Paste or upload two shipping documents above to detect mismatches, missing fields and discrepancies automatically."
+              action={
+                <div className="flex flex-wrap justify-center gap-1.5">
+                  {['HBL vs MBL', 'Invoice vs Packing List', 'BL Draft vs Final BL', 'AWB vs Invoice'].map(pair => <Chip key={pair}>{pair}</Chip>)}
+                </div>
+              } />
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

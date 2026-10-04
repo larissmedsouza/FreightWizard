@@ -5,24 +5,20 @@ import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import TrialBanner from '../components/TrialBanner';
 import UpgradeModal from '../components/UpgradeModal';
+import Icon from '@/app/components/ui/Icon';
+import TopBar from '@/app/components/ui/TopBar';
+import Modal from '@/app/components/ui/Modal';
+import { appRootClass, PageHeader, SectionTitle, EmptyState, Notice } from '@/app/components/ui/Panel';
+import { Button, ButtonLink, Spinner } from '@/app/components/ui/Button';
+import { inputClass, textareaClass, DataLabel } from '@/app/components/ui/Field';
+import { Tag, Chip } from '@/app/components/ui/Tag';
+import { Toast, Segmented, th, tr } from '@/app/components/ui/Data';
+import { toneClass, MODE_ICON, type Tone } from '@/app/components/ui/tones';
 
 const API_URL = 'https://freightwizard-production.up.railway.app';
 
-const Icon = ({ name, className = "w-6 h-6", style }: { name: string; className?: string; style?: React.CSSProperties }) => (
-  <img src={`/icons/${name}.svg`} alt={name} className={className} style={style} />
-);
-
 type Language = 'en' | 'pt' | 'nl';
 
-const NAV_ITEMS = [
-  { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' }, icon: 'Dashboard_analytics_total email' },
-  { href: '/shipments', label: { en: 'Shipments', pt: 'Embarques', nl: 'Zendingen' }, icon: 'Dashboard_tracking' },
-  { href: '/quotes', label: { en: 'Quotes', pt: 'Cotações', nl: 'Offertes' }, icon: 'Dashboard_quotation' },
-  { href: '/rates', label: { en: 'Rates', pt: 'Tarifas', nl: 'Tarieven' }, icon: 'Dashboard_quotation' },
-  { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
-  { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
-  { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
-];
 
 interface DocumentAnalysis {
   id?: string;
@@ -116,27 +112,6 @@ export default function DocumentsPage() {
   const [reportText, setReportText] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const theme = darkMode ? {
-    bg: 'bg-[#050510]',
-    card: 'bg-[#0a0a1a]',
-    cardBorder: 'border-white/5',
-    text: 'text-white',
-    textMuted: 'text-gray-400',
-    textDim: 'text-gray-500',
-    hover: 'hover:bg-white/5',
-    input: 'bg-[#0f0f1f] border-white/10 text-white placeholder-gray-600',
-    iconFilter: { filter: 'brightness(0) invert(1)' },
-  } : {
-    bg: 'bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-50',
-    card: 'bg-white/80 backdrop-blur-sm',
-    cardBorder: 'border-slate-200/50',
-    text: 'text-slate-900',
-    textMuted: 'text-slate-600',
-    textDim: 'text-slate-500',
-    hover: 'hover:bg-slate-100/50',
-    input: 'bg-white border-slate-200 text-slate-900 placeholder-slate-400',
-    iconFilter: { filter: 'brightness(0) saturate(100%) invert(19%) sepia(96%) saturate(5765%) hue-rotate(268deg) brightness(102%) contrast(101%)' },
-  };
 
   const notify = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
@@ -181,7 +156,7 @@ export default function DocumentsPage() {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const base64 = (e.target?.result as string).split(',')[1];
-        notify('success', '⏳ Extracting text from file...');
+        notify('success', 'Extracting text from file...');
         try {
           const res = await fetch(`${API_URL}/api/extract-text`, {
             method: 'POST',
@@ -189,7 +164,7 @@ export default function DocumentsPage() {
             body: JSON.stringify({ base64, mimeType: file.type, fileName: file.name, sessionId: session }),
           });
           const data = await res.json();
-          if (data.text) { setPastedText(data.text); notify('success', '✅ Text extracted!'); }
+          if (data.text) { setPastedText(data.text); notify('success', 'Text extracted!'); }
           else notify('error', 'Could not extract text from file');
         } catch { notify('error', 'Failed to process file'); }
       };
@@ -262,38 +237,11 @@ export default function DocumentsPage() {
     notify('success', 'Report copied to clipboard!');
   };
 
-  const getConfidenceColor = (score: number) => {
-    if (score >= 80) return 'text-green-400';
-    if (score >= 60) return 'text-yellow-400';
-    return 'text-red-400';
-  };
-
-  const getConfidenceBg = (score: number) => {
-    if (score >= 80) return 'bg-green-500';
-    if (score >= 60) return 'bg-yellow-500';
-    return 'bg-red-500';
-  };
+  const confidenceTone = (score: number): Tone => (score >= 80 ? 'ok' : score >= 60 ? 'warn' : 'danger');
 
   const getDocTypeIcon = (type: string) => {
-    const map: Record<string, string> = {
-      'HBL': 'Dashboard_documents_HBL',
-      'MBL': 'Dashboard_documents_MBL',
-      'AWB': 'Dashboard_documents_AWB',
-      'Invoice': 'Dashboard_documents_invoice',
-      'Packing List': 'Dashboard_documents_packing_list',
-      'Other': 'Dashboard_documents_other',
-    };
-    return map[type] || 'Dashboard_documents_other';
-  };
-
-  const getModeIconName = (mode: string) => {
-    const map: Record<string, string> = {
-      'ocean': 'Dashboard_documents_ocean',
-      'air': 'Dashboard_documents_air',
-      'road': 'Dashboard_documents_road',
-      'rail': 'Dashboard_documents_rail',
-    };
-    return map[mode?.toLowerCase()] || 'Dashboard_documents_ocean';
+    const map: Record<string, 'docs' | 'air' | 'quote' | 'list'> = { HBL: 'docs', MBL: 'docs', AWB: 'air', Invoice: 'quote', 'Packing List': 'list', Other: 'docs' };
+    return map[type] || 'docs';
   };
 
   const generateRiskEmail = () => {
@@ -308,113 +256,36 @@ export default function DocumentsPage() {
   const displayAnalysis = selected ? selected.analysis : analysis;
 
   const tabs = [
-    { key: 'summary', icon: 'Dashboard_documents_summary', label: 'Summary' },
-    { key: 'parties', icon: 'Dashboard_documents_parties', label: 'Parties' },
-    { key: 'cargo', icon: 'Dashboard_documents_cargo', label: 'Cargo' },
-    { key: 'compliance', icon: 'Dashboard_documents_compliance', label: 'Compliance' },
-    { key: 'risks', icon: 'Dashboard_documents_risks', label: 'Risks' },
+    { key: 'summary', icon: 'list', label: 'Summary' },
+    { key: 'parties', icon: 'team', label: 'Parties' },
+    { key: 'cargo', icon: 'container', label: 'Cargo' },
+    { key: 'compliance', icon: 'compliance', label: 'Compliance' },
+    { key: 'risks', icon: 'alert', label: 'Risks' },
   ] as const;
 
+  const docField = (label: string, value: React.ReactNode, mono = false) => (
+    <div className="rounded-fw-btn border border-app-line bg-app-panel p-3">
+      <DataLabel className="mb-1">{label}</DataLabel>
+      <p className={mono ? 'font-fw-mono text-app-mono text-app-ink' : 'text-app-ui font-medium capitalize text-app-ink'}>{value}</p>
+    </div>
+  );
+
   return (
-    <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors`}>
-      {notification && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-xl text-white ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
-          {notification.msg}
-        </div>
-      )}
+    <div data-theme={darkMode ? 'dark' : 'light'} className={appRootClass}>
+      <Toast notification={notification} />
 
       {/* Report Modal */}
       {showReport && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl`}>
-            <div className="flex items-center justify-between p-6 border-b border-white/5">
-              <h2 className="text-lg font-bold flex items-center gap-2">
-                <Icon name="Dashboard_documents_extraction_report" className="w-5 h-5" style={theme.iconFilter} />
-                Document Extraction Report
-              </h2>
-              <div className="flex gap-2">
-                <button onClick={copyReport} className="px-4 py-2 bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] rounded-xl text-white text-sm font-medium flex items-center gap-2">
-                  <Icon name="Dashboard_documents_copy_all" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
-                  Copy All
-                </button>
-                <button onClick={() => setShowReport(false)} className={`px-4 py-2 ${theme.hover} border ${theme.cardBorder} rounded-xl text-sm`}>✕ Close</button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              <pre className={`whitespace-pre-wrap font-mono text-xs ${theme.textMuted} leading-relaxed`}>{reportText}</pre>
-            </div>
-          </div>
-        </div>
+        <Modal title="Document Extraction Report" icon="docs" size="lg" onClose={() => setShowReport(false)}
+          footer={<>
+            <Button onClick={() => setShowReport(false)}>Close</Button>
+            <Button variant="primary" icon="copy" onClick={copyReport}>Copy All</Button>
+          </>}>
+          <pre className="whitespace-pre-wrap p-5 font-fw-mono text-app-mono-xs leading-relaxed text-app-ink-2">{reportText}</pre>
+        </Modal>
       )}
 
-      {/* Header */}
-      <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-3 flex items-center justify-between sticky top-0 z-40`}>
-        {/* Logo */}
-        <Link href={`/dashboard?session=${session}`} className="flex items-center gap-2 flex-shrink-0">
-          <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
-          <span className="text-base font-bold">FreightWizard</span>
-        </Link>
-
-        {/* Right: Nav + Controls */}
-        <div className="flex items-center gap-2">
-          {NAV_ITEMS.map(item => (
-            <Link key={item.href} href={`${item.href}?session=${session}`}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${
-                pathname?.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')
-                  ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40'
-                  : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`
-              }`}>
-              <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
-              {item.label[language]}
-            </Link>
-          ))}
-
-          <div className={`w-px h-5 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
-
-          {/* Language */}
-          <div className="relative">
-            <button onClick={() => setLangMenuOpen(!langMenuOpen)}
-              className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover} flex items-center gap-1`}>
-              {language.toUpperCase()} <span className="text-xs">▼</span>
-            </button>
-            {langMenuOpen && (
-              <div className={`absolute top-full right-0 mt-2 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-xl z-50 overflow-hidden`}>
-                {(['en', 'pt', 'nl'] as Language[]).map(l => (
-                  <button key={l} onClick={() => changeLang(l)}
-                    className={`w-full px-4 py-2 text-left text-sm ${theme.hover} ${language === l ? 'text-[#9E14FB] font-medium' : theme.textMuted}`}>
-                    {l.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Theme */}
-          <button onClick={toggleTheme} className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
-            <Icon
-              name={darkMode ? 'Dashboard_documents_sun_light_mode' : 'Dashboard_documents_moon_dark_mode'}
-              className="w-4 h-4"
-              style={theme.iconFilter}
-            />
-          </button>
-
-          {/* Settings (Billing lives inside Settings) */}
-          <Link href={`/settings/integrations?session=${session}`} title="Settings"
-            className={`relative p-2 rounded-full ${theme.hover} border ${theme.cardBorder} transition`}>
-            <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${theme.textMuted}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-            {billingUrgent && <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
-          </Link>
-
-          {/* Compare Docs */}
-          <Link href={`/documents/compare?session=${session}`}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium text-white">
-            <Icon name="Dashboard_documents_Click_to_upload" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
-            {language === 'pt' ? 'Comparar' : language === 'nl' ? 'Vergelijk' : 'Compare Docs'}
-          </Link>
-        </div>
-      </header>
+      <TopBar session={session} user={null} darkMode={darkMode} language={language} onToggleTheme={toggleTheme} onChangeLanguage={changeLang} alert={billingUrgent} />
 
       <TrialBanner session={session} onSubscription={(sub) => {
         setBillingUrgent(sub.plan === 'trial' && sub.trial_days_remaining < 3);
@@ -423,256 +294,198 @@ export default function DocumentsPage() {
 
       {documentsBlocked && <UpgradeModal reason="documents_blocked" session={session} darkMode={darkMode} />}
 
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-8 flex items-start gap-2">
-          <Icon name="Dashboard_documents__document_intelligence" className="w-8 h-8 mt-1" style={theme.iconFilter} />
-          <div>
-            <h1 className="text-3xl font-bold">Document Intelligence</h1>
-            <p className={theme.textMuted}>Upload shipping documents for AI-powered analysis, risk detection and report generation</p>
-          </div>
-        </div>
+      <main className="mx-auto max-w-7xl p-4 lg:p-6">
+        <PageHeader
+          className="mb-6"
+          title="Document Intelligence"
+          description="Upload shipping documents for AI-powered analysis, risk detection and report generation"
+          actions={<ButtonLink href={`/documents/compare?session=${session}`} icon="compare">{language === 'pt' ? 'Comparar' : language === 'nl' ? 'Vergelijk' : 'Compare Docs'}</ButtonLink>}
+        />
 
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid gap-6 lg:grid-cols-3">
           {/* Left: Upload + History */}
           <div className="space-y-4">
-            <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-5`}>
-              <h2 className="font-semibold mb-4 flex items-center gap-2">
-                <Icon name="Dashboard_documents_Analyze_document" className="w-5 h-5" style={theme.iconFilter} />
-                Analyze Document
-              </h2>
+            <section className="rounded-fw-card border border-app-line bg-app-card p-5">
+              <SectionTitle icon="sparkle" className="mb-4">Analyze Document</SectionTitle>
 
-              <div className={`flex gap-1 p-1 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl mb-4`}>
-                <button onClick={() => setInputMode('upload')}
-                  className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${inputMode === 'upload' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
-                  <Icon name="Dashboard_documents_upload_file" className="w-4 h-4"
-                    style={inputMode === 'upload' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
-                  Upload File
-                </button>
-                <button onClick={() => setInputMode('paste')}
-                  className={`flex-1 py-2 text-sm rounded-lg transition flex items-center justify-center gap-2 ${inputMode === 'paste' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
-                  <Icon name="Dashboard_documents_paste_text" className="w-4 h-4"
-                    style={inputMode === 'paste' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
-                  Paste Text
-                </button>
-              </div>
+              <Segmented className="mb-4 flex w-full [&>button]:flex-1 [&>button]:justify-center" label="Input mode" value={inputMode} onChange={setInputMode}
+                options={[{ value: 'upload', label: 'Upload File', icon: 'upload' }, { value: 'paste', label: 'Paste Text', icon: 'copy' }]} />
 
               {inputMode === 'upload' ? (
-                <div onClick={() => fileRef.current?.click()}
-                  className={`border-2 border-dashed ${darkMode ? 'border-white/10 hover:border-[#5200FF]/50' : 'border-slate-200 hover:border-[#5200FF]/50'} rounded-xl p-6 text-center cursor-pointer transition mb-4`}>
-                  <div className="w-12 h-12 mx-auto mb-3 p-2 rounded-xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
-                    <Icon name="Dashboard_documents_Click_to_upload" className="w-full h-full" style={theme.iconFilter} />
-                  </div>
-                  <p className={`text-sm ${theme.textMuted}`}>{fileName ? `✅ ${fileName}` : 'Click to upload TXT or paste document text'}</p>
-                  <p className={`text-xs ${theme.textDim} mt-1`}>Supports BL, AWB, Invoice, Packing List</p>
-                  <input ref={fileRef} type="file" accept=".txt,.csv,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                    className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
-                </div>
+                <button type="button" onClick={() => fileRef.current?.click()}
+                  className="mb-4 w-full rounded-fw-card border border-dashed border-app-line-strong p-6 text-center transition-colors hover:border-app-accent-fill hover:bg-app-raised">
+                  <span className="mx-auto mb-3 flex size-11 items-center justify-center rounded-fw-card border border-app-line text-app-accent">
+                    <Icon name="upload" size={20} />
+                  </span>
+                  <p className="flex items-center justify-center gap-1.5 text-app-ui text-app-ink-2">
+                    {fileName ? <><Icon name="check" size={14} className="text-app-ok-ink" /> <span className="font-fw-mono text-app-mono">{fileName}</span></> : 'Click to upload TXT or paste document text'}
+                  </p>
+                  <p className="mt-1 text-app-ui-sm text-app-ink-3">Supports BL, AWB, Invoice, Packing List</p>
+                </button>
               ) : (
                 <textarea value={pastedText} onChange={(e) => setPastedText(e.target.value)}
-                  placeholder="Paste document text here..." rows={6}
-                  className={`w-full px-4 py-3 rounded-xl border ${theme.input} mb-4 focus:outline-none focus:border-[#5200FF] resize-none text-sm`} />
+                  placeholder="Paste document text here..." rows={6} aria-label="Document text"
+                  className={`${textareaClass} mb-4 font-fw-mono text-app-mono`} />
               )}
+              <input ref={fileRef} type="file" accept=".txt,.csv,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
 
               {inputMode === 'upload' && pastedText && (
-                <div className={`${darkMode ? 'bg-green-500/10' : 'bg-green-50'} border border-green-500/20 rounded-xl p-3 mb-4`}>
-                  <p className="text-green-400 text-xs">✅ File loaded — {pastedText.length} characters</p>
+                <div className="mb-4">
+                  <Notice tone="ok" icon="check">File loaded — <span className="font-fw-mono">{pastedText.length}</span> characters</Notice>
                 </div>
               )}
 
-              <button onClick={analyzeDocument} disabled={loading || !pastedText.trim()}
-                className="w-full py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white disabled:opacity-50 flex items-center justify-center gap-2">
-                {loading ? (
-                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Analyzing...</>
-                ) : (
-                  <><Icon name="Dashboard_documents_Analyze_document" className="w-5 h-5" style={{ filter: 'brightness(0) invert(1)' }} />Analyze Document</>
-                )}
-              </button>
-            </div>
+              <Button variant="primary" className="w-full" icon={loading ? undefined : 'sparkle'} onClick={analyzeDocument} disabled={loading || !pastedText.trim()}>
+                {loading ? <><Spinner className="size-3.5" /> Analyzing...</> : 'Analyze Document'}
+              </Button>
+            </section>
 
             {history.length > 0 && (
-              <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-5`}>
-                <h2 className="font-semibold mb-3 flex items-center gap-2">
-                  <Icon name="Dashboard_documents_recent_documents" className="w-5 h-5" style={theme.iconFilter} />
-                  Recent Documents
-                </h2>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
+              <section className="rounded-fw-card border border-app-line bg-app-card p-5">
+                <SectionTitle icon="clock" className="mb-3">Recent Documents</SectionTitle>
+                <div className="max-h-64 space-y-2 overflow-y-auto">
                   {history.map((doc) => (
-                    <div key={doc.id}
+                    <button key={doc.id} type="button"
                       onClick={() => { setSelected(doc); setAnalysis(null); setActiveTab('summary'); setShowReport(false); }}
-                      className={`p-3 rounded-xl border cursor-pointer transition ${selected?.id === doc.id ? 'border-[#5200FF]/50 bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10' : `${theme.cardBorder} ${theme.hover}`}`}>
-                      <div className="flex items-center justify-between mb-1">
+                      className={`w-full rounded-fw-btn border p-3 text-left transition-colors ${selected?.id === doc.id ? 'border-app-accent-fill bg-app-selected' : 'border-app-line hover:bg-app-raised'}`}>
+                      <div className="mb-1 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Icon name={getDocTypeIcon(doc.document_type)} className="w-4 h-4" style={theme.iconFilter} />
-                          <span className="text-sm font-medium">{doc.document_type}</span>
+                          <Icon name={getDocTypeIcon(doc.document_type)} size={15} className="text-app-accent" />
+                          <span className="text-app-ui font-medium">{doc.document_type}</span>
                         </div>
-                        <span className={`text-xs font-bold ${getConfidenceColor(doc.confidence)}`}>{doc.confidence}%</span>
+                        <span className={`font-fw-mono text-app-mono font-medium ${toneClass[confidenceTone(doc.confidence)].text}`}>{doc.confidence}%</span>
                       </div>
-                      <p className={`text-xs ${theme.textDim} truncate`}>{doc.file_name}</p>
-                      <p className={`text-xs ${theme.textDim}`}>{new Date(doc.created_at).toLocaleDateString()}</p>
-                    </div>
+                      <p className="truncate font-fw-mono text-app-mono-xs text-app-ink-3">{doc.file_name}</p>
+                      <p className="font-fw-mono text-app-mono-xs text-app-ink-3">{new Date(doc.created_at).toLocaleDateString()}</p>
+                    </button>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
           </div>
 
           {/* Right: Analysis Results */}
           <div className="lg:col-span-2">
             {displayAnalysis ? (
-              <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl overflow-hidden`}>
-                <div className="p-6 border-b border-white/5 bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10">
-                  <div className="flex items-start justify-between mb-4">
+              <section className="overflow-hidden rounded-fw-card border border-app-line bg-app-card">
+                <div className="border-b border-app-line p-5">
+                  <div className="mb-4 flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 p-2 rounded-xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
-                        <Icon name={getDocTypeIcon(displayAnalysis.document_type)} className="w-full h-full" style={theme.iconFilter} />
-                      </div>
+                      <span className="flex size-11 flex-none items-center justify-center rounded-fw-card border border-app-line text-app-accent">
+                        <Icon name={getDocTypeIcon(displayAnalysis.document_type)} size={20} />
+                      </span>
                       <div>
-                        <h2 className="text-xl font-bold">{displayAnalysis.document_type}</h2>
-                        <div className="flex items-center gap-1">
-                          <Icon name={getModeIconName(displayAnalysis.shipment_summary?.mode)} className="w-4 h-4" style={theme.iconFilter} />
-                          <p className={`text-sm ${theme.textMuted}`}>{displayAnalysis.shipment_summary?.route}</p>
-                        </div>
+                        <h2 className="font-fw-display text-app-title-sm font-normal">{displayAnalysis.document_type}</h2>
+                        <p className="flex items-center gap-1.5 text-app-ui-sm text-app-ink-2">
+                          <Icon name={MODE_ICON[displayAnalysis.shipment_summary?.mode?.toLowerCase()] || 'ocean'} size={14} className="text-app-ink-3" />
+                          <span className="font-fw-mono">{displayAnalysis.shipment_summary?.route}</span>
+                        </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-3xl font-bold ${getConfidenceColor(displayAnalysis.confidence)}`}>{displayAnalysis.confidence}%</div>
-                      <p className={`text-xs ${theme.textDim}`}>Confidence</p>
-                      <div className={`h-1.5 w-24 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} rounded-full mt-1 ml-auto`}>
-                        <div className={`h-full rounded-full ${getConfidenceBg(displayAnalysis.confidence)}`} style={{ width: `${displayAnalysis.confidence}%` }} />
+                      <p className={`font-fw-display text-app-kpi font-normal ${toneClass[confidenceTone(displayAnalysis.confidence)].text}`}>{displayAnalysis.confidence}%</p>
+                      <DataLabel>Confidence</DataLabel>
+                      <div className="ml-auto mt-1 h-1 w-24 bg-app-raised" aria-hidden>
+                        <div className={`h-full ${toneClass[confidenceTone(displayAnalysis.confidence)].dot}`} style={{ width: `${displayAnalysis.confidence}%` }} />
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    {[
-                      { label: 'Incoterm', value: displayAnalysis.shipment_summary?.incoterm || '—' },
-                      { label: 'Freight', value: displayAnalysis.freight?.terms || '—' },
-                      { label: 'Mode', value: displayAnalysis.shipment_summary?.mode || '—' },
-                    ].map((stat, i) => (
-                      <div key={i} className={`${darkMode ? 'bg-white/5' : 'bg-white/60'} rounded-xl p-3 text-center`}>
-                        <p className={`text-xs ${theme.textDim} mb-1`}>{stat.label}</p>
-                        <p className="text-sm font-semibold capitalize">{stat.value}</p>
-                      </div>
-                    ))}
+                  <div className="mb-4 grid grid-cols-3 gap-3">
+                    {docField('Incoterm', displayAnalysis.shipment_summary?.incoterm || '—', true)}
+                    {docField('Freight', displayAnalysis.freight?.terms || '—')}
+                    {docField('Mode', displayAnalysis.shipment_summary?.mode || '—')}
                   </div>
 
-                  <button onClick={handleGenerateReport}
-                    className="w-full py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl font-medium text-white flex items-center justify-center gap-2">
-                    <Icon name="Dashboard_documents_generate_extraction_report" className="w-5 h-5" style={{ filter: 'brightness(0) invert(1)' }} />
-                    Generate Extraction Report
-                  </button>
+                  <Button variant="primary" className="w-full" icon="docs" onClick={handleGenerateReport}>Generate Extraction Report</Button>
                 </div>
 
-                {displayAnalysis.cargo?.dangerous_goods?.is_dangerous && (
-                  <div className="mx-6 mt-4 p-4 bg-red-500/20 border border-red-500/40 rounded-xl">
-                    <h3 className="text-red-400 font-bold flex items-center gap-2 mb-2">☢️ DANGEROUS GOODS DETECTED</h3>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div><span className={theme.textDim}>UN Number:</span> <span className="text-red-300 font-mono">{displayAnalysis.cargo.dangerous_goods.un_number || '—'}</span></div>
-                      <div><span className={theme.textDim}>Class:</span> <span className="text-red-300">{displayAnalysis.cargo.dangerous_goods.class || '—'}</span></div>
-                      <div><span className={theme.textDim}>Packing Group:</span> <span className="text-red-300">{displayAnalysis.cargo.dangerous_goods.packing_group || '—'}</span></div>
-                      <div><span className={theme.textDim}>PSN:</span> <span className="text-red-300">{displayAnalysis.cargo.dangerous_goods.proper_shipping_name || '—'}</span></div>
-                    </div>
-                  </div>
-                )}
+                <div className="space-y-3 px-5 pt-4">
+                  {displayAnalysis.cargo?.dangerous_goods?.is_dangerous && (
+                    <Notice tone="danger" icon="alert" title="Dangerous goods detected">
+                      <dl className="mt-1 grid grid-cols-2 gap-2">
+                        <div><span className="text-app-ink-3">UN Number:</span> <span className="font-fw-mono text-app-danger-ink">{displayAnalysis.cargo.dangerous_goods.un_number || '—'}</span></div>
+                        <div><span className="text-app-ink-3">Class:</span> <span className="font-fw-mono text-app-danger-ink">{displayAnalysis.cargo.dangerous_goods.class || '—'}</span></div>
+                        <div><span className="text-app-ink-3">Packing Group:</span> <span className="font-fw-mono text-app-danger-ink">{displayAnalysis.cargo.dangerous_goods.packing_group || '—'}</span></div>
+                        <div><span className="text-app-ink-3">PSN:</span> <span className="text-app-danger-ink">{displayAnalysis.cargo.dangerous_goods.proper_shipping_name || '—'}</span></div>
+                      </dl>
+                    </Notice>
+                  )}
 
-                {displayAnalysis.risks?.length > 0 && (
-                  <div className={`mx-6 mt-4 p-4 ${darkMode ? 'bg-red-500/10' : 'bg-red-100'} border ${darkMode ? 'border-red-500/20' : 'border-red-300'} rounded-xl`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-red-400 font-semibold text-sm flex items-center gap-2">
-                        <Icon name="Dashboard_documents_risk_detected" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} />
-                        {displayAnalysis.risks.length} Risk{displayAnalysis.risks.length > 1 ? 's' : ''} Detected
-                      </h3>
-                      <button onClick={generateRiskEmail} className="text-xs px-3 py-1 bg-red-500/20 text-red-400 rounded-full hover:bg-red-500/30 transition flex items-center gap-1">
-                        <Icon name="Dashboard_documents_copy_risk_email" className="w-3 h-3" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} />
-                        Copy Risk Email
+                  {displayAnalysis.risks?.length > 0 && (
+                    <Notice tone="danger" icon="alert"
+                      title={<><span className="font-fw-mono">{displayAnalysis.risks.length}</span> Risk{displayAnalysis.risks.length > 1 ? 's' : ''} Detected</>}
+                      action={<Button size="xs" icon="copy" onClick={generateRiskEmail}>Copy Risk Email</Button>}>
+                      <ul className="space-y-1">
+                        {displayAnalysis.risks.map((risk, i) => (
+                          <li key={i} className="flex items-start gap-2"><span aria-hidden className="mt-1.5 size-1 flex-none rounded-full bg-app-danger-dot" /> {risk}</li>
+                        ))}
+                      </ul>
+                    </Notice>
+                  )}
+
+                  {displayAnalysis.missing_information?.length > 0 && (
+                    <Notice tone="warn" icon="info" title="Missing Information">
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {displayAnalysis.missing_information.map((item, i) => <Tag key={i} tone="warn" mono={false}>{item}</Tag>)}
+                      </div>
+                    </Notice>
+                  )}
+                </div>
+
+                {/* Tabs */}
+                <div className="mt-4 flex border-b border-app-line px-5" role="tablist">
+                  {tabs.map((tab) => {
+                    const active = activeTab === tab.key;
+                    return (
+                      <button key={tab.key} role="tab" aria-selected={active} onClick={() => setActiveTab(tab.key)}
+                        className={`relative flex items-center gap-1.5 px-3 py-2.5 text-app-ui-sm transition-colors ${active ? 'font-medium text-app-ink' : 'text-app-ink-3 hover:text-app-ink'}`}>
+                        <Icon name={tab.icon} size={15} className={active ? 'text-app-accent' : ''} />
+                        {tab.label}
+                        {active && <span aria-hidden className="absolute inset-x-2 bottom-0 h-0.5 bg-app-accent-fill" />}
                       </button>
-                    </div>
-                    <ul className="space-y-1">
-                      {displayAnalysis.risks.map((risk, i) => (
-                        <li key={i} className={`text-xs ${darkMode ? 'text-gray-400' : 'text-red-700'} flex items-start gap-2`}>
-                          <span className="text-red-400 mt-0.5">•</span> {risk}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {displayAnalysis.missing_information?.length > 0 && (
-                  <div className={`mx-6 mt-3 p-4 ${darkMode ? 'bg-yellow-500/10' : 'bg-yellow-100'} border ${darkMode ? 'border-yellow-500/20' : 'border-yellow-400'} rounded-xl`}>
-                    <h3 className="text-yellow-400 font-semibold text-sm mb-2 flex items-center gap-2">
-                      <Icon name="Dashboard_documents_missing_information" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(80%) sepia(60%) saturate(800%) hue-rotate(5deg)' }} />
-                      Missing Information
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      {displayAnalysis.missing_information.map((item, i) => (
-                        <span key={i} className={`text-xs px-2 py-1 rounded-full ${darkMode ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-200 text-yellow-800'}`}>{item}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className={`flex gap-1 p-1 mx-6 mt-4 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl`}>
-                  {tabs.map((tab) => (
-                    <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                      className={`flex-1 py-2 text-xs rounded-lg transition flex items-center justify-center gap-1 ${activeTab === tab.key ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
-                      <Icon name={tab.icon} className="w-3.5 h-3.5"
-                        style={activeTab === tab.key ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} />
-                      {tab.label}
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
 
-                <div className="p-6">
+                <div className="p-5">
                   {activeTab === 'summary' && (
-                    <div className="space-y-4">
+                    <div className="space-y-5">
                       <div>
-                        <h3 className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-3`}>Transport</h3>
+                        <DataLabel className="mb-2">Transport</DataLabel>
                         <div className="grid grid-cols-2 gap-3">
-                          {[
-                            { label: 'POL', value: `${displayAnalysis.transport?.pol?.name || '—'} (${displayAnalysis.transport?.pol?.code || '—'})` },
-                            { label: 'POD', value: `${displayAnalysis.transport?.pod?.name || '—'} (${displayAnalysis.transport?.pod?.code || '—'})` },
-                            { label: 'Vessel', value: displayAnalysis.transport?.vessel || '—' },
-                            { label: 'Voyage', value: displayAnalysis.transport?.voyage || '—' },
-                            { label: 'ETD', value: displayAnalysis.transport?.etd || '—' },
-                            { label: 'ETA', value: displayAnalysis.transport?.eta || '—' },
-                          ].map((item, i) => (
-                            <div key={i} className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-3`}>
-                              <p className={`text-xs ${theme.textDim} mb-1`}>{item.label}</p>
-                              <p className="text-sm font-medium">{item.value}</p>
-                            </div>
-                          ))}
+                          {docField('POL', `${displayAnalysis.transport?.pol?.name || '—'} (${displayAnalysis.transport?.pol?.code || '—'})`, true)}
+                          {docField('POD', `${displayAnalysis.transport?.pod?.name || '—'} (${displayAnalysis.transport?.pod?.code || '—'})`, true)}
+                          {docField('Vessel', displayAnalysis.transport?.vessel || '—', true)}
+                          {docField('Voyage', displayAnalysis.transport?.voyage || '—', true)}
+                          {docField('ETD', displayAnalysis.transport?.etd || '—', true)}
+                          {docField('ETA', displayAnalysis.transport?.eta || '—', true)}
                         </div>
                       </div>
                       <div>
-                        <h3 className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-3`}>References</h3>
+                        <DataLabel className="mb-2">References</DataLabel>
                         <div className="grid grid-cols-2 gap-3">
-                          {[
-                            { label: 'BL Number', value: displayAnalysis.references?.bl_number || '—' },
-                            { label: 'Booking', value: displayAnalysis.references?.booking_number || '—' },
-                          ].map((item, i) => (
-                            <div key={i} className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-3`}>
-                              <p className={`text-xs ${theme.textDim} mb-1`}>{item.label}</p>
-                              <p className="text-sm font-medium font-mono">{item.value}</p>
-                            </div>
-                          ))}
+                          {docField('BL Number', displayAnalysis.references?.bl_number || '—', true)}
+                          {docField('Booking', displayAnalysis.references?.booking_number || '—', true)}
                         </div>
                         {displayAnalysis.references?.container_numbers?.length > 0 && (
-                          <div className={`mt-3 ${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-3`}>
-                            <p className={`text-xs ${theme.textDim} mb-2`}>Container Numbers</p>
-                            <div className="flex flex-wrap gap-2">
+                          <div className="mt-3 rounded-fw-btn border border-app-line bg-app-panel p-3">
+                            <DataLabel className="mb-2">Container Numbers</DataLabel>
+                            <div className="flex flex-wrap gap-1.5">
                               {displayAnalysis.references.container_numbers.map((c, i) => (
-                                <span key={i} className={`text-xs px-3 py-1 rounded-full font-mono ${c.uncertain ? 'bg-yellow-500/20 text-yellow-400' : 'bg-[#5200FF]/20 text-[#9E14FB]'}`}>
-                                  {c.value} {c.uncertain ? '⚠️' : ''}
-                                </span>
+                                c.uncertain
+                                  ? <Tag key={i} tone="warn" title="Uncertain reading">{c.value}</Tag>
+                                  : <Chip key={i} className="font-fw-mono text-app-mono">{c.value}</Chip>
                               ))}
                             </div>
                           </div>
                         )}
                       </div>
                       {displayAnalysis.shipment_summary?.description && (
-                        <div className={`${darkMode ? 'bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10' : 'bg-gradient-to-r from-purple-50 to-blue-50'} rounded-xl p-4`}>
-                          <p className={`text-xs ${theme.textDim} mb-1`}>Operational Summary</p>
-                          <p className="text-sm">{displayAnalysis.shipment_summary.description}</p>
+                        <div className="rounded-fw-btn border border-app-line bg-app-panel p-4">
+                          <DataLabel className="mb-1">Operational Summary</DataLabel>
+                          <p className="text-app-ui">{displayAnalysis.shipment_summary.description}</p>
                         </div>
                       )}
                     </div>
@@ -680,17 +493,14 @@ export default function DocumentsPage() {
 
                   {activeTab === 'parties' && (
                     <div className="space-y-3">
-                      {[
-                        { label: 'Shipper', icon: 'Dashboard_documents_shipper', value: displayAnalysis.parties?.shipper },
-                        { label: 'Consignee', icon: 'Dashboard_documents_consignee', value: displayAnalysis.parties?.consignee },
-                        { label: 'Notify Party', icon: 'Dashboard_documents_notify_party', value: displayAnalysis.parties?.notify_party },
-                      ].map((party, i) => (
-                        <div key={i} className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-4`}>
-                          <div className="flex items-center gap-2 mb-1">
-                            <Icon name={party.icon} className="w-4 h-4" style={theme.iconFilter} />
-                            <p className={`text-xs ${theme.textDim}`}>{party.label}</p>
-                          </div>
-                          <p className="text-sm font-medium">{party.value || '—'}</p>
+                      {([
+                        { label: 'Shipper', icon: 'send', value: displayAnalysis.parties?.shipper },
+                        { label: 'Consignee', icon: 'inbox', value: displayAnalysis.parties?.consignee },
+                        { label: 'Notify Party', icon: 'bell', value: displayAnalysis.parties?.notify_party },
+                      ] as const).map((party, i) => (
+                        <div key={i} className="rounded-fw-btn border border-app-line bg-app-panel p-4">
+                          <DataLabel className="mb-1 flex items-center gap-1.5"><Icon name={party.icon} size={13} /> {party.label}</DataLabel>
+                          <p className="text-app-ui font-medium">{party.value || '—'}</p>
                         </div>
                       ))}
                     </div>
@@ -699,35 +509,26 @@ export default function DocumentsPage() {
                   {activeTab === 'cargo' && (
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-3">
-                        {[
-                          { label: 'Container Type', value: displayAnalysis.cargo?.container_type || '—' },
-                          { label: 'HS Code', value: displayAnalysis.cargo?.hs_code || '—' },
-                          { label: 'Packages', value: displayAnalysis.cargo?.packages ? String(displayAnalysis.cargo.packages) : '—' },
-                          { label: 'Volume (CBM)', value: displayAnalysis.cargo?.volume_cbm ? `${displayAnalysis.cargo.volume_cbm} CBM` : '—' },
-                          { label: 'Gross Weight', value: displayAnalysis.cargo?.gross_weight?.value ? `${displayAnalysis.cargo.gross_weight.value} ${displayAnalysis.cargo.gross_weight.unit}` : '—' },
-                          { label: 'Net Weight', value: displayAnalysis.cargo?.net_weight?.value ? `${displayAnalysis.cargo.net_weight.value} ${displayAnalysis.cargo.net_weight.unit}` : '—' },
-                          { label: 'Tare Weight', value: displayAnalysis.cargo?.tare_weight?.value ? `${displayAnalysis.cargo.tare_weight.value} ${displayAnalysis.cargo.tare_weight.unit}` : '—' },
-                          { label: 'Freight Charges', value: displayAnalysis.freight?.charges || '—' },
-                        ].map((item, i) => (
-                          <div key={i} className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-3`}>
-                            <p className={`text-xs ${theme.textDim} mb-1`}>{item.label}</p>
-                            <p className="text-sm font-medium">{item.value}</p>
-                          </div>
-                        ))}
+                        {docField('Container Type', displayAnalysis.cargo?.container_type || '—', true)}
+                        {docField('HS Code', displayAnalysis.cargo?.hs_code || '—', true)}
+                        {docField('Packages', displayAnalysis.cargo?.packages ? String(displayAnalysis.cargo.packages) : '—', true)}
+                        {docField('Volume (CBM)', displayAnalysis.cargo?.volume_cbm ? `${displayAnalysis.cargo.volume_cbm} CBM` : '—', true)}
+                        {docField('Gross Weight', displayAnalysis.cargo?.gross_weight?.value ? `${displayAnalysis.cargo.gross_weight.value} ${displayAnalysis.cargo.gross_weight.unit}` : '—', true)}
+                        {docField('Net Weight', displayAnalysis.cargo?.net_weight?.value ? `${displayAnalysis.cargo.net_weight.value} ${displayAnalysis.cargo.net_weight.unit}` : '—', true)}
+                        {docField('Tare Weight', displayAnalysis.cargo?.tare_weight?.value ? `${displayAnalysis.cargo.tare_weight.value} ${displayAnalysis.cargo.tare_weight.unit}` : '—', true)}
+                        {docField('Freight Charges', displayAnalysis.freight?.charges || '—', true)}
                       </div>
                       {displayAnalysis.cargo?.description && (
-                        <div className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-4`}>
-                          <p className={`text-xs ${theme.textDim} mb-1`}>Cargo Description</p>
-                          <p className="text-sm">{displayAnalysis.cargo.description}</p>
+                        <div className="rounded-fw-btn border border-app-line bg-app-panel p-4">
+                          <DataLabel className="mb-1">Cargo Description</DataLabel>
+                          <p className="text-app-ui">{displayAnalysis.cargo.description}</p>
                         </div>
                       )}
                       {displayAnalysis.cargo?.seal_numbers?.length > 0 && (
-                        <div className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-4`}>
-                          <p className={`text-xs ${theme.textDim} mb-2`}>Seal Numbers</p>
-                          <div className="flex flex-wrap gap-2">
-                            {displayAnalysis.cargo.seal_numbers.map((s, i) => (
-                              <span key={i} className="text-xs px-3 py-1 bg-[#5200FF]/20 text-[#9E14FB] rounded-full font-mono">{s}</span>
-                            ))}
+                        <div className="rounded-fw-btn border border-app-line bg-app-panel p-4">
+                          <DataLabel className="mb-2">Seal Numbers</DataLabel>
+                          <div className="flex flex-wrap gap-1.5">
+                            {displayAnalysis.cargo.seal_numbers.map((s, i) => <Chip key={i} className="font-fw-mono text-app-mono">{s}</Chip>)}
                           </div>
                         </div>
                       )}
@@ -735,20 +536,11 @@ export default function DocumentsPage() {
                   )}
 
                   {activeTab === 'compliance' && (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        {[
-                          { label: 'Country of Origin', value: displayAnalysis.compliance?.country_of_origin || '—' },
-                          { label: 'Currency', value: displayAnalysis.compliance?.currency || '—' },
-                          { label: 'Customs Value', value: displayAnalysis.compliance?.customs_value || '—' },
-                          { label: 'Export License', value: displayAnalysis.compliance?.export_license || '—' },
-                        ].map((item, i) => (
-                          <div key={i} className={`${darkMode ? 'bg-white/5' : 'bg-slate-50'} rounded-xl p-3`}>
-                            <p className={`text-xs ${theme.textDim} mb-1`}>{item.label}</p>
-                            <p className="text-sm font-medium">{item.value}</p>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {docField('Country of Origin', displayAnalysis.compliance?.country_of_origin || '—')}
+                      {docField('Currency', displayAnalysis.compliance?.currency || '—', true)}
+                      {docField('Customs Value', displayAnalysis.compliance?.customs_value || '—', true)}
+                      {docField('Export License', displayAnalysis.compliance?.export_license || '—', true)}
                     </div>
                   )}
 
@@ -756,29 +548,26 @@ export default function DocumentsPage() {
                     <div className="space-y-4">
                       {displayAnalysis.risks?.length > 0 ? (
                         <div>
-                          <h3 className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-3`}>Risks Detected</h3>
+                          <DataLabel className="mb-2">Risks Detected</DataLabel>
                           <div className="space-y-2">
                             {displayAnalysis.risks.map((risk, i) => (
-                              <div key={i} className={`${darkMode ? 'bg-red-500/10' : 'bg-red-100'} border ${darkMode ? 'border-red-500/20' : 'border-red-300'} rounded-xl p-3`}>
-                                <p className={`text-sm ${darkMode ? 'text-red-400' : 'text-red-700'}`}>• {risk}</p>
+                              <div key={i} className="flex items-start gap-2 rounded-fw-btn border border-app-line bg-app-danger-bg p-3 text-app-ui text-app-danger-ink">
+                                <Icon name="alert" size={15} className="mt-0.5 flex-none" /> {risk}
                               </div>
                             ))}
                           </div>
                         </div>
                       ) : (
-                        <div className={`${darkMode ? 'bg-green-500/10' : 'bg-green-50'} border border-green-500/20 rounded-xl p-6 text-center`}>
-                          <p className="text-green-400 text-2xl mb-2">✅</p>
-                          <p className="text-green-400 font-medium">No risks detected!</p>
-                        </div>
+                        <Notice tone="ok" icon="check" title="No risks detected!" />
                       )}
 
                       {displayAnalysis.missing_information?.length > 0 && (
                         <div>
-                          <h3 className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-3`}>Missing Information</h3>
+                          <DataLabel className="mb-2">Missing Information</DataLabel>
                           <div className="space-y-2">
                             {displayAnalysis.missing_information.map((item, i) => (
-                              <div key={i} className={`${darkMode ? 'bg-yellow-500/10' : 'bg-yellow-100'} border ${darkMode ? 'border-yellow-500/20' : 'border-yellow-400'} rounded-xl p-3`}>
-                                <p className={`text-sm ${darkMode ? 'text-yellow-400' : 'text-yellow-800'}`}>• {item}</p>
+                              <div key={i} className="flex items-start gap-2 rounded-fw-btn border border-app-line bg-app-warn-bg p-3 text-app-ui text-app-warn-ink">
+                                <Icon name="info" size={15} className="mt-0.5 flex-none" /> {item}
                               </div>
                             ))}
                           </div>
@@ -786,49 +575,29 @@ export default function DocumentsPage() {
                       )}
 
                       <div className="flex gap-3">
-                        <button onClick={generateRiskEmail} className={`flex-1 py-3 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm font-medium flex items-center justify-center gap-2`}>
-                          <Icon name="Dashboard_documents_copy_risk_email" className="w-4 h-4" style={theme.iconFilter} />
-                          Copy Risk Email
-                        </button>
-                        <button onClick={handleGenerateReport} className="flex-1 py-3 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2">
-                          <Icon name="Dashboard_documents_full_report" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
-                          Full Report
-                        </button>
+                        <Button className="flex-1" icon="copy" onClick={generateRiskEmail}>Copy Risk Email</Button>
+                        <Button variant="primary" className="flex-1" icon="docs" onClick={handleGenerateReport}>Full Report</Button>
                       </div>
                     </div>
                   )}
                 </div>
-              </div>
+              </section>
             ) : (
-              <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl h-full flex items-center justify-center min-h-96`}>
-                <div className="text-center p-8">
-                  <div className="w-20 h-20 mx-auto mb-4 p-4 rounded-2xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20">
-                    <Icon name="Dashboard_documents__document_intelligence" className="w-full h-full" style={theme.iconFilter} />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">Document Intelligence</h3>
-                  <p className={`${theme.textMuted} mb-6 max-w-sm`}>
-                    Upload a shipping document or paste text to extract structured data, detect risks, and generate reports.
-                  </p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {[
-                      { label: 'MBL', icon: 'Dashboard_documents_MBL' },
-                      { label: 'HBL', icon: 'Dashboard_documents_HBL' },
-                      { label: 'AWB', icon: 'Dashboard_documents_AWB' },
-                      { label: 'Invoice', icon: 'Dashboard_documents_invoice' },
-                      { label: 'Packing List', icon: 'Dashboard_documents_packing_list' },
-                    ].map(type => (
-                      <span key={type.label} className={`text-xs px-3 py-1.5 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-full ${theme.textMuted} flex items-center gap-1.5`}>
-                        <Icon name={type.icon} className="w-3 h-3" style={theme.iconFilter} />
-                        {type.label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+              <div className="flex h-full min-h-96 items-center justify-center rounded-fw-card border border-app-line bg-app-card">
+                <EmptyState icon="docs" title="Document Intelligence"
+                  text="Upload a shipping document or paste text to extract structured data, detect risks, and generate reports."
+                  action={
+                    <div className="flex flex-wrap justify-center gap-1.5">
+                      {(['MBL', 'HBL', 'AWB', 'Invoice', 'Packing List'] as const).map(type => (
+                        <Chip key={type}><Icon name={getDocTypeIcon(type)} size={13} className="text-app-ink-3" />{type}</Chip>
+                      ))}
+                    </div>
+                  } />
               </div>
             )}
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

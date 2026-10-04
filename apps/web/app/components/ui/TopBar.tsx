@@ -122,7 +122,7 @@ export default function TopBar({
             <Icon name={darkMode ? 'sun' : 'moon'} size={16} />
           </button>
 
-          {showSettings && user && session && (
+          {showSettings && session && (
             <Link
               href={withSession('/settings/integrations')}
               title="Settings"
