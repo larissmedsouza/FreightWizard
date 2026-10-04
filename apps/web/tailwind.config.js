@@ -10,12 +10,15 @@ const triplet = (hex) => {
 const isHex = (v) => /^#[0-9a-f]{6}$/i.test(v);
 
 // App colours: one CSS variable per token, switched by data-theme on the page root.
+// Tokens that are hex in BOTH modes become RGB triplets (so /50 opacity modifiers
+// work); tokens with a translucent value in either mode (lines, overlay) stay raw.
 const appColorNames = Object.keys(fw.app.light);
+const opaque = (k) => isHex(fw.app.light[k]) && isHex(fw.app.dark[k]);
 const appColors = Object.fromEntries(
-  appColorNames.map((k) => [k, isHex(fw.app.light[k]) ? `rgb(var(--app-${k}) / <alpha-value>)` : `var(--app-${k})`]),
+  appColorNames.map((k) => [k, opaque(k) ? `rgb(var(--app-${k}) / <alpha-value>)` : `var(--app-${k})`]),
 );
 const appVars = (palette) =>
-  Object.fromEntries(Object.entries(palette).map(([k, v]) => [`--app-${k}`, isHex(v) ? triplet(v) : v]));
+  Object.fromEntries(Object.entries(palette).map(([k, v]) => [`--app-${k}`, opaque(k) ? triplet(v) : v]));
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {

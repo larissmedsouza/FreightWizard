@@ -6,10 +6,18 @@ import Link from 'next/link';
 import QuoteBuilderModal, { Quote } from '../components/QuoteBuilderModal';
 import TrialBanner from '../components/TrialBanner';
 import UpgradeModal, { UpgradeReason } from '../components/UpgradeModal';
+import Icon, { type IconName, toIconName } from '../components/ui/Icon';
+import TopBar from '../components/ui/TopBar';
+import Modal from '../components/ui/Modal';
+import { appRootClass } from '../components/ui/Panel';
+import { Button } from '../components/ui/Button';
+import { inputClass } from '../components/ui/Field';
+import { toneClass, priorityTone, labelTone } from '../components/ui/tones';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
-const Icon = ({ name, className = "w-6 h-6", style }: { name: string; className?: string; style?: React.CSSProperties }) => (
+// Legacy <img> icons, replaced section by section with the shared line icons.
+const ImgIcon = ({ name, className = "w-6 h-6", style }: { name: string; className?: string; style?: React.CSSProperties }) => (
   <img src={`/icons/${name}.svg`} alt={name} className={className} style={style} />
 );
 
@@ -103,7 +111,7 @@ type FolderKey = 'all' | 'urgent' | 'high' | 'medium' | 'low' | 'replied' | 'dra
 interface FolderDef {
   key: FolderKey;
   label: string;
-  icon: string;
+  icon: IconName;
   iconStyle?: React.CSSProperties;
   group: string;
   color?: string;
@@ -118,18 +126,17 @@ const WORKFLOW_STATUSES: { key: WorkflowStatus; label: string; color: string; bg
   { key: 'closed', label: 'Closed', color: 'text-gray-400', bg: 'bg-gray-500/20' },
 ];
 
+// One option per tag tone (values keep the stored format; see labelTone()).
 const LABEL_COLORS = [
-  { name: 'Purple', value: 'text-purple-400', bg: 'bg-purple-500/20' },
-  { name: 'Blue', value: 'text-blue-400', bg: 'bg-blue-500/20' },
-  { name: 'Green', value: 'text-green-400', bg: 'bg-green-500/20' },
-  { name: 'Yellow', value: 'text-yellow-400', bg: 'bg-yellow-500/20' },
-  { name: 'Red', value: 'text-red-400', bg: 'bg-red-500/20' },
-  { name: 'Pink', value: 'text-pink-400', bg: 'bg-pink-500/20' },
-  { name: 'Cyan', value: 'text-cyan-400', bg: 'bg-cyan-500/20' },
-  { name: 'Orange', value: 'text-orange-400', bg: 'bg-orange-500/20' },
+  { name: 'Indigo', value: 'text-indigo-400' },
+  { name: 'Blue', value: 'text-blue-400' },
+  { name: 'Green', value: 'text-green-400' },
+  { name: 'Amber', value: 'text-amber-400' },
+  { name: 'Red', value: 'text-red-400' },
+  { name: 'Gray', value: 'text-gray-400' },
 ];
 
-const LABEL_ICONS = ['🏷️', '📌', '⭐', '🔖', '📎', '🗂️', '✅', '🔔', '💼', '🌟'];
+const LABEL_ICONS: IconName[] = ['tag', 'pin', 'star', 'folder', 'attach', 'check', 'bell', 'building', 'flag', 'link'];
 
 const translations = {
   en: { inbox: 'Inbox', analyzeAll: 'Analyze All', analyzing: 'Analyzing', selectEmail: 'Select an email to view details', connect: 'Connect Your Email', connectDesc: 'Connect your Gmail or Outlook to analyze freight emails with AI', connectGmail: 'Connect Gmail', connectOutlook: 'Connect Outlook', disconnect: 'Disconnect', analyze: 'Analyze with AI', from: 'From', aiAnalysis: 'AI Analysis', intent: 'Intent', priority: 'Priority', mode: 'Mode', route: 'Route', summary: 'Summary', missingInfo: 'Missing Info', suggestedReply: 'Suggested Reply', sendReply: 'Send', editReply: 'Edit', saveDraft: 'Save Draft', cancel: 'Cancel', sending: 'Sending...', saving: 'Saving...', search: 'Search emails...', allMail: 'All Mail', compose: 'Compose', trash: 'Trash', restore: 'Restore', deleteForever: 'Delete Forever', trashEmpty: 'Trash is empty',
@@ -170,40 +177,23 @@ const translations = {
   },
 };
 
-const NAV_ITEMS = [
-  { href: '/dashboard', label: { en: 'Inbox', pt: 'Inbox', nl: 'Inbox' }, icon: 'Dashboard_inbox' },
-  { href: '/shipments', label: { en: 'Shipments', pt: 'Embarques', nl: 'Zendingen' }, icon: 'Dashboard_tracking' },
-  { href: '/quotes', label: { en: 'Quotes', pt: 'Cotações', nl: 'Offertes' }, icon: 'Dashboard_quotation' },
-  { href: '/rates', label: { en: 'Rates', pt: 'Tarifas', nl: 'Tarieven' }, icon: 'Dashboard_quotation' },
-  { href: '/analytics', label: { en: 'Analytics', pt: 'Analytics', nl: 'Analytics' }, icon: 'Dashboard_analyrtics_AI Insights' },
-  { href: '/team', label: { en: 'Team', pt: 'Equipa', nl: 'Team' }, icon: 'Dashboard_email_team' },
-  { href: '/documents', label: { en: 'Documents', pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
-];
-
-const PRIORITY_FILTERS: Record<string, string> = {
-  urgent: 'brightness(0) saturate(100%) invert(29%) sepia(96%) saturate(2000%) hue-rotate(340deg)',
-  high: 'brightness(0) saturate(100%) invert(60%) sepia(80%) saturate(800%) hue-rotate(5deg)',
-  medium: 'brightness(0) saturate(100%) invert(85%) sepia(60%) saturate(800%) hue-rotate(5deg)',
-  low: 'brightness(0) saturate(100%) invert(65%) sepia(60%) saturate(500%) hue-rotate(80deg)',
-};
-
 const SYSTEM_FOLDERS: FolderDef[] = [
-  { key: 'all', label: 'All Mail', icon: 'Dashboard_all_mail', group: 'main' },
-  { key: 'urgent', label: 'Urgent', icon: 'Dashboard_priority', iconStyle: { filter: PRIORITY_FILTERS.urgent }, group: 'priority', color: 'text-red-400' },
-  { key: 'high', label: 'High', icon: 'Dashboard_priority', iconStyle: { filter: PRIORITY_FILTERS.high }, group: 'priority', color: 'text-orange-400' },
-  { key: 'medium', label: 'Medium', icon: 'Dashboard_priority', iconStyle: { filter: PRIORITY_FILTERS.medium }, group: 'priority', color: 'text-yellow-400' },
-  { key: 'low', label: 'Low', icon: 'Dashboard_priority', iconStyle: { filter: PRIORITY_FILTERS.low }, group: 'priority', color: 'text-green-400' },
-  { key: 'not_replied', label: 'Not Replied', icon: 'Dashboad_not_replied', group: 'status' },
-  { key: 'replied', label: 'Replied', icon: 'Dashboard_replied', group: 'status' },
-  { key: 'draft_saved', label: 'Drafts', icon: 'Dashboard_draft', group: 'status' },
-  { key: 'ocean', label: 'Ocean', icon: 'Dashboard_ocean', group: 'transport' },
-  { key: 'air', label: 'Air', icon: 'Dashboard_air', group: 'transport' },
-  { key: 'road', label: 'Road', icon: 'Dashboard_road', group: 'transport' },
-  { key: 'rail', label: 'Rail', icon: 'Dashboard_rail', group: 'transport' },
-  { key: 'quote_request', label: 'Quote Requests', icon: 'Dashboard_quotation', group: 'intent' },
-  { key: 'booking_confirmation', label: 'Bookings', icon: 'Dashboard_booking', group: 'intent' },
-  { key: 'tracking_inquiry', label: 'Tracking', icon: 'Dashboard_tracking', group: 'intent' },
-  { key: 'documentation_request', label: 'Documents', icon: 'Dashboard_documents', group: 'intent' },
+  { key: 'all', label: 'All Mail', icon: 'mail', group: 'main' },
+  { key: 'urgent', label: 'Urgent', icon: 'flag', group: 'priority' },
+  { key: 'high', label: 'High', icon: 'flag', group: 'priority' },
+  { key: 'medium', label: 'Medium', icon: 'flag', group: 'priority' },
+  { key: 'low', label: 'Low', icon: 'flag', group: 'priority' },
+  { key: 'not_replied', label: 'Not Replied', icon: 'clock', group: 'status' },
+  { key: 'replied', label: 'Replied', icon: 'reply', group: 'status' },
+  { key: 'draft_saved', label: 'Drafts', icon: 'draft', group: 'status' },
+  { key: 'ocean', label: 'Ocean', icon: 'ocean', group: 'transport' },
+  { key: 'air', label: 'Air', icon: 'air', group: 'transport' },
+  { key: 'road', label: 'Road', icon: 'road', group: 'transport' },
+  { key: 'rail', label: 'Rail', icon: 'rail', group: 'transport' },
+  { key: 'quote_request', label: 'Quote Requests', icon: 'quote', group: 'intent' },
+  { key: 'booking_confirmation', label: 'Bookings', icon: 'booking', group: 'intent' },
+  { key: 'tracking_inquiry', label: 'Tracking', icon: 'tracking', group: 'intent' },
+  { key: 'documentation_request', label: 'Documents', icon: 'docs', group: 'intent' },
 ];
 
 const AI_ACTIONS = [
@@ -285,7 +275,7 @@ function ComposeModal({ onClose, onSend, darkMode, theme, userEmail }: {
         {/* Title bar */}
         <div className={`flex items-center justify-between px-4 py-3 border-b ${theme.cardBorder} flex-shrink-0 ${minimized ? 'rounded-2xl' : 'rounded-t-2xl'}`}>
           <h3 className="font-semibold text-sm flex items-center gap-2">
-            <Icon name="Dashboard_compose" className="w-4 h-4" style={theme.iconFilter} />
+            <ImgIcon name="Dashboard_compose" className="w-4 h-4" style={theme.iconFilter} />
             New Message
           </h3>
           <div className="flex items-center gap-2">
@@ -598,7 +588,7 @@ export default function DashboardPage() {
   const [createMode, setCreateMode] = useState<'folder' | 'label'>('folder');
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState(LABEL_COLORS[0]);
-  const [newLabelIcon, setNewLabelIcon] = useState(LABEL_ICONS[0]);
+  const [newLabelIcon, setNewLabelIcon] = useState<IconName>(LABEL_ICONS[0]);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; emailId: string } | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(210);
   const [emailListWidth, setEmailListWidth] = useState(300);
@@ -629,34 +619,21 @@ export default function DashboardPage() {
 
   const t = translations[language];
 
-  const theme = darkMode ? {
-    bg: 'bg-[#050510]',
-    bgGradient: 'bg-gradient-to-br from-[#050510] via-[#0a0a1a] to-[#050510]',
-    card: 'bg-[#0a0a1a]',
-    cardBorder: 'border-white/5',
-    text: 'text-white',
-    textMuted: 'text-gray-400',
-    textDim: 'text-gray-500',
-    hover: 'hover:bg-white/5',
-    selected: 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/15 border-l-2 border-l-[#9E14FB]',
-    input: 'bg-[#0a0a1a] border-white/10 text-white placeholder-gray-600',
-    sidebar: 'bg-[#080814]',
-    iconFilter: { filter: 'brightness(0) invert(1)' },
-    divider: 'bg-white/10 hover:bg-[#5200FF]/50',
-  } : {
-    bg: 'bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-50',
-    bgGradient: 'bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-50',
-    card: 'bg-white/80 backdrop-blur-sm',
-    cardBorder: 'border-slate-200/50',
-    text: 'text-slate-900',
-    textMuted: 'text-slate-600',
-    textDim: 'text-slate-500',
-    hover: 'hover:bg-slate-100/50',
-    selected: 'bg-gradient-to-r from-[#9E14FB]/10 to-[#1BA1FF]/10 border-l-2 border-l-[#9E14FB]',
-    input: 'bg-white border-slate-200 text-slate-900 placeholder-slate-400',
-    sidebar: 'bg-white/60',
-    iconFilter: { filter: 'brightness(0) saturate(100%) invert(19%) sepia(96%) saturate(5765%) hue-rotate(268deg) brightness(102%) contrast(101%)' },
-    divider: 'bg-slate-300 hover:bg-[#5200FF]/50',
+  // Semantic token classes; data-theme on the page root switches light/dark.
+  const theme = {
+    bg: 'bg-app-bg',
+    bgGradient: 'bg-app-bg',
+    card: 'bg-app-card',
+    cardBorder: 'border-app-line',
+    text: 'text-app-ink',
+    textMuted: 'text-app-ink-2',
+    textDim: 'text-app-ink-3',
+    hover: 'hover:bg-app-raised',
+    selected: 'bg-app-selected border-l-2 border-l-app-accent-fill',
+    input: 'bg-app-card border-app-line-strong text-app-ink placeholder:text-app-ink-3',
+    sidebar: 'bg-app-panel',
+    iconFilter: {} as React.CSSProperties,
+    divider: 'bg-app-line hover:bg-app-accent-fill',
   };
 
   const notify = (type: 'success' | 'error' | 'warning', msg: string, opts?: { sub?: string; duration?: number }) => {
@@ -1048,18 +1025,17 @@ export default function DashboardPage() {
   ];
 
   const currentFolder = [...SYSTEM_FOLDERS, ...customLabels.map(l => ({ key: l.key, label: l.label, icon: l.icon, group: 'custom', iconStyle: undefined, color: undefined }))].find(f => f.key === activeFolder);
-  const getFolderIconStyle = (folder: FolderDef): React.CSSProperties => folder.iconStyle || theme.iconFilter;
-
+  
   const selectedAssignment = selected ? (assignments[selected.id] || { owner: '', watchers: [], queue: '' }) : { owner: '', watchers: [], queue: '' };
   const selectedWorkflow = selected ? (workflowStatuses[selected.id] || 'new') : 'new';
   const selectedWorkflowDef = WORKFLOW_STATUSES.find(s => s.key === selectedWorkflow);
   const selectedTimeline = selected ? getThreadTimeline(selected.id) : [];
   const selectedNotes = selected ? getEmailNotes(selected.id) : [];
 
-  if (loading) return <div className={`min-h-screen ${theme.bgGradient} ${theme.text} flex items-center justify-center`}><div className="w-10 h-10 border-4 border-[#5200FF] border-t-transparent rounded-full animate-spin"></div></div>;
+  if (loading) return <div data-theme={darkMode ? 'dark' : 'light'} className={`${appRootClass} flex items-center justify-center`}><div className="size-8 animate-spin rounded-full border-2 border-app-accent-fill border-t-transparent"></div></div>;
 
   return (
-    <div className={`min-h-screen ${theme.bgGradient} ${theme.text} transition-colors`}>
+    <div data-theme={darkMode ? 'dark' : 'light'} className={appRootClass}>
       {notification && (
         <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-xl text-white ${notification.type === 'success' ? 'bg-green-500' : notification.type === 'warning' ? 'bg-orange-500' : 'bg-red-500'}`}>
           <p>{notification.msg}</p>
@@ -1079,7 +1055,7 @@ export default function DashboardPage() {
           {customLabels.length === 0 && <p className={`px-4 py-2 text-xs ${theme.textDim}`}>No folders yet</p>}
           <div className={`border-t ${theme.cardBorder} mt-1`} />
           <button onClick={() => moveToTrash(contextMenu.emailId)} className={`w-full px-4 py-2 text-sm text-left ${theme.hover} flex items-center gap-2 text-red-400`}>
-            <Icon name="Dashboard_trash" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} /> Move to Trash
+            <ImgIcon name="Dashboard_trash" className="w-4 h-4" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} /> Move to Trash
           </button>
         </div>
       )}
@@ -1124,73 +1100,66 @@ export default function DashboardPage() {
 
       {/* Create Folder/Label Modal */}
       {showCreateLabel && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-sm shadow-2xl`}>
-            <div className={`flex items-center justify-between px-5 py-4 border-b ${theme.cardBorder}`}>
-              <h3 className="font-semibold flex items-center gap-2">
-                <Icon name={createMode === 'folder' ? 'Dashboard_new_folder' : 'Dashboard_new_label'} className="w-5 h-5" style={theme.iconFilter} />
-                {createMode === 'folder' ? 'Create Folder' : 'Create Label'}
-              </h3>
-              <button onClick={() => setShowCreateLabel(false)} className={`${theme.textDim} hover:text-white text-lg`}>✕</button>
+        <Modal title={createMode === 'folder' ? 'Create Folder' : 'Create Label'} icon={createMode === 'folder' ? 'folder-plus' : 'tag'} onClose={() => setShowCreateLabel(false)} size="sm">
+          <div className="space-y-4 p-5">
+            <div className="flex gap-1 rounded-fw-btn border border-app-line bg-app-panel p-1" role="group" aria-label="Type">
+              {(['folder', 'label'] as const).map(mode => (
+                <button key={mode} onClick={() => setCreateMode(mode)} aria-pressed={createMode === mode}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-[2px] py-1.5 text-app-ui-sm transition-colors ${createMode === mode ? 'border border-app-line bg-app-card font-medium text-app-ink' : 'text-app-ink-2 hover:text-app-ink'}`}>
+                  <Icon name={mode === 'folder' ? 'folder' : 'tag'} size={14} /> {mode === 'folder' ? 'Folder' : 'Label'}
+                </button>
+              ))}
             </div>
-            <div className={`flex gap-1 p-1 mx-5 mt-4 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl`}>
-              <button onClick={() => setCreateMode('folder')} className={`flex-1 py-1.5 text-xs rounded-lg transition flex items-center justify-center gap-1.5 ${createMode === 'folder' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
-                <Icon name="Dashboard_new_folder" className="w-3.5 h-3.5" style={createMode === 'folder' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} /> Folder
-              </button>
-              <button onClick={() => setCreateMode('label')} className={`flex-1 py-1.5 text-xs rounded-lg transition flex items-center justify-center gap-1.5 ${createMode === 'label' ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
-                <Icon name="Dashboard_new_label" className="w-3.5 h-3.5" style={createMode === 'label' ? { filter: 'brightness(0) invert(1)' } : theme.iconFilter} /> Label
-              </button>
+            <input value={newLabelName} onChange={e => setNewLabelName(e.target.value)}
+              placeholder={createMode === 'folder' ? 'Folder name...' : 'Label name...'}
+              className={inputClass}
+              onKeyDown={e => e.key === 'Enter' && createLabel()} autoFocus />
+            <div>
+              <p className="mb-2 font-fw-mono text-app-mono-xs uppercase text-app-ink-3">Icon</p>
+              <div className="flex flex-wrap gap-1.5">
+                {LABEL_ICONS.map(icon => (
+                  <button key={icon} onClick={() => setNewLabelIcon(icon)} aria-label={icon} aria-pressed={newLabelIcon === icon}
+                    className={`flex size-8 items-center justify-center rounded-fw-btn border transition-colors ${newLabelIcon === icon ? 'border-app-accent-fill bg-app-selected text-app-accent' : 'border-app-line text-app-ink-2 hover:bg-app-raised'}`}>
+                    <Icon name={icon} size={16} />
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="p-5 space-y-4">
-              <input value={newLabelName} onChange={e => setNewLabelName(e.target.value)}
-                placeholder={createMode === 'folder' ? 'Folder name...' : 'Label name...'}
-                className={`w-full px-4 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}
-                onKeyDown={e => e.key === 'Enter' && createLabel()} autoFocus />
-              <div><p className={`text-xs ${theme.textDim} mb-2`}>Icon</p><div className="flex flex-wrap gap-2">{LABEL_ICONS.map(icon => (<button key={icon} onClick={() => setNewLabelIcon(icon)} className={`w-8 h-8 rounded-lg text-lg flex items-center justify-center ${newLabelIcon === icon ? 'bg-[#5200FF]/30 border border-[#5200FF]' : theme.hover}`}>{icon}</button>))}</div></div>
-              <div><p className={`text-xs ${theme.textDim} mb-2`}>Color</p><div className="flex flex-wrap gap-2">{LABEL_COLORS.map(color => (<button key={color.name} onClick={() => setNewLabelColor(color)} className={`px-3 py-1 rounded-full text-xs border ${color.value} ${newLabelColor.name === color.name ? 'border-[#5200FF] bg-[#5200FF]/20' : `${theme.cardBorder} ${color.bg}`}`}>{color.name}</button>))}</div></div>
-              {newLabelName && <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${newLabelColor.bg} border ${theme.cardBorder}`}><span>{newLabelIcon}</span><span className={`text-sm font-medium ${newLabelColor.value}`}>{newLabelName}</span><span className={`text-xs ${theme.textDim} ml-auto`}>{createMode === 'folder' ? '📁' : '🏷️'}</span></div>}
-              <button onClick={createLabel} disabled={!newLabelName.trim()} className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">{createMode === 'folder' ? 'Create Folder' : 'Create Label'}</button>
+            <div>
+              <p className="mb-2 font-fw-mono text-app-mono-xs uppercase text-app-ink-3">Color</p>
+              <div className="flex flex-wrap gap-1.5">
+                {LABEL_COLORS.map(color => (
+                  <button key={color.name} onClick={() => setNewLabelColor(color)} aria-pressed={newLabelColor.name === color.name}
+                    className={`inline-flex items-center gap-1.5 rounded-fw-btn border px-2 py-1 text-app-ui-sm transition-colors ${newLabelColor.name === color.name ? 'border-app-accent-fill bg-app-selected text-app-ink' : 'border-app-line text-app-ink-2 hover:bg-app-raised'}`}>
+                    <span aria-hidden className={`size-2 rounded-full ${toneClass[labelTone(color.value)].dot}`} /> {color.name}
+                  </button>
+                ))}
+              </div>
             </div>
+            {newLabelName && (
+              <div className="flex items-center gap-2 rounded-fw-btn border border-app-line px-3 py-2">
+                <Icon name={newLabelIcon} size={16} className={toneClass[labelTone(newLabelColor.value)].text} />
+                <span className="text-app-ui font-medium">{newLabelName}</span>
+                <Icon name={createMode === 'folder' ? 'folder' : 'tag'} size={14} className="ml-auto text-app-ink-3" />
+              </div>
+            )}
+            <Button variant="primary" onClick={createLabel} disabled={!newLabelName.trim()} className="w-full">
+              {createMode === 'folder' ? 'Create Folder' : 'Create Label'}
+            </Button>
           </div>
-        </div>
+        </Modal>
       )}
 
-      {/* Header */}
-      <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-3 flex items-center justify-between sticky top-0 z-40`}>
-        <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-          <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
-          <span className="text-base font-bold">FreightWizard</span>
-        </Link>
-        <div className="flex items-center gap-2">
-          {NAV_ITEMS.map(item => (
-            <Link key={item.href} href={`${item.href}?session=${session}`}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${pathname?.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard') ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40' : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`}`}>
-              <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
-              {item.label[language]}
-            </Link>
-          ))}
-          <div className={`w-px h-5 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
-          <div className="relative">
-            <button onClick={() => setLangMenuOpen(!langMenuOpen)} className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover} flex items-center gap-1`}>{langLabels[language]} <span className="text-xs">▼</span></button>
-            {langMenuOpen && (<div className={`absolute top-full right-0 mt-2 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-xl z-50 overflow-hidden`}>{(['en', 'pt', 'nl'] as Language[]).map(l => (<button key={l} onClick={() => changeLang(l)} className={`w-full px-4 py-2 text-left text-sm ${theme.hover} ${language === l ? 'text-[#9E14FB] font-medium' : theme.textMuted}`}>{langLabels[l]}</button>))}</div>)}
-          </div>
-          <button onClick={toggleTheme} className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
-            {darkMode ? <Icon name="Dashboard_sun_light_mode" className="w-4 h-4" style={theme.iconFilter} /> : <Icon name="Dashboard_moon_dark_mode" className="w-4 h-4" style={theme.iconFilter} />}
-          </button>
-          {/* Settings gear icon (Billing lives inside Settings) */}
-          {user && session && (
-            <Link href={`/settings/integrations?session=${session}`} title="Settings"
-              className={`relative p-2 rounded-full ${theme.hover} border ${theme.cardBorder} transition`}>
-              <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${theme.textMuted}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-              {billingUrgent && <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
-            </Link>
-          )}
-          {user && (<><span className={`text-sm ${theme.textMuted} hidden lg:block max-w-36 truncate`}>{user.email}</span><button onClick={disconnect} className="text-sm text-red-400 border border-red-400/30 px-3 py-1.5 rounded-full hover:bg-red-400/10 transition">{language === 'pt' ? 'Desconectar' : language === 'nl' ? 'Ontkoppelen' : 'Disconnect'}</button></>)}
-        </div>
-      </header>
+      <TopBar
+        session={session}
+        user={user}
+        darkMode={darkMode}
+        language={language}
+        onToggleTheme={toggleTheme}
+        onChangeLanguage={changeLang}
+        onDisconnect={disconnect}
+        alert={billingUrgent}
+      />
 
       <TrialBanner session={session} onSubscription={(sub) => setBillingUrgent(sub.plan === 'trial' && sub.trial_days_remaining < 3)} />
 
@@ -1198,11 +1167,11 @@ export default function DashboardPage() {
         {!user ? (
           <div className="flex items-center justify-center h-[60vh]">
             <div className="text-center">
-              <div className="w-24 h-24 mx-auto mb-6 p-4 rounded-2xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20"><Icon name="login_page_Connect your Gmail" className="w-full h-full" /></div>
+              <div className="w-24 h-24 mx-auto mb-6 p-4 rounded-2xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20"><ImgIcon name="login_page_Connect your Gmail" className="w-full h-full" /></div>
               <h1 className="text-2xl font-bold mb-4">{t.connect}</h1>
               <p className={`${theme.textMuted} mb-8`}>{t.connectDesc}</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button onClick={connect} className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full font-medium text-white shadow-lg hover:scale-105 transition-transform"><Icon name="login_page_google logo" className="w-5 h-5" />{t.connectGmail}</button>
+                <button onClick={connect} className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full font-medium text-white shadow-lg hover:scale-105 transition-transform"><ImgIcon name="login_page_google logo" className="w-5 h-5" />{t.connectGmail}</button>
                 <button onClick={() => window.location.href = `${API_URL}/auth/outlook`} className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[#0078D4] to-[#00BCF2] rounded-full font-medium text-white shadow-lg hover:scale-105 transition-transform">
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M7.88 12.04q0 .45-.11.87-.1.41-.33.74-.22.33-.58.52-.37.2-.87.2t-.85-.2q-.35-.21-.57-.55-.22-.33-.33-.75-.1-.42-.1-.86t.1-.87q.1-.43.34-.76.22-.34.59-.54.36-.2.87-.2t.86.2q.35.21.57.55.22.34.31.77.1.43.1.88zM24 12v9.38q0 .46-.33.8-.33.32-.8.32H7.13q-.46 0-.8-.33-.32-.33-.32-.8V18H1q-.41 0-.7-.3-.3-.29-.3-.7V7q0-.41.3-.7Q.58 6 1 6h6.5V2.55q0-.44.3-.75.3-.3.75-.3h12.9q.44 0 .75.3.3.3.3.75V12zm-6-8.25v3h3v-3zm0 4.5v3h3v-3zm0 4.5v1.83l3.05-1.83zm-5.25-9v3h3.75v-3zm0 4.5v3h3.75v-3zm0 4.5v2.03l2.41 1.5 1.34-.8v-2.73zM9 3.75V6h2l.13.01.12.04v-2.3zM5.98 15.98q.9 0 1.6-.3.7-.32 1.19-.86.48-.55.73-1.28.25-.74.25-1.61 0-.83-.25-1.55-.24-.71-.71-1.24t-1.15-.83q-.68-.3-1.55-.3-.92 0-1.64.3-.71.3-1.2.85-.5.54-.75 1.3-.25.74-.25 1.63 0 .85.26 1.56.26.72.74 1.23.48.52 1.17.81.69.3 1.56.3zM7.5 21h12.39L12 16.08V17q0 .41-.3.7-.29.3-.7.3H7.5zm15-.13v-7.24l-5.9 3.54Z"/></svg>
                   {t.connectOutlook}
@@ -1215,19 +1184,18 @@ export default function DashboardPage() {
 
             {/* ── LEFT SIDEBAR ── */}
             <div style={{ width: sidebarWidth, flexShrink: 0 }} className="flex flex-col transition-none">
-              <div className={`${theme.sidebar} border ${theme.cardBorder} rounded-2xl h-full overflow-y-auto flex flex-col`}>
-                <div className="p-2 pt-2.5 flex-shrink-0">
-                  <button onClick={() => setShowCompose(true)} className="w-full py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2">
-                    <Icon name="Dashboard_compose" className="w-4 h-4" style={{ filter: 'brightness(0) invert(1)' }} />
+              <div className="flex h-full flex-col overflow-y-auto rounded-fw-card border border-app-line bg-app-panel">
+                <div className="flex-shrink-0 p-2">
+                  <Button variant="primary" size="sm" icon="compose" onClick={() => setShowCompose(true)} className="w-full" title={isNarrow ? t.compose : undefined}>
                     {!isNarrow && t.compose}
-                  </button>
+                  </Button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-2 pb-2">
                   {groups.map((group, gi) => (
                     <div key={gi} className="mb-1">
                       {group.label && !isNarrow && (
-                        <p className={`text-[10px] font-semibold ${theme.textDim} uppercase tracking-wider px-2 mb-0.5 mt-2`}>{group.label}</p>
+                        <p className="mb-1 mt-3 px-2 font-fw-mono text-app-mono-xs uppercase text-app-ink-3">{group.label}</p>
                       )}
                       {group.folders.map(folder => {
                         const count = folderCounts[folder.key] || 0;
@@ -1236,25 +1204,32 @@ export default function DashboardPage() {
                         return (
                           <button key={folder.key} onClick={() => setActiveFolder(folder.key)}
                             onDragOver={(e) => onDragOver(e, folder.key)} onDrop={(e) => onDrop(e, folder.key)} onDragLeave={() => setDragOverFolder(null)}
-                            className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition mb-0.5 ${isDragTarget ? 'border-2 border-[#5200FF] bg-[#5200FF]/20 scale-105' : isActive ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/30' : theme.hover}`}
+                            className={`relative mb-px flex w-full items-center gap-2 rounded-fw-btn px-2 py-1.5 text-app-ui-sm transition-colors ${isDragTarget ? 'bg-app-selected ring-1 ring-app-accent-fill' : isActive ? 'bg-app-selected font-medium text-app-ink' : 'text-app-ink-2 hover:bg-app-raised hover:text-app-ink'}`}
                             title={isNarrow ? folder.label : ''}>
-                            <Icon name={folder.icon} className="w-3.5 h-3.5 flex-shrink-0" style={getFolderIconStyle(folder)} />
+                            {isActive && <span aria-hidden className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-app-accent-fill" />}
+                            {folder.group === 'priority' ? (
+                              <span className="flex size-4 flex-none items-center justify-center">
+                                <span aria-hidden className={`size-2 rounded-full ${toneClass[priorityTone(folder.key)].dot}`} />
+                              </span>
+                            ) : (
+                              <Icon name={folder.icon} size={16} className={isActive ? 'text-app-accent' : 'text-app-ink-3'} />
+                            )}
                             {!isNarrow && (
                               <>
-                                <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : ''} ${folder.group === 'priority' ? (folder.color || '') : (darkMode ? '!text-white' : '!text-[#7C0BFD]')}`}>{folder.label}</span>
-                                {count > 0 && <span className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#5200FF]/30 text-[#9E14FB]' : darkMode ? 'bg-white/10 text-gray-400' : 'bg-slate-200 text-slate-500'}`}>{count}</span>}
+                                <span className="flex-1 truncate text-left">{folder.label}</span>
+                                {count > 0 && <span className={`font-fw-mono text-app-mono-xs ${isActive ? 'text-app-accent' : 'text-app-ink-3'}`}>{count}</span>}
                               </>
                             )}
                           </button>
                         );
                       })}
-                      {gi < groups.length - 1 && group.label && !isNarrow && <div className={`border-b ${theme.cardBorder} my-1.5`} />}
+                      {gi < groups.length - 1 && group.label && !isNarrow && <div className="mx-2 my-2 border-b border-app-line" />}
                     </div>
                   ))}
 
                   {!isNarrow && (
-                    <div className="mt-1.5">
-                      <p className={`text-[10px] font-semibold ${theme.textDim} uppercase tracking-wider px-2 mb-0.5 mt-2`}>{t.foldersLabels}</p>
+                    <div className="mt-1">
+                      <p className="mb-1 mt-3 px-2 font-fw-mono text-app-mono-xs uppercase text-app-ink-3">{t.foldersLabels}</p>
                       {customLabels.map(label => {
                         const count = folderCounts[label.key] || 0;
                         const isActive = activeFolder === label.key;
@@ -1263,36 +1238,42 @@ export default function DashboardPage() {
                           <div key={label.key} className="group relative">
                             <button onClick={() => setActiveFolder(label.key)}
                               onDragOver={(e) => onDragOver(e, label.key)} onDrop={(e) => onDrop(e, label.key)} onDragLeave={() => setDragOverFolder(null)}
-                              className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition mb-0.5 ${isDragTarget ? 'border-2 border-[#5200FF] bg-[#5200FF]/20 scale-105' : isActive ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/30' : theme.hover}`}>
-                              <span className="flex-shrink-0">{label.icon}</span>
-                              <span className={`flex-1 text-left truncate ${isActive ? 'font-medium' : ''} ${label.color}`}>{label.label}</span>
-                              {label.isFolder && <span className={`text-[9px] ${theme.textDim}`}>📁</span>}
-                              {count > 0 && <span className={`text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-[#5200FF]/30 text-[#9E14FB]' : darkMode ? 'bg-white/10 text-gray-400' : 'bg-slate-200 text-slate-500'}`}>{count}</span>}
+                              className={`relative mb-px flex w-full items-center gap-2 rounded-fw-btn px-2 py-1.5 text-app-ui-sm transition-colors ${isDragTarget ? 'bg-app-selected ring-1 ring-app-accent-fill' : isActive ? 'bg-app-selected font-medium text-app-ink' : 'text-app-ink-2 hover:bg-app-raised hover:text-app-ink'}`}>
+                              {isActive && <span aria-hidden className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-app-accent-fill" />}
+                              <Icon name={toIconName(label.icon)} size={16} className={toneClass[labelTone(label.color)].text} />
+                              <span className="flex-1 truncate text-left">{label.label}</span>
+                              {label.isFolder && <Icon name="folder" size={12} className="text-app-ink-3" />}
+                              {count > 0 && <span className={`font-fw-mono text-app-mono-xs ${isActive ? 'text-app-accent' : 'text-app-ink-3'}`}>{count}</span>}
                             </button>
-                            <button onClick={() => deleteLabel(label.key)} className={`absolute right-1 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition ${darkMode ? 'bg-white/10 hover:bg-red-500/20 text-gray-400 hover:text-red-400' : 'bg-slate-200 hover:bg-red-100 text-slate-400 hover:text-red-500'}`}>✕</button>
+                            <button onClick={() => deleteLabel(label.key)} aria-label={`Delete ${label.label}`}
+                              className="absolute right-1 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-fw-btn bg-app-panel text-app-ink-3 opacity-0 transition hover:text-app-danger-ink group-hover:opacity-100">
+                              <Icon name="close" size={12} />
+                            </button>
                           </div>
                         );
                       })}
-                      <div className="flex gap-1 mt-1">
-                        <button onClick={() => { setCreateMode('folder'); setShowCreateLabel(true); }} className={`flex-1 flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] ${theme.textDim} ${theme.hover} transition border border-dashed ${theme.cardBorder}`}>
-                          <Icon name="Dashboard_new_folder" className="w-3 h-3" style={theme.iconFilter} /> {t.folderBtn}
+                      <div className="mt-1 flex gap-1">
+                        <button onClick={() => { setCreateMode('folder'); setShowCreateLabel(true); }}
+                          className="flex flex-1 items-center justify-center gap-1 rounded-fw-btn border border-dashed border-app-line-strong px-2 py-1.5 text-app-ui-sm text-app-ink-2 transition-colors hover:bg-app-raised hover:text-app-ink">
+                          <Icon name="folder-plus" size={14} /> {t.folderBtn}
                         </button>
-                        <button onClick={() => { setCreateMode('label'); setShowCreateLabel(true); }} className={`flex-1 flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] ${theme.textDim} ${theme.hover} transition border border-dashed ${theme.cardBorder}`}>
-                          <Icon name="Dashboard_new_label" className="w-3 h-3" style={theme.iconFilter} /> {t.labelBtn}
+                        <button onClick={() => { setCreateMode('label'); setShowCreateLabel(true); }}
+                          className="flex flex-1 items-center justify-center gap-1 rounded-fw-btn border border-dashed border-app-line-strong px-2 py-1.5 text-app-ui-sm text-app-ink-2 transition-colors hover:bg-app-raised hover:text-app-ink">
+                          <Icon name="tag" size={14} /> {t.labelBtn}
                         </button>
                       </div>
                     </div>
                   )}
 
-                  <div className={`border-t ${theme.cardBorder} mt-2 pt-1.5`}>
+                  <div className="mt-2 border-t border-app-line pt-2">
                     <button onClick={() => setActiveFolder('trash')}
                       onDragOver={(e) => onDragOver(e, 'trash')} onDrop={(e) => onDrop(e, 'trash')} onDragLeave={() => setDragOverFolder(null)}
-                      className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition ${dragOverFolder === 'trash' ? 'border-2 border-red-500 bg-red-500/20 scale-105' : activeFolder === 'trash' ? 'bg-red-500/10 border border-red-500/30' : theme.hover}`}>
-                      <Icon name="Dashboard_trash" className="w-3.5 h-3.5 flex-shrink-0" style={{ filter: activeFolder === 'trash' ? 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' : (darkMode ? 'brightness(0) invert(1)' : 'brightness(0) saturate(100%) invert(19%) sepia(96%) saturate(5765%) hue-rotate(268deg) brightness(102%) contrast(101%)') }} />
+                      className={`relative flex w-full items-center gap-2 rounded-fw-btn px-2 py-1.5 text-app-ui-sm transition-colors ${dragOverFolder === 'trash' ? 'bg-app-danger-bg ring-1 ring-app-danger-dot' : activeFolder === 'trash' ? 'bg-app-danger-bg font-medium text-app-danger-ink' : 'text-app-ink-2 hover:bg-app-raised hover:text-app-ink'}`}>
+                      <Icon name="trash" size={16} className={activeFolder === 'trash' ? 'text-app-danger-ink' : 'text-app-ink-3'} />
                       {!isNarrow && (
                         <>
-                          <span className={`flex-1 text-left ${activeFolder === 'trash' ? 'font-medium text-red-400' : (darkMode ? 'text-white' : 'text-[#7C0BFD]')}`}>{t.trash}</span>
-                          {trashedEmails.size > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">{trashedEmails.size}</span>}
+                          <span className="flex-1 text-left">{t.trash}</span>
+                          {trashedEmails.size > 0 && <span className="font-fw-mono text-app-mono-xs text-app-danger-ink">{trashedEmails.size}</span>}
                         </>
                       )}
                     </button>
@@ -1307,7 +1288,7 @@ export default function DashboardPage() {
             {/* ── MIDDLE: Email List ── */}
             <div style={{ width: emailListWidth, flexShrink: 0 }} className="flex flex-col gap-2 transition-none">
               <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl px-4 py-2.5 flex items-center gap-3 flex-shrink-0`}>
-                <Icon name="Dashboard_search_emails" className="w-4 h-4 flex-shrink-0" style={theme.iconFilter} />
+                <ImgIcon name="Dashboard_search_emails" className="w-4 h-4 flex-shrink-0" style={theme.iconFilter} />
                 <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t.search} className={`flex-1 bg-transparent text-sm focus:outline-none ${theme.text}`} />
                 {searchQuery && <button onClick={() => setSearchQuery('')} className={`text-xs ${theme.textDim}`}>✕</button>}
               </div>
@@ -1317,7 +1298,9 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="text-sm font-semibold flex items-center gap-1.5">
-                        {currentFolder && <Icon name={currentFolder.icon} className="w-3.5 h-3.5" style={getFolderIconStyle(currentFolder as FolderDef)} />}
+                        {currentFolder && (currentFolder.group === 'priority'
+                          ? <span aria-hidden className={`size-2 rounded-full ${toneClass[priorityTone(currentFolder.key)].dot}`} />
+                          : <Icon name={toIconName(currentFolder.icon, 'mail')} size={15} className="text-app-accent" />)}
                         {currentFolder?.label}
                       </p>
                       <p className={`text-xs ${theme.textDim}`}>{filteredEmails.length} emails</p>
@@ -1330,7 +1313,7 @@ export default function DashboardPage() {
                   {activeFolder !== 'trash' && (
                     <button onClick={analyzeAll} disabled={analyzing || unanalyzedCount === 0}
                       className={`w-full py-1.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2 ${unanalyzedCount === 0 ? 'opacity-40 cursor-not-allowed bg-white/5' : 'bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] text-white'}`}>
-                      {analyzing ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> {progress.current}/{progress.total}</> : <><Icon name="Dashboard_email_Analyze all bottom" className="w-3.5 h-3.5" style={{ filter: 'brightness(0) invert(1)' }} />{t.analyzeAll} ({unanalyzedCount})</>}
+                      {analyzing ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> {progress.current}/{progress.total}</> : <><ImgIcon name="Dashboard_email_Analyze all bottom" className="w-3.5 h-3.5" style={{ filter: 'brightness(0) invert(1)' }} />{t.analyzeAll} ({unanalyzedCount})</>}
                     </button>
                   )}
                 </div>
@@ -1338,7 +1321,7 @@ export default function DashboardPage() {
                 <div className="overflow-y-auto flex-1">
                   {filteredEmails.length === 0 ? (
                     <div className={`p-8 text-center ${theme.textDim}`}>
-                      {activeFolder === 'trash' ? <p className="text-3xl mb-2">🗑️</p> : <div className="w-16 h-16 mx-auto mb-3"><Icon name="Dashboard_no_emails_here" className="w-full h-full" style={theme.iconFilter} /></div>}
+                      {activeFolder === 'trash' ? <p className="text-3xl mb-2">🗑️</p> : <div className="w-16 h-16 mx-auto mb-3"><ImgIcon name="Dashboard_no_emails_here" className="w-full h-full" style={theme.iconFilter} /></div>}
                       <p className="text-sm">{activeFolder === 'trash' ? t.trashEmpty : 'No emails here'}</p>
                     </div>
                   ) : filteredEmails.map(email => {
@@ -1357,7 +1340,7 @@ export default function DashboardPage() {
                           <div className="flex items-center gap-1 flex-shrink-0">
                             {email.isAnalyzing && <div className="w-3 h-3 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin"></div>}
                             {email.analysis && <span className={`text-[9px] px-1.5 py-0.5 rounded-full text-white ${getPriorityColor(email.analysis.priority)}`}>{email.analysis.priority}</span>}
-                            {!isInTrash && <button onClick={(e) => { e.stopPropagation(); moveToTrash(email.id); }} className="w-5 h-5 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition" title="Trash"><Icon name="Dashboard_trash" className="w-3 h-3" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} /></button>}
+                            {!isInTrash && <button onClick={(e) => { e.stopPropagation(); moveToTrash(email.id); }} className="w-5 h-5 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition" title="Trash"><ImgIcon name="Dashboard_trash" className="w-3 h-3" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} /></button>}
                           </div>
                         </div>
                         <p className={`text-xs truncate mb-0.5 ${isSelected ? (darkMode ? 'text-white font-medium' : 'text-slate-900 font-medium') : (darkMode ? 'text-gray-300' : 'text-slate-700')}`}>{email.subject}</p>
@@ -1402,7 +1385,7 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           {!trashedEmails.has(selected.id) && !selected.analysis && !selected.isAnalyzing && (
                             <button onClick={() => analyzeEmail(selected)} className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-xs font-medium text-white">
-                              <Icon name="Dashboard_email_Analyze all bottom" className="w-3.5 h-3.5" style={{ filter: 'brightness(0) invert(1)' }} /> {t.analyze}
+                              <ImgIcon name="Dashboard_email_Analyze all bottom" className="w-3.5 h-3.5" style={{ filter: 'brightness(0) invert(1)' }} /> {t.analyze}
                             </button>
                           )}
                           {selected.isAnalyzing && <div className="flex items-center gap-1.5 text-[#1BA1FF] text-xs"><div className="w-3 h-3 border-2 border-[#1BA1FF] border-t-transparent rounded-full animate-spin"></div> Analyzing...</div>}
@@ -1417,7 +1400,7 @@ export default function DashboardPage() {
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             </button>
                           )}
-                          {!trashedEmails.has(selected.id) && <button onClick={() => moveToTrash(selected.id)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-red-400 border border-red-400/30 rounded-full hover:bg-red-400/10"><Icon name="Dashboard_trash" className="w-3 h-3" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} /></button>}
+                          {!trashedEmails.has(selected.id) && <button onClick={() => moveToTrash(selected.id)} className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-red-400 border border-red-400/30 rounded-full hover:bg-red-400/10"><ImgIcon name="Dashboard_trash" className="w-3 h-3" style={{ filter: 'brightness(0) saturate(100%) invert(40%) sepia(80%) saturate(2000%) hue-rotate(330deg)' }} /></button>}
                         </div>
                       </div>
 
@@ -1532,7 +1515,7 @@ export default function DashboardPage() {
                         <>
                           {selected.analysis && (
                             <div className={`${darkMode ? 'bg-gradient-to-r from-[#9E14FB]/10 via-[#5200FF]/10 to-[#1BA1FF]/10' : 'bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50'} rounded-xl p-4 border ${theme.cardBorder}`}>
-                              <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm"><Icon name="Dashboard_analyrtics_AI Insights" className="w-4 h-4" style={theme.iconFilter} /> {t.aiAnalysis}</h3>
+                              <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm"><ImgIcon name="Dashboard_analyrtics_AI Insights" className="w-4 h-4" style={theme.iconFilter} /> {t.aiAnalysis}</h3>
                               <div className="grid grid-cols-2 gap-3 mb-3">
                                 <div><p className={`text-xs ${theme.textDim}`}>{t.intent}</p><span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 text-[#9E14FB]">{selected.analysis.intent?.replace(/_/g, ' ')}</span></div>
                                 <div><p className={`text-xs ${theme.textDim}`}>{t.priority}</p><span className={`text-xs px-2 py-0.5 rounded-full text-white ${getPriorityColor(selected.analysis.priority)}`}>{selected.analysis.priority}</span></div>
@@ -1850,7 +1833,7 @@ export default function DashboardPage() {
               ) : (
                 <div className={`h-full flex items-center justify-center ${theme.textMuted}`}>
                   <div className="text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 p-3 rounded-2xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20"><Icon name="Dashboard_analytics_total email" className="w-full h-full" style={theme.iconFilter} /></div>
+                    <div className="w-16 h-16 mx-auto mb-4 p-3 rounded-2xl bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20"><ImgIcon name="Dashboard_analytics_total email" className="w-full h-full" style={theme.iconFilter} /></div>
                     <p>{t.selectEmail}</p>
                   </div>
                 </div>
