@@ -4,12 +4,18 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import TrialBanner from '../components/TrialBanner';
+import Icon from '../components/ui/Icon';
+import TopBar from '../components/ui/TopBar';
+import Modal from '../components/ui/Modal';
+import Toggle from '../components/ui/Toggle';
+import { appRootClass, PageHeader, EmptyState, Notice, ColumnHeader } from '../components/ui/Panel';
+import { Button, Spinner } from '../components/ui/Button';
+import { inputClass, selectClass, selectInlineClass, textareaClass, Field, DataLabel } from '../components/ui/Field';
+import { Tag, Chip } from '../components/ui/Tag';
+import { Toast, Stat, Segmented, DataTable, SearchField, Route, th, td, tdMono, tr } from '../components/ui/Data';
+import { toneClass, shipmentTone, quoteTone, MODE_ICON, type Tone } from '../components/ui/tones';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
-
-const Icon = ({ name, className = "w-6 h-6", style }: { name: string; className?: string; style?: React.CSSProperties }) => (
-  <img src={`/icons/${name}.svg`} alt={name} className={className} style={style} />
-);
 
 type Language = 'en' | 'pt' | 'nl';
 
@@ -39,28 +45,17 @@ const EMPTY_RATE: RateCard = {
   validity_start: null, validity_end: null, notes: '', is_active: true,
 };
 
-const NAV_ITEMS = [
-  { href: '/dashboard',  label: { en: 'Inbox',      pt: 'Inbox',      nl: 'Inbox'      }, icon: 'Dashboard_inbox' },
-  { href: '/shipments',  label: { en: 'Shipments',  pt: 'Embarques',  nl: 'Zendingen'  }, icon: 'Dashboard_tracking' },
-  { href: '/quotes',     label: { en: 'Quotes',     pt: 'Cotações',   nl: 'Offertes'   }, icon: 'Dashboard_quotation' },
-  { href: '/rates',      label: { en: 'Rates',      pt: 'Tarifas',    nl: 'Tarieven'   }, icon: 'Dashboard_quotation' },
-  { href: '/analytics',  label: { en: 'Analytics',  pt: 'Analytics',  nl: 'Analytics'  }, icon: 'Dashboard_analyrtics_AI Insights' },
-  { href: '/team',       label: { en: 'Team',       pt: 'Equipa',     nl: 'Team'       }, icon: 'Dashboard_email_team' },
-  { href: '/documents',  label: { en: 'Documents',  pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
-];
-
 const MODE_OPTIONS = ['ocean', 'air', 'road', 'rail'];
-const MODE_ICONS: Record<string, string> = { ocean: '🚢', air: '✈️', road: '🚛', rail: '🚂', '': '📦' };
 
 function marginPct(r: RateCard): number | null {
   if (r.buy_rate == null || r.sell_rate == null || r.buy_rate === 0) return null;
   return ((r.sell_rate - r.buy_rate) / r.buy_rate) * 100;
 }
 
-function marginColor(pct: number): string {
-  if (pct > 20) return 'text-green-400';
-  if (pct >= 10) return 'text-yellow-400';
-  return 'text-red-400';
+function marginTone(pct: number): Tone {
+  if (pct > 20) return 'ok';
+  if (pct >= 10) return 'warn';
+  return 'danger';
 }
 
 function daysUntil(dateStr: string): number {
@@ -68,12 +63,12 @@ function daysUntil(dateStr: string): number {
   return Math.ceil(ms / 86400000);
 }
 
-function validityInfo(r: RateCard): { label: string; color: string } {
-  if (!r.validity_end) return { label: 'Active', color: 'text-green-400' };
+function validityInfo(r: RateCard): { label: string; tone: Tone } {
+  if (!r.validity_end) return { label: 'Active', tone: 'ok' };
   const days = daysUntil(r.validity_end);
-  if (days < 0) return { label: 'Expired', color: 'text-red-400' };
-  if (days <= 30) return { label: `Expires in ${days}d`, color: 'text-orange-400' };
-  return { label: 'Active', color: 'text-green-400' };
+  if (days < 0) return { label: 'Expired', tone: 'danger' };
+  if (days <= 30) return { label: `Expires in ${days}d`, tone: 'warn' };
+  return { label: 'Active', tone: 'ok' };
 }
 
 export default function RatesPage() {
@@ -95,19 +90,6 @@ export default function RatesPage() {
   const [form, setForm] = useState<RateCard>({ ...EMPTY_RATE });
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
-  const theme = darkMode ? {
-    bg: 'bg-gradient-to-br from-[#050510] via-[#0a0a1a] to-[#050510]',
-    card: 'bg-[#0a0a1a]', cardBorder: 'border-white/5', text: 'text-white',
-    textMuted: 'text-gray-400', textDim: 'text-gray-500',
-    hover: 'hover:bg-white/5', input: 'bg-[#0f0f1f] border-white/10 text-white placeholder-gray-600',
-    iconFilter: { filter: 'brightness(0) invert(1)' },
-  } : {
-    bg: 'bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-50',
-    card: 'bg-white/80 backdrop-blur-sm', cardBorder: 'border-slate-200/50', text: 'text-slate-900',
-    textMuted: 'text-slate-600', textDim: 'text-slate-500',
-    hover: 'hover:bg-slate-100/50', input: 'bg-white border-slate-200 text-slate-900 placeholder-slate-400',
-    iconFilter: { filter: 'brightness(0) saturate(100%) invert(19%) sepia(96%) saturate(5765%) hue-rotate(268deg) brightness(102%) contrast(101%)' },
-  };
 
   const notify = (type: 'success' | 'error', msg: string) => { setNotification({ type, msg }); setTimeout(() => setNotification(null), 3000); };
 
@@ -204,304 +186,177 @@ export default function RatesPage() {
 
   const form_margin = marginPct(form);
 
+  const fieldInput = inputClass;
+  const closeForm = () => { setShowForm(false); setEditingId(null); setForm({ ...EMPTY_RATE }); };
+
   return (
-    <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors`}>
-      {notification && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-xl text-white text-sm ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
-          {notification.msg}
-        </div>
-      )}
+    <div data-theme={darkMode ? 'dark' : 'light'} className={appRootClass}>
+      <Toast notification={notification} />
 
-      {/* Header */}
-      <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-3 flex items-center justify-between sticky top-0 z-40`}>
-        <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-          <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
-          <span className="text-base font-bold">FreightWizard</span>
-        </Link>
-
-        <div className="flex items-center gap-2">
-          {NAV_ITEMS.map(item => (
-            <Link key={item.href} href={`${item.href}?session=${session}`}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${
-                pathname === item.href
-                  ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40'
-                  : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`
-              }`}>
-              <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
-              {item.label[language]}
-            </Link>
-          ))}
-
-          <div className={`w-px h-5 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
-
-          <div className="relative">
-            <button onClick={() => setLangMenuOpen(!langMenuOpen)}
-              className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover} flex items-center gap-1`}>
-              {langLabels[language]} <span className="text-xs">▾</span>
-            </button>
-            {langMenuOpen && (
-              <div className={`absolute top-full right-0 mt-2 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-xl z-50 overflow-hidden`}>
-                {(['en', 'pt', 'nl'] as Language[]).map(l => (
-                  <button key={l} onClick={() => changeLang(l)}
-                    className={`w-full px-4 py-2 text-left text-sm ${theme.hover} ${language === l ? 'text-[#9E14FB] font-medium' : theme.textMuted}`}>
-                    {langLabels[l]}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <button onClick={toggleTheme} className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
-            {darkMode
-              ? <Icon name="Dashboard_sun_light_mode" className="w-4 h-4" style={theme.iconFilter} />
-              : <Icon name="Dashboard_moon_dark_mode" className="w-4 h-4" style={theme.iconFilter} />
-            }
-          </button>
-
-          {user && <span className={`text-sm ${theme.textMuted} hidden lg:block max-w-36 truncate`}>{user.email}</span>}
-        </div>
-      </header>
+      <TopBar session={session} user={user} darkMode={darkMode} language={language} onToggleTheme={toggleTheme} onChangeLanguage={changeLang} />
 
       <TrialBanner session={session} />
 
-      <div className="p-4">
-        {/* Page header */}
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Icon name="Dashboard_quotation" className="w-7 h-7" style={theme.iconFilter} />
-              Rate Cards
-            </h1>
-            <p className={`text-sm ${theme.textMuted} mt-0.5`}>Your negotiated carrier rates, ready to suggest into quotes</p>
-          </div>
-          <button onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium">
-            + Add Rate
-          </button>
-        </div>
+      <main className="p-4 lg:p-6">
+        <PageHeader
+          className="mb-5"
+          title="Rate Cards"
+          description="Your negotiated carrier rates, ready to suggest into quotes"
+          actions={<Button variant="primary" icon="plus" onClick={openAdd}>Add Rate</Button>}
+        />
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-xl p-4`}>
-            <p className={`text-xs ${theme.textDim} mb-1`}>Active Rates</p>
-            <p className="text-2xl font-bold">{totalActive}</p>
-          </div>
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-xl p-4`}>
-            <p className={`text-xs ${theme.textDim} mb-1`}>Expiring This Month</p>
-            <p className={`text-2xl font-bold ${expiringRates.length > 0 ? 'text-orange-400' : ''}`}>{expiringRates.length}</p>
-          </div>
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-xl p-4`}>
-            <p className={`text-xs ${theme.textDim} mb-1`}>Carriers</p>
-            <p className="text-2xl font-bold">{totalCarriers}</p>
-          </div>
+        <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Stat label="Active Rates" value={totalActive} />
+          <Stat label="Expiring This Month" value={expiringRates.length} tone={expiringRates.length > 0 ? 'warn' : undefined} />
+          <Stat label="Carriers" value={totalCarriers} />
         </div>
 
         {/* Expiry warning banner */}
         {expiringRates.length > 0 && (
-          <div className={`mb-4 p-4 rounded-2xl border border-orange-500/30 ${darkMode ? 'bg-orange-500/10' : 'bg-orange-50'}`}>
-            <p className="text-sm font-semibold text-orange-400 mb-2">
-              ⚠️ {expiringRates.length} rate card{expiringRates.length > 1 ? 's' : ''} expire{expiringRates.length === 1 ? 's' : ''} within 30 days — review and update {expiringRates.length > 1 ? 'them' : 'it'} to keep your quotes accurate
-            </p>
-            <div className="space-y-1">
-              {expiringRates.map(r => (
-                <div key={r.id} className="flex items-center justify-between text-xs">
-                  <span className={theme.textMuted}>{r.origin} → {r.destination} · {r.carrier} · {r.validity_end && validityInfo(r).label}</span>
-                  <button onClick={() => openEdit(r)} className="text-[#9E14FB] hover:underline">Edit →</button>
-                </div>
-              ))}
-            </div>
+          <div className="mb-5">
+            <Notice tone="warn" icon="alert"
+              title={`${expiringRates.length} rate card${expiringRates.length > 1 ? 's' : ''} expire${expiringRates.length === 1 ? 's' : ''} within 30 days — review and update ${expiringRates.length > 1 ? 'them' : 'it'} to keep your quotes accurate`}>
+              <ul className="mt-1 space-y-1">
+                {expiringRates.map(r => (
+                  <li key={r.id} className="flex items-center justify-between gap-3">
+                    <span className="flex flex-wrap items-center gap-x-2 text-app-ink-2">
+                      <Route from={r.origin} to={r.destination} /> · {r.carrier} · <span className="font-fw-mono">{r.validity_end && validityInfo(r).label}</span>
+                    </span>
+                    <button onClick={() => openEdit(r)} className="inline-flex flex-shrink-0 items-center gap-1 font-medium text-app-accent hover:underline">Edit <Icon name="arrow-right" size={12} /></button>
+                  </li>
+                ))}
+              </ul>
+            </Notice>
           </div>
         )}
 
         {/* Filter bar */}
-        <div className="flex items-center gap-2 flex-wrap mb-4">
-          <div className={`flex gap-1 p-1 ${darkMode ? 'bg-white/5' : 'bg-slate-100'} rounded-xl`}>
-            {['', ...MODE_OPTIONS].map(m => (
-              <button key={m || 'all'} onClick={() => setFilterMode(m)}
-                className={`px-3 py-1.5 text-xs rounded-lg transition font-medium capitalize ${filterMode === m ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : theme.textMuted}`}>
-                {m ? `${MODE_ICONS[m]} ${m}` : 'All'}
-              </button>
-            ))}
-          </div>
-          <select value={filterCarrier} onChange={e => setFilterCarrier(e.target.value)}
-            className={`px-3 py-2 rounded-xl border ${theme.cardBorder} ${theme.card} ${theme.text} text-sm focus:outline-none focus:border-[#5200FF] cursor-pointer`}>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Segmented label="Filter by mode" value={filterMode} onChange={setFilterMode}
+            options={['', ...MODE_OPTIONS].map(m => ({ value: m, label: m ? m[0].toUpperCase() + m.slice(1) : 'All', icon: m ? MODE_ICON[m] : undefined }))} />
+          <select value={filterCarrier} onChange={e => setFilterCarrier(e.target.value)} aria-label="Filter by carrier" className={selectInlineClass}>
             <option value="">All carriers</option>
             {carriers.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search origin or destination..."
-            className={`px-3 py-2 rounded-xl border ${theme.cardBorder} ${theme.card} ${theme.text} text-sm focus:outline-none focus:border-[#5200FF] w-56`} />
+          <SearchField value={searchQuery} onChange={setSearchQuery} placeholder="Search origin or destination..." className="w-64" />
         </div>
 
         {/* Table / empty state */}
         {rates.length === 0 ? (
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl p-12 text-center`}>
-            <div className="text-4xl mb-3">📋</div>
-            <p className="font-semibold mb-1">No rate cards yet</p>
-            <p className={`text-sm ${theme.textDim} mb-4`}>Add your first rate to get AI-powered suggestions in the Quote Builder</p>
-            <button onClick={openAdd}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium">
-              + Add Rate
-            </button>
+          <div className="rounded-fw-card border border-app-line bg-app-card">
+            <EmptyState icon="rates" title="No rate cards yet" text="Add your first rate to get AI-powered suggestions in the Quote Builder"
+              action={<Button variant="primary" icon="plus" onClick={openAdd}>Add Rate</Button>} />
           </div>
         ) : (
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl overflow-x-auto`}>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={`border-b ${theme.cardBorder} ${theme.textDim} text-xs uppercase tracking-wide`}>
-                  <th className="text-left px-4 py-3 font-medium">Route</th>
-                  <th className="text-left px-4 py-3 font-medium">Mode</th>
-                  <th className="text-left px-4 py-3 font-medium">Carrier</th>
-                  <th className="text-left px-4 py-3 font-medium">Container</th>
-                  <th className="text-left px-4 py-3 font-medium">Buy</th>
-                  <th className="text-left px-4 py-3 font-medium">Sell</th>
-                  <th className="text-left px-4 py-3 font-medium">Margin</th>
-                  <th className="text-left px-4 py-3 font-medium">Transit</th>
-                  <th className="text-left px-4 py-3 font-medium">Validity</th>
-                  <th className="text-left px-4 py-3 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(r => {
-                  const margin = marginPct(r);
-                  const validity = validityInfo(r);
-                  return (
-                    <tr key={r.id} className={`border-b ${theme.cardBorder} last:border-0 ${!r.is_active ? 'opacity-40' : ''}`}>
-                      <td className="px-4 py-3">{r.origin} → {r.destination}</td>
-                      <td className="px-4 py-3">{MODE_ICONS[r.mode] || '📦'}</td>
-                      <td className="px-4 py-3">{r.carrier}</td>
-                      <td className={`px-4 py-3 ${theme.textMuted}`}>{r.container_type || '—'}</td>
-                      <td className="px-4 py-3">{r.buy_rate != null ? `${r.currency} ${Number(r.buy_rate).toFixed(2)}` : '—'}</td>
-                      <td className="px-4 py-3 font-medium">{r.sell_rate != null ? `${r.currency} ${Number(r.sell_rate).toFixed(2)}` : '—'}</td>
-                      <td className="px-4 py-3">{margin != null ? <span className={`font-medium ${marginColor(margin)}`}>{margin.toFixed(0)}%</span> : '—'}</td>
-                      <td className={`px-4 py-3 ${theme.textMuted}`}>{r.transit_time || '—'}</td>
-                      <td className={`px-4 py-3 font-medium ${validity.color}`}>{validity.label}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1">
-                          <button onClick={() => openEdit(r)} className={`text-xs px-2 py-1 rounded-lg ${theme.hover} ${theme.textMuted}`} title="Edit">✏️</button>
-                          <button onClick={() => toggleActive(r)} className={`text-xs px-2 py-1 rounded-lg ${theme.hover} ${theme.textMuted}`} title={r.is_active ? 'Deactivate' : 'Activate'}>{r.is_active ? '⏸️' : '▶️'}</button>
-                          <button onClick={() => deleteRate(r)} className="text-xs px-2 py-1 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30" title="Delete">🗑️</button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={10} className={`px-4 py-10 text-center ${theme.textDim}`}>No rate cards match these filters.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable label="Rate cards">
+            <thead className="border-b border-app-line">
+              <tr>
+                <th scope="col" className={th}>Route</th>
+                <th scope="col" className={th}>Mode</th>
+                <th scope="col" className={th}>Carrier</th>
+                <th scope="col" className={th}>Container</th>
+                <th scope="col" className={th}>Buy</th>
+                <th scope="col" className={th}>Sell</th>
+                <th scope="col" className={th}>Margin</th>
+                <th scope="col" className={th}>Transit</th>
+                <th scope="col" className={th}>Validity</th>
+                <th scope="col" className={th}><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(r => {
+                const margin = marginPct(r);
+                const validity = validityInfo(r);
+                return (
+                  <tr key={r.id} className={`${tr} ${!r.is_active ? 'opacity-50' : ''}`}>
+                    <th scope="row" className={`${td} text-left font-normal`}><Route from={r.origin} to={r.destination} /></th>
+                    <td className={td}><span className="inline-flex items-center gap-1.5 font-fw-mono text-app-mono-xs uppercase text-app-ink-2"><Icon name={MODE_ICON[r.mode] || 'container'} size={15} className="text-app-ink-3" />{r.mode}</span></td>
+                    <td className={td}>{r.carrier}</td>
+                    <td className={`${tdMono} text-app-ink-2`}>{r.container_type || '—'}</td>
+                    <td className={tdMono}>{r.buy_rate != null ? `${r.currency} ${Number(r.buy_rate).toFixed(2)}` : '—'}</td>
+                    <td className={`${tdMono} font-medium`}>{r.sell_rate != null ? `${r.currency} ${Number(r.sell_rate).toFixed(2)}` : '—'}</td>
+                    <td className={tdMono}>{margin != null ? <span className={`font-medium ${toneClass[marginTone(margin)].text}`}>{margin.toFixed(0)}%</span> : '—'}</td>
+                    <td className={`${tdMono} text-app-ink-2`}>{r.transit_time || '—'}</td>
+                    <td className={td}><Tag tone={validity.tone}>{validity.label}</Tag></td>
+                    <td className={td}>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon-sm" icon="edit" onClick={() => openEdit(r)} title="Edit" aria-label="Edit rate" />
+                        <Button variant="ghost" size="icon-sm" icon={r.is_active ? 'pause' : 'play'} onClick={() => toggleActive(r)} title={r.is_active ? 'Deactivate' : 'Activate'} aria-label={r.is_active ? 'Deactivate rate' : 'Activate rate'} />
+                        <Button variant="danger" size="icon-sm" icon="trash" onClick={() => deleteRate(r)} title="Delete" aria-label="Delete rate" />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr><td colSpan={10}><EmptyState icon="filter" title="No rate cards match these filters." /></td></tr>
+              )}
+            </tbody>
+          </DataTable>
         )}
-      </div>
+      </main>
 
       {/* Add/Edit Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl`}>
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${theme.cardBorder} sticky top-0 ${theme.card} z-10`}>
-              <h2 className="font-bold text-lg">{editingId ? 'Edit Rate Card' : 'Add Rate Card'}</h2>
-              <button onClick={() => { setShowForm(false); setEditingId(null); setForm({ ...EMPTY_RATE }); }} className={`${theme.textDim} hover:text-white text-xl`}>✕</button>
-            </div>
+        <Modal title={editingId ? 'Edit Rate Card' : 'Add Rate Card'} icon="rates" onClose={closeForm}
+          footer={<>
+            <Button onClick={closeForm}>Cancel</Button>
+            <Button variant="primary" onClick={saveRate}>{editingId ? 'Save Changes' : 'Add Rate'}</Button>
+          </>}>
+          <div className="grid grid-cols-2 gap-4 p-5">
+            <Field label="Origin *">
+              <input value={form.origin} onChange={e => setForm(f => ({ ...f, origin: e.target.value }))} placeholder="e.g. Santos, BR" className={fieldInput} />
+            </Field>
+            <Field label="Destination *">
+              <input value={form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))} placeholder="e.g. Rotterdam, NL" className={fieldInput} />
+            </Field>
+            <Field label="Mode *">
+              <select value={form.mode} onChange={e => setForm(f => ({ ...f, mode: e.target.value }))} className={selectClass}>
+                {MODE_OPTIONS.map(m => <option key={m} value={m}>{m[0].toUpperCase() + m.slice(1)}</option>)}
+              </select>
+            </Field>
+            <Field label="Carrier *">
+              <input value={form.carrier} onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))} placeholder="e.g. Maersk" className={fieldInput} />
+            </Field>
+            <Field label="Container Type">
+              <input value={form.container_type} onChange={e => setForm(f => ({ ...f, container_type: e.target.value }))} placeholder="e.g. 40HC, LCL, per kg" className={`${fieldInput} font-fw-mono`} />
+            </Field>
+            <Field label="Currency">
+              <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} className={selectClass}>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="BRL">BRL</option>
+              </select>
+            </Field>
+            <Field label="Buy Rate">
+              <input type="number" value={form.buy_rate ?? ''} onChange={e => setForm(f => ({ ...f, buy_rate: e.target.value === '' ? null : Number(e.target.value) }))} placeholder="What you pay the carrier" className={`${fieldInput} font-fw-mono`} />
+            </Field>
+            <Field label="Sell Rate">
+              <input type="number" value={form.sell_rate ?? ''} onChange={e => setForm(f => ({ ...f, sell_rate: e.target.value === '' ? null : Number(e.target.value) }))} placeholder="What you charge the customer" className={`${fieldInput} font-fw-mono`} />
+            </Field>
 
-            <div className="p-6 grid grid-cols-2 gap-4">
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Origin *</label>
-                <input value={form.origin} onChange={e => setForm(f => ({ ...f, origin: e.target.value }))}
-                  placeholder="e.g. Santos, BR"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Destination *</label>
-                <input value={form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))}
-                  placeholder="e.g. Rotterdam, NL"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Mode *</label>
-                <select value={form.mode} onChange={e => setForm(f => ({ ...f, mode: e.target.value }))}
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}>
-                  {MODE_OPTIONS.map(m => <option key={m} value={m}>{MODE_ICONS[m]} {m[0].toUpperCase() + m.slice(1)}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Carrier *</label>
-                <input value={form.carrier} onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))}
-                  placeholder="e.g. Maersk"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Container Type</label>
-                <input value={form.container_type} onChange={e => setForm(f => ({ ...f, container_type: e.target.value }))}
-                  placeholder="e.g. 40HC, LCL, per kg"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Currency</label>
-                <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}>
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                  <option value="BRL">BRL</option>
-                </select>
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Buy Rate</label>
-                <input type="number" value={form.buy_rate ?? ''} onChange={e => setForm(f => ({ ...f, buy_rate: e.target.value === '' ? null : Number(e.target.value) }))}
-                  placeholder="What you pay the carrier"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Sell Rate</label>
-                <input type="number" value={form.sell_rate ?? ''} onChange={e => setForm(f => ({ ...f, sell_rate: e.target.value === '' ? null : Number(e.target.value) }))}
-                  placeholder="What you charge the customer"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              {form_margin != null && (
-                <div className="col-span-2">
-                  <p className={`text-sm font-medium ${marginColor(form_margin)}`}>Margin: {form_margin.toFixed(1)}%</p>
-                </div>
-              )}
-
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Transit Time</label>
-                <input value={form.transit_time} onChange={e => setForm(f => ({ ...f, transit_time: e.target.value }))}
-                  placeholder="e.g. 25-30 days"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div />
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Valid From (optional)</label>
-                <input type="date" value={form.validity_start || ''} onChange={e => setForm(f => ({ ...f, validity_start: e.target.value || null }))}
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Valid Until (optional)</label>
-                <input type="date" value={form.validity_end || ''} onChange={e => setForm(f => ({ ...f, validity_end: e.target.value || null }))}
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
+            {form_margin != null && (
               <div className="col-span-2">
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Notes</label>
-                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
-                  placeholder="Any special conditions..."
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF] resize-none`} />
+                <p className={`text-app-ui font-medium ${toneClass[marginTone(form_margin)].text}`}>Margin: <span className="font-fw-mono">{form_margin.toFixed(1)}%</span></p>
               </div>
-            </div>
+            )}
 
-            <div className={`flex gap-3 px-6 py-4 border-t ${theme.cardBorder}`}>
-              <button onClick={saveRate}
-                className="flex-1 py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium">
-                {editingId ? 'Save Changes' : 'Add Rate'}
-              </button>
-              <button onClick={() => { setShowForm(false); setEditingId(null); setForm({ ...EMPTY_RATE }); }}
-                className={`px-6 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm`}>
-                Cancel
-              </button>
-            </div>
+            <Field label="Transit Time">
+              <input value={form.transit_time} onChange={e => setForm(f => ({ ...f, transit_time: e.target.value }))} placeholder="e.g. 25-30 days" className={fieldInput} />
+            </Field>
+            <div />
+            <Field label="Valid From (optional)">
+              <input type="date" value={form.validity_start || ''} onChange={e => setForm(f => ({ ...f, validity_start: e.target.value || null }))} className={`${fieldInput} font-fw-mono`} />
+            </Field>
+            <Field label="Valid Until (optional)">
+              <input type="date" value={form.validity_end || ''} onChange={e => setForm(f => ({ ...f, validity_end: e.target.value || null }))} className={`${fieldInput} font-fw-mono`} />
+            </Field>
+            <Field label="Notes" className="col-span-2">
+              <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any special conditions..." className={textareaClass} />
+            </Field>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

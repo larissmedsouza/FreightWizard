@@ -4,12 +4,17 @@ import type { ReactNode } from "react"
  * Form control classes: 3px radius, 1px border, focus ring in the theme's
  * focus colour (indigo-500 light / indigo-300 dark, both >= 7:1).
  */
-export const inputClass =
-  "w-full rounded-fw-btn border border-app-line-strong bg-app-card px-3 py-2 text-app-ui text-app-ink placeholder:text-app-ink-3 focus:border-app-focus focus:outline-none focus:ring-1 focus:ring-app-focus disabled:opacity-60"
+const controlBase =
+  "rounded-fw-btn border border-app-line-strong bg-app-card px-3 text-app-ui text-app-ink placeholder:font-fw-sans placeholder:text-app-ink-3 focus:border-app-focus focus:outline-none focus:ring-1 focus:ring-app-focus disabled:opacity-60"
+
+export const inputClass = `w-full py-2 ${controlBase}`
 
 export const textareaClass = `${inputClass} resize-none`
 
 export const selectClass = `${inputClass} pr-8`
+
+/** Compact select for toolbars / filter bars (content width, 36px high). */
+export const selectInlineClass = `h-9 pr-8 ${controlBase}`
 
 /** Label above a control. */
 export function Field({ label, hint, children, className = "" }: { label: string; hint?: string; children: ReactNode; className?: string }) {

@@ -4,12 +4,18 @@ import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import TrialBanner from '../components/TrialBanner';
+import Icon from '../components/ui/Icon';
+import TopBar from '../components/ui/TopBar';
+import Modal from '../components/ui/Modal';
+import Toggle from '../components/ui/Toggle';
+import { appRootClass, PageHeader, EmptyState, Notice, ColumnHeader } from '../components/ui/Panel';
+import { Button, Spinner } from '../components/ui/Button';
+import { inputClass, selectClass, selectInlineClass, textareaClass, Field, DataLabel } from '../components/ui/Field';
+import { Tag, Chip } from '../components/ui/Tag';
+import { Toast, Stat, Segmented, DataTable, SearchField, Route, th, td, tdMono, tr } from '../components/ui/Data';
+import { toneClass, shipmentTone, quoteTone, MODE_ICON, type Tone } from '../components/ui/tones';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
-
-const Icon = ({ name, className = "w-6 h-6", style }: { name: string; className?: string; style?: React.CSSProperties }) => (
-  <img src={`/icons/${name}.svg`} alt={name} className={className} style={style} />
-);
 
 type Language = 'en' | 'pt' | 'nl';
 
@@ -85,30 +91,18 @@ interface Portal {
   shipment?: { reference: string; customer: string; origin: string; destination: string } | null;
 }
 
-const STATUSES: { key: ShipmentStatus; label: string; color: string; bg: string; border: string }[] = [
-  { key: 'inquiry',        label: 'Inquiry',        color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/30' },
-  { key: 'quoted',         label: 'Quoted',          color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30' },
-  { key: 'booked',         label: 'Booked',          color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/30' },
-  { key: 'in_transit',     label: 'In Transit',      color: 'text-cyan-400',   bg: 'bg-cyan-500/10',   border: 'border-cyan-500/30' },
-  { key: 'at_destination', label: 'At Destination',  color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/30' },
-  { key: 'delivered',      label: 'Delivered',       color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/30' },
-  { key: 'closed',         label: 'Closed',          color: 'text-gray-400',   bg: 'bg-gray-500/10',   border: 'border-gray-500/30' },
-  { key: 'cancelled',      label: 'Cancelled',       color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/30' },
+// Tag/dot colours come from shipmentTone() (components/ui/tones.ts).
+const STATUSES: { key: ShipmentStatus; label: string }[] = [
+  { key: 'inquiry', label: 'Inquiry' },
+  { key: 'quoted', label: 'Quoted' },
+  { key: 'booked', label: 'Booked' },
+  { key: 'in_transit', label: 'In Transit' },
+  { key: 'at_destination', label: 'At Destination' },
+  { key: 'delivered', label: 'Delivered' },
+  { key: 'closed', label: 'Closed' },
+  { key: 'cancelled', label: 'Cancelled' },
 ];
 
-const MODE_ICONS: Record<string, string> = {
-  ocean: '🚢', air: '✈️', road: '🚛', rail: '🚂', '': '📦',
-};
-
-const NAV_ITEMS = [
-  { href: '/dashboard',  label: { en: 'Inbox',      pt: 'Inbox',      nl: 'Inbox'      }, icon: 'Dashboard_inbox' },
-  { href: '/shipments',  label: { en: 'Shipments',  pt: 'Embarques',  nl: 'Zendingen'  }, icon: 'Dashboard_tracking' },
-  { href: '/quotes',     label: { en: 'Quotes',     pt: 'Cotações',   nl: 'Offertes'   }, icon: 'Dashboard_quotation' },
-  { href: '/rates',      label: { en: 'Rates',      pt: 'Tarifas',    nl: 'Tarieven'   }, icon: 'Dashboard_quotation' },
-  { href: '/analytics',  label: { en: 'Analytics',  pt: 'Analytics',  nl: 'Analytics'  }, icon: 'Dashboard_analyrtics_AI Insights' },
-  { href: '/team',       label: { en: 'Team',       pt: 'Equipa',     nl: 'Team'       }, icon: 'Dashboard_email_team' },
-  { href: '/documents',  label: { en: 'Documents',  pt: 'Documentos', nl: 'Documenten' }, icon: 'Dashboard_documents' },
-];
 
 // Carriers Terminal49 can resolve to a SCAC on our backend — matches CARRIER_SCAC in server.ts
 const CARRIERS = ['Maersk', 'MSC', 'CMA CGM', 'Hapag-Lloyd', 'COSCO', 'Evergreen', 'ONE', 'Yang Ming', 'HMM', 'ZIM', 'OOCL'];
@@ -203,21 +197,6 @@ export default function ShipmentsPage() {
   const [refreshCooldown, setRefreshCooldown] = useState<Record<string, boolean>>({});
   const [now, setNow] = useState(() => Date.now());
 
-  const theme = darkMode ? {
-    bg: 'bg-gradient-to-br from-[#050510] via-[#0a0a1a] to-[#050510]',
-    card: 'bg-[#0a0a1a]', cardBorder: 'border-white/5', text: 'text-white',
-    textMuted: 'text-gray-400', textDim: 'text-gray-500',
-    hover: 'hover:bg-white/5', input: 'bg-[#0f0f1f] border-white/10 text-white placeholder-gray-600',
-    iconFilter: { filter: 'brightness(0) invert(1)' },
-    colBg: 'bg-[#080814]',
-  } : {
-    bg: 'bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-50',
-    card: 'bg-white/80 backdrop-blur-sm', cardBorder: 'border-slate-200/50', text: 'text-slate-900',
-    textMuted: 'text-slate-600', textDim: 'text-slate-500',
-    hover: 'hover:bg-slate-100/50', input: 'bg-white border-slate-200 text-slate-900 placeholder-slate-400',
-    iconFilter: { filter: 'brightness(0) saturate(100%) invert(19%) sepia(96%) saturate(5765%) hue-rotate(268deg) brightness(102%) contrast(101%)' },
-    colBg: 'bg-white/40',
-  };
 
   const notify = (type: 'success' | 'error', msg: string) => {
     setNotification({ type, msg });
@@ -555,169 +534,89 @@ export default function ShipmentsPage() {
 
   const totalActive = shipments.filter(s => !['delivered', 'closed', 'cancelled'].includes(s.status)).length;
 
+  const fieldInput = inputClass;
+  const closeForm = () => { setShowForm(false); setEditingId(null); setForm({ ...EMPTY_FORM }); };
+  const sideLabel = 'mb-2 font-fw-mono text-app-mono-xs uppercase text-app-ink-3';
+
   return (
-    <div className={`min-h-screen ${theme.bg} ${theme.text} transition-colors`}>
-      {notification && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl shadow-xl text-white text-sm ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
-          {notification.msg}
-        </div>
-      )}
+    <div data-theme={darkMode ? 'dark' : 'light'} className={appRootClass}>
+      <Toast notification={notification} />
 
-      {/* Header */}
-      <header className={`${theme.card} border-b ${theme.cardBorder} px-6 py-3 flex items-center justify-between sticky top-0 z-40`}>
-        <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-          <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className={`h-6 w-6 object-contain ${darkMode ? '' : 'brightness-0'}`} />
-          <span className="text-base font-bold">FreightWizard</span>
-        </Link>
-
-        <div className="flex items-center gap-2">
-          {NAV_ITEMS.map(item => (
-            <Link key={item.href} href={`${item.href}?session=${session}`}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition ${
-                pathname === item.href
-                  ? 'bg-gradient-to-r from-[#9E14FB]/20 to-[#1BA1FF]/20 border border-[#5200FF]/40'
-                  : `border border-transparent ${darkMode ? 'hover:bg-white/5 text-gray-400' : 'hover:bg-slate-100 text-slate-500'}`
-              }`}>
-              <Icon name={item.icon} className="w-3.5 h-3.5" style={theme.iconFilter} />
-              {item.label[language]}
-            </Link>
-          ))}
-
-          <div className={`w-px h-5 ${darkMode ? 'bg-white/10' : 'bg-slate-200'} mx-1`} />
-
-          <div className="relative">
-            <button onClick={() => setLangMenuOpen(!langMenuOpen)}
-              className={`px-3 py-1.5 text-sm ${theme.textMuted} border ${theme.cardBorder} rounded-full ${theme.hover} flex items-center gap-1`}>
-              {langLabels[language]} <span className="text-xs">▾</span>
-            </button>
-            {langMenuOpen && (
-              <div className={`absolute top-full right-0 mt-2 ${theme.card} border ${theme.cardBorder} rounded-xl shadow-xl z-50 overflow-hidden`}>
-                {(['en', 'pt', 'nl'] as Language[]).map(l => (
-                  <button key={l} onClick={() => changeLang(l)}
-                    className={`w-full px-4 py-2 text-left text-sm ${theme.hover} ${language === l ? 'text-[#9E14FB] font-medium' : theme.textMuted}`}>
-                    {langLabels[l]}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <button onClick={toggleTheme} className={`p-2 rounded-full ${theme.hover} border ${theme.cardBorder}`}>
-            {darkMode
-              ? <Icon name="Dashboard_sun_light_mode" className="w-4 h-4" style={theme.iconFilter} />
-              : <Icon name="Dashboard_moon_dark_mode" className="w-4 h-4" style={theme.iconFilter} />
-            }
-          </button>
-
-          {user && <span className={`text-sm ${theme.textMuted} hidden lg:block max-w-36 truncate`}>{user.email}</span>}
-        </div>
-      </header>
+      <TopBar session={session} user={user} darkMode={darkMode} language={language} onToggleTheme={toggleTheme} onChangeLanguage={changeLang} />
 
       <TrialBanner session={session} />
 
-      <div className="p-4">
-        {/* Page header */}
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Icon name="Dashboard_tracking" className="w-7 h-7" style={theme.iconFilter} />
-              Shipment Tracker
-            </h1>
-            <p className={`text-sm ${theme.textMuted} mt-0.5`}>{totalActive} active shipments</p>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Search */}
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${theme.cardBorder} ${theme.card}`}>
-              <Icon name="Dashboard_search_emails" className="w-4 h-4" style={theme.iconFilter} />
-              <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search shipments..."
-                className={`bg-transparent text-sm focus:outline-none ${theme.text} w-40`} />
-            </div>
-
-            {/* Mode filter */}
-            <select value={filterMode} onChange={e => setFilterMode(e.target.value)}
-              className={`px-3 py-2 rounded-xl border ${theme.cardBorder} ${theme.card} ${theme.text} text-sm focus:outline-none focus:border-[#5200FF] cursor-pointer`}>
+      <main className="p-4 lg:p-6">
+        <PageHeader
+          className="mb-5"
+          title="Shipment Tracker"
+          description={<><span className="font-fw-mono">{totalActive}</span> active shipments</>}
+          actions={<>
+            <SearchField value={searchQuery} onChange={setSearchQuery} placeholder="Search shipments..." className="w-56" />
+            <select value={filterMode} onChange={e => setFilterMode(e.target.value)} aria-label="Filter by mode" className={selectInlineClass}>
               <option value="">All modes</option>
-              <option value="ocean">🚢 Ocean</option>
-              <option value="air">✈️ Air</option>
-              <option value="road">🚛 Road</option>
-              <option value="rail">🚂 Rail</option>
+              <option value="ocean">Ocean</option>
+              <option value="air">Air</option>
+              <option value="road">Road</option>
+              <option value="rail">Rail</option>
             </select>
-
-            {/* AI Auto-detect toggle */}
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${theme.cardBorder} ${theme.card}`}>
-              <span className={`text-xs ${theme.textMuted}`}>🤖 AI auto-detect</span>
-              <button onClick={() => setAiAutoDetect(!aiAutoDetect)} type="button"
-                className={`relative flex-shrink-0 w-9 h-5 rounded-full border-0 p-0 transition-colors ${aiAutoDetect ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF]' : (darkMode ? 'bg-white/20' : 'bg-slate-300')}`}>
-                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${aiAutoDetect ? 'translate-x-4' : 'translate-x-0'}`} />
-              </button>
+            <div className="flex h-9 items-center gap-2 rounded-fw-btn border border-app-line-strong bg-app-card px-3">
+              <Icon name="sparkle" size={14} className="text-app-accent" />
+              <span className="text-app-ui-sm text-app-ink-2">AI auto-detect</span>
+              <Toggle checked={aiAutoDetect} onChange={setAiAutoDetect} label="AI auto-detect" />
             </div>
-
-            {/* New shipment */}
-            <button onClick={() => { setForm({ ...EMPTY_FORM }); setEditingId(null); setShowForm(true); }}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium">
-              + New Shipment
-            </button>
-          </div>
-        </div>
+            <Button variant="primary" icon="plus" onClick={() => { setForm({ ...EMPTY_FORM }); setEditingId(null); setShowForm(true); }}>New Shipment</Button>
+          </>}
+        />
 
         {/* Pending AI suggestions */}
         {pending.length > 0 && (
-          <div className={`mb-4 p-4 rounded-2xl border-2 border-[#9E14FB]/40 ${darkMode ? 'bg-[#9E14FB]/5' : 'bg-purple-50'}`}>
-            <h2 className="text-sm font-semibold text-[#9E14FB] mb-3 flex items-center gap-2">
-              🤖 AI Detected {pending.length} shipment{pending.length > 1 ? 's' : ''} from your emails — review before adding
+          <section className="mb-5 rounded-fw-card border border-app-line bg-app-panel p-4" aria-label="AI suggestions">
+            <h2 className="mb-3 flex items-center gap-2 text-app-ui font-semibold text-app-ink">
+              <Tag tone="accent">AI</Tag>
+              Detected <span className="font-fw-mono">{pending.length}</span> shipment{pending.length > 1 ? 's' : ''} from your emails — review before adding
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {pending.map(p => (
-                <div key={p.id} className={`${theme.card} border ${theme.cardBorder} rounded-xl p-4`}>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div>
-                      <p className="text-sm font-semibold">{p.reference}</p>
-                      <p className={`text-xs ${theme.textMuted}`}>{p.customer}</p>
+                <div key={p.id} className="rounded-fw-card border border-app-line bg-app-card p-4">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-fw-mono text-app-mono font-medium text-app-ink">{p.reference}</p>
+                      <p className="truncate text-app-ui-sm text-app-ink-2">{p.customer}</p>
                     </div>
-                    <span className="text-lg">{MODE_ICONS[p.mode]}</span>
+                    <Icon name={MODE_ICON[p.mode] || 'container'} size={18} className="flex-shrink-0 text-app-ink-3" />
                   </div>
-                  {p.updateTarget ? (
-                    <p className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#9E14FB]/20 text-[#9E14FB] inline-block mb-2">
-                      Status update → {STATUSES.find(s => s.key === p.status)?.label || p.status}
-                    </p>
-                  ) : (
-                    <p className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 inline-block mb-2">New shipment</p>
-                  )}
-                  <p className={`text-xs ${theme.textDim} mb-1`}>{p.origin} → {p.destination}</p>
-                  {p.emailSubject && <p className={`text-xs ${theme.textDim} mb-3 italic truncate`}>From: "{p.emailSubject}"</p>}
-                  <div className="grid grid-cols-2 gap-2 text-xs mb-3">
-                    {p.commodity && <div><span className={theme.textDim}>Cargo:</span> {p.commodity}</div>}
-                    {p.container && <div><span className={theme.textDim}>Container:</span> {p.container}</div>}
-                    {p.weight && <div><span className={theme.textDim}>Weight:</span> {p.weight}</div>}
-                    {p.incoterm && <div><span className={theme.textDim}>Incoterm:</span> {p.incoterm}</div>}
+                  <div className="mb-2">
+                    {p.updateTarget
+                      ? <Tag tone="accent">Status update → {STATUSES.find(s => s.key === p.status)?.label || p.status}</Tag>
+                      : <Tag tone="info">New shipment</Tag>}
                   </div>
+                  <Route from={p.origin} to={p.destination} className="mb-1 text-app-ink-2" />
+                  {p.emailSubject && <p className="mb-3 truncate text-app-ui-sm italic text-app-ink-3">From: "{p.emailSubject}"</p>}
+                  <dl className="mb-3 grid grid-cols-2 gap-2">
+                    {p.commodity && <div><DataLabel>Cargo</DataLabel><dd className="text-app-ui-sm">{p.commodity}</dd></div>}
+                    {p.container && <div><DataLabel>Container</DataLabel><dd className="font-fw-mono text-app-mono">{p.container}</dd></div>}
+                    {p.weight && <div><DataLabel>Weight</DataLabel><dd className="font-fw-mono text-app-mono">{p.weight}</dd></div>}
+                    {p.incoterm && <div><DataLabel>Incoterm</DataLabel><dd className="font-fw-mono text-app-mono">{p.incoterm}</dd></div>}
+                  </dl>
                   <div className="flex gap-2">
-                    <button onClick={() => approvePending(p)}
-                      className="flex-1 py-1.5 bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] rounded-lg text-white text-xs font-medium">
-                      ✓ Approve
-                    </button>
+                    <Button variant="primary" size="sm" icon="check" className="flex-1" onClick={() => approvePending(p)}>Approve</Button>
                     {!p.updateTarget && (
-                      <button onClick={() => { /* open edit with pre-filled */ setForm({ status: p.status, reference: p.reference, customer: p.customer, origin: p.origin, destination: p.destination, mode: p.mode, commodity: p.commodity, weight: p.weight, container: p.container, incoterm: p.incoterm, eta: p.eta, etd: p.etd, carrier: p.carrier, notes: p.notes, emailId: p.emailId, emailSubject: p.emailSubject, aiGenerated: true, approved: false }); setEditingId(null); setShowForm(true); rejectPending(p.id); }}
-                        className={`flex-1 py-1.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-lg text-xs`}>
-                        ✏️ Edit
-                      </button>
+                      <Button size="sm" icon="edit" className="flex-1" onClick={() => { /* open edit with pre-filled */ setForm({ status: p.status, reference: p.reference, customer: p.customer, origin: p.origin, destination: p.destination, mode: p.mode, commodity: p.commodity, weight: p.weight, container: p.container, incoterm: p.incoterm, eta: p.eta, etd: p.etd, carrier: p.carrier, notes: p.notes, emailId: p.emailId, emailSubject: p.emailSubject, aiGenerated: true, approved: false }); setEditingId(null); setShowForm(true); rejectPending(p.id); }}>
+                        Edit
+                      </Button>
                     )}
-                    <button onClick={() => rejectPending(p.id)}
-                      className="py-1.5 px-2 bg-red-500/20 text-red-400 rounded-lg text-xs hover:bg-red-500/30">
-                      ✕
-                    </button>
+                    <Button variant="danger" size="icon-sm" icon="close" onClick={() => rejectPending(p.id)} aria-label="Dismiss suggestion" title="Dismiss" className="h-8 w-8" />
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
         {/* Kanban Board */}
         <div className="overflow-x-auto pb-4">
-          <div className="flex gap-3 min-w-max">
+          <div className="flex min-w-max gap-3">
             {STATUSES.map(status => {
               const cards = byStatus(status.key);
               const isDragTarget = dragOver === status.key;
@@ -726,23 +625,15 @@ export default function ShipmentsPage() {
                   onDragOver={(e) => onDragOver(e, status.key)}
                   onDrop={(e) => onDrop(e, status.key)}
                   onDragLeave={() => setDragOver(null)}
-                  className={`w-64 flex-shrink-0 rounded-2xl transition-all ${isDragTarget ? 'ring-2 ring-[#9E14FB] scale-[1.01]' : ''}`}>
+                  className={`flex w-64 flex-shrink-0 flex-col gap-2 rounded-fw-card transition-shadow ${isDragTarget ? 'ring-2 ring-app-accent-fill' : ''}`}>
 
-                  {/* Column header */}
-                  <div className={`${status.bg} border ${status.border} rounded-t-2xl px-3 py-2.5 flex items-center justify-between`}>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-semibold ${status.color}`}>{status.label}</span>
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.bg} ${status.color} border ${status.border}`}>
-                      {cards.length}
-                    </span>
-                  </div>
+                  <ColumnHeader label={status.label} count={cards.length} tone={shipmentTone(status.key)} />
 
                   {/* Cards */}
-                  <div className={`${theme.colBg} border-x border-b ${theme.cardBorder} rounded-b-2xl min-h-32 p-2 space-y-2`}>
+                  <div className="min-h-32 space-y-2 rounded-fw-card border border-app-line bg-app-panel p-2">
                     {cards.length === 0 && (
-                      <div className={`text-center py-6 text-xs ${theme.textDim} ${isDragTarget ? 'opacity-100' : 'opacity-50'}`}>
-                        {isDragTarget ? '📥 Drop here' : 'No shipments'}
+                      <div className={`flex items-center justify-center gap-1.5 py-6 text-app-ui-sm text-app-ink-3 ${isDragTarget ? '' : 'opacity-70'}`}>
+                        {isDragTarget ? <><Icon name="download" size={14} /> Drop here</> : 'No shipments'}
                       </div>
                     )}
                     {cards.map(s => (
@@ -750,23 +641,26 @@ export default function ShipmentsPage() {
                         draggable
                         onDragStart={(e) => onDragStart(e, s.id)}
                         onClick={() => setSelectedCard(selectedCard?.id === s.id ? null : s)}
-                        className={`${theme.card} border ${theme.cardBorder} rounded-xl p-3 cursor-grab active:cursor-grabbing transition-all hover:border-[#5200FF]/40 hover:shadow-lg ${draggingId === s.id ? 'opacity-50' : ''} ${selectedCard?.id === s.id ? 'border-[#9E14FB]/60 shadow-[0_0_12px_rgba(158,20,251,0.2)]' : ''}`}>
-                        <div className="flex items-start justify-between gap-1 mb-1.5">
+                        className={`cursor-grab rounded-fw-card border bg-app-card p-3 transition-colors active:cursor-grabbing ${draggingId === s.id ? 'opacity-50' : ''} ${selectedCard?.id === s.id ? 'border-app-accent-fill' : 'border-app-line hover:border-app-line-strong'}`}>
+                        <div className="mb-1.5 flex items-start justify-between gap-1">
                           <div className="min-w-0">
-                            <p className="text-xs font-bold truncate">{s.reference}</p>
-                            <p className={`text-xs ${theme.textMuted} truncate`}>{s.customer}</p>
+                            <p className="truncate font-fw-mono text-app-mono font-medium text-app-ink">{s.reference}</p>
+                            <p className="truncate text-app-ui-sm text-app-ink-2">{s.customer}</p>
                           </div>
-                          <span className="text-base flex-shrink-0">{MODE_ICONS[s.mode]}</span>
+                          <Icon name={MODE_ICON[s.mode] || 'container'} size={16} className="flex-shrink-0 text-app-ink-3" />
                         </div>
-                        <p className={`text-xs ${theme.textDim} mb-2 truncate`}>{s.origin} → {s.destination}</p>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          {s.container && <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-white/10 text-gray-300' : 'bg-slate-100 text-slate-600'}`}>{s.container}</span>}
-                          {s.incoterm && <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-white/10 text-gray-300' : 'bg-slate-100 text-slate-600'}`}>{s.incoterm}</span>}
-                          {s.aiGenerated && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#9E14FB]/20 text-[#9E14FB]">🤖 AI</span>}
-                          {s.t49TrackingActive && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">🟢 Live</span>}
+                        <Route from={s.origin} to={s.destination} className="mb-2 max-w-full text-app-mono-xs text-app-ink-2" />
+                        <div className="flex flex-wrap items-center gap-1">
+                          {s.container && <Chip className="font-fw-mono text-app-mono-xs">{s.container}</Chip>}
+                          {s.incoterm && <Chip className="font-fw-mono text-app-mono-xs">{s.incoterm}</Chip>}
+                          {s.aiGenerated && <Tag tone="accent">AI</Tag>}
+                          {s.t49TrackingActive && <Tag tone="ok">Live</Tag>}
                         </div>
-                        {s.etd && <p className={`text-[10px] ${theme.textDim} mt-1.5`}>ETD: {s.etd}</p>}
-                        {s.eta && <p className={`text-[10px] ${theme.textDim}`}>ETA: {s.eta}</p>}
+                        {(s.etd || s.eta) && (
+                          <p className="mt-1.5 font-fw-mono text-app-mono-xs text-app-ink-3">
+                            {s.etd && <span className="whitespace-nowrap">ETD {s.etd}</span>}{s.etd && s.eta && ' · '}{s.eta && <span className="whitespace-nowrap">ETA {s.eta}</span>}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -778,96 +672,95 @@ export default function ShipmentsPage() {
 
         {/* Side panel for selected card */}
         {selectedCard && (
-          <div className={`fixed right-4 top-20 bottom-4 w-80 ${theme.card} border ${theme.cardBorder} rounded-2xl shadow-2xl z-30 overflow-y-auto flex flex-col`}>
-            <div className={`p-4 border-b ${theme.cardBorder} flex items-center justify-between`}>
-              <h3 className="font-bold text-sm">{selectedCard.reference}</h3>
-              <div className="flex gap-2">
-                <button onClick={() => openEdit(selectedCard)} className={`text-xs px-2 py-1 rounded-lg ${theme.hover} ${theme.textMuted}`}>✏️ Edit</button>
-                <button onClick={() => deleteShipment(selectedCard.id)} className="text-xs px-2 py-1 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30">🗑️</button>
-                <button onClick={() => setSelectedCard(null)} className={`${theme.textDim} hover:text-white w-6 h-6 flex items-center justify-center`}>✕</button>
+          <aside className="fixed bottom-4 right-4 top-16 z-30 flex w-80 flex-col overflow-y-auto rounded-fw-card border border-app-line bg-app-card shadow-app-pop" aria-label="Shipment details">
+            <div className="flex items-center justify-between border-b border-app-line p-4">
+              <h3 className="font-fw-mono text-app-mono font-semibold">{selectedCard.reference}</h3>
+              <div className="flex gap-1">
+                <Button variant="ghost" size="xs" icon="edit" onClick={() => openEdit(selectedCard)}>Edit</Button>
+                <Button variant="danger" size="icon-sm" icon="trash" onClick={() => deleteShipment(selectedCard.id)} aria-label="Delete shipment" title="Delete" />
+                <Button variant="ghost" size="icon-sm" icon="close" onClick={() => setSelectedCard(null)} aria-label="Close" />
               </div>
             </div>
-            <div className="p-4 space-y-3 flex-1">
+            <div className="flex-1 space-y-4 p-4">
               {/* Status change */}
               <div>
-                <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-2`}>Status</p>
+                <p className={sideLabel}>Status</p>
                 <div className="grid grid-cols-2 gap-1">
-                  {STATUSES.map(s => (
-                    <button key={s.key} onClick={() => { moveStatus(selectedCard.id, s.key); setSelectedCard(prev => prev ? { ...prev, status: s.key } : null); }}
-                      className={`text-xs px-2 py-1.5 rounded-lg border transition ${selectedCard.status === s.key ? `${s.bg} ${s.color} ${s.border} font-medium` : `${theme.cardBorder} ${theme.textDim} ${theme.hover}`}`}>
-                      {s.label}
-                    </button>
-                  ))}
+                  {STATUSES.map(s => {
+                    const active = selectedCard.status === s.key;
+                    const tc = toneClass[shipmentTone(s.key)];
+                    return (
+                      <button key={s.key} onClick={() => { moveStatus(selectedCard.id, s.key); setSelectedCard(prev => prev ? { ...prev, status: s.key } : null); }} aria-pressed={active}
+                        className={`flex items-center gap-1.5 rounded-fw-btn border px-2 py-1.5 text-left text-app-ui-sm transition-colors ${active ? `border-transparent font-medium ${tc.tag}` : 'border-app-line text-app-ink-2 hover:bg-app-raised'}`}>
+                        <span aria-hidden className={`size-1.5 flex-none rounded-full ${active ? tc.dot : 'bg-app-line-strong'}`} />
+                        {s.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className={`border-t ${theme.cardBorder} pt-3 space-y-2`}>
+              <dl className="space-y-2 border-t border-app-line pt-3">
                 {[
-                  { label: 'Customer', value: selectedCard.customer },
-                  { label: 'Route', value: `${selectedCard.origin} → ${selectedCard.destination}` },
-                  { label: 'Mode', value: `${MODE_ICONS[selectedCard.mode]} ${selectedCard.mode || '—'}` },
-                  { label: 'Commodity', value: selectedCard.commodity || '—' },
-                  { label: 'Weight', value: selectedCard.weight || '—' },
-                  { label: 'Container', value: selectedCard.container || '—' },
-                  { label: 'Incoterm', value: selectedCard.incoterm || '—' },
-                  { label: 'Carrier', value: selectedCard.carrier || '—' },
-                  { label: 'ETD', value: selectedCard.etd || '—' },
-                  { label: 'ETA', value: selectedCard.eta || '—' },
-                ].map(({ label, value }) => (
+                  { label: 'Customer', value: selectedCard.customer, mono: false },
+                  { label: 'Route', value: `${selectedCard.origin} → ${selectedCard.destination}`, mono: true },
+                  { label: 'Mode', value: selectedCard.mode || '—', mono: false },
+                  { label: 'Commodity', value: selectedCard.commodity || '—', mono: false },
+                  { label: 'Weight', value: selectedCard.weight || '—', mono: true },
+                  { label: 'Container', value: selectedCard.container || '—', mono: true },
+                  { label: 'Incoterm', value: selectedCard.incoterm || '—', mono: true },
+                  { label: 'Carrier', value: selectedCard.carrier || '—', mono: false },
+                  { label: 'ETD', value: selectedCard.etd || '—', mono: true },
+                  { label: 'ETA', value: selectedCard.eta || '—', mono: true },
+                ].map(({ label, value, mono }) => (
                   <div key={label} className="flex justify-between gap-2">
-                    <span className={`text-xs ${theme.textDim}`}>{label}</span>
-                    <span className="text-xs font-medium text-right truncate max-w-40">{value}</span>
+                    <dt className="text-app-ui-sm text-app-ink-3">{label}</dt>
+                    <dd className={`max-w-44 truncate text-right capitalize ${mono ? 'font-fw-mono text-app-mono normal-case' : 'text-app-ui-sm font-medium'}`}>{value}</dd>
                   </div>
                 ))}
-              </div>
+              </dl>
 
               {selectedCard.notes && (
-                <div className={`border-t ${theme.cardBorder} pt-3`}>
-                  <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-1`}>Notes</p>
-                  <p className={`text-xs ${theme.textMuted}`}>{selectedCard.notes}</p>
+                <div className="border-t border-app-line pt-3">
+                  <p className={sideLabel}>Notes</p>
+                  <p className="text-app-ui-sm text-app-ink-2">{selectedCard.notes}</p>
                 </div>
               )}
 
               {selectedCard.emailSubject && (
-                <div className={`border-t ${theme.cardBorder} pt-3`}>
-                  <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-1`}>Source Email</p>
-                  <p className={`text-xs ${theme.textMuted} italic`}>"{selectedCard.emailSubject}"</p>
+                <div className="border-t border-app-line pt-3">
+                  <p className={sideLabel}>Source Email</p>
+                  <p className="text-app-ui-sm italic text-app-ink-2">"{selectedCard.emailSubject}"</p>
                   {session && selectedCard.emailId && (
-                    <Link href={`/dashboard?session=${session}`}
-                      className="text-xs text-[#9E14FB] hover:underline mt-1 block">
-                      → View in inbox
+                    <Link href={`/dashboard?session=${session}`} className="mt-1 inline-flex items-center gap-1 text-app-ui-sm text-app-accent hover:underline">
+                      View in inbox <Icon name="arrow-right" size={12} />
                     </Link>
                   )}
                 </div>
               )}
 
-              <div className={`border-t ${theme.cardBorder} pt-3`}>
-                <p className={`text-xs ${theme.textDim}`}>Created {new Date(selectedCard.createdAt).toLocaleDateString()}</p>
-                <p className={`text-xs ${theme.textDim}`}>Updated {new Date(selectedCard.updatedAt).toLocaleDateString()}</p>
-                {selectedCard.aiGenerated && <p className="text-xs text-[#9E14FB] mt-1">🤖 Created by AI from email</p>}
+              <div className="border-t border-app-line pt-3 font-fw-mono text-app-mono-xs text-app-ink-3">
+                <p>Created {new Date(selectedCard.createdAt).toLocaleDateString()}</p>
+                <p>Updated {new Date(selectedCard.updatedAt).toLocaleDateString()}</p>
+                {selectedCard.aiGenerated && <p className="mt-1.5 flex items-center gap-1 font-fw-sans text-app-ui-sm text-app-accent"><Icon name="sparkle" size={13} /> Created by AI from email</p>}
               </div>
 
-              <div className={`border-t ${theme.cardBorder} pt-3`}>
-                <button onClick={() => openShare(selectedCard)}
-                  className="w-full py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-lg text-white text-xs font-medium">
-                  🔗 Share with Customer
-                </button>
+              <div className="border-t border-app-line pt-3">
+                <Button variant="primary" size="sm" icon="link" className="w-full" onClick={() => openShare(selectedCard)}>Share with Customer</Button>
 
                 {portals.filter(p => p.shipment_id === selectedCard.id).length > 0 && (
                   <div className="mt-3 space-y-2">
-                    <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider`}>Shared Links</p>
+                    <p className={sideLabel}>Shared Links</p>
                     {portals.filter(p => p.shipment_id === selectedCard.id).map(p => (
-                      <div key={p.id} className={`border ${theme.cardBorder} rounded-lg p-2 space-y-1.5`}>
+                      <div key={p.id} className="space-y-1.5 rounded-fw-btn border border-app-line p-2">
                         <div className="flex items-center justify-between gap-2">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${p.is_active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                            {p.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                          <span className={`text-[10px] ${theme.textDim}`}>{new Date(p.created_at).toLocaleDateString()}</span>
+                          <Tag tone={p.is_active ? 'ok' : 'neutral'}>{p.is_active ? 'Active' : 'Inactive'}</Tag>
+                          <span className="font-fw-mono text-app-mono-xs text-app-ink-3">{new Date(p.created_at).toLocaleDateString()}</span>
                         </div>
                         <div className="flex gap-1.5">
-                          <button onClick={() => copyPortalLink(p.url)} className={`flex-1 py-1 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded text-[10px]`}>Copy Link</button>
-                          <button onClick={() => togglePortalActive(p)} className={`flex-1 py-1 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded text-[10px]`}>{p.is_active ? 'Deactivate' : 'Activate'}</button>
-                          <button onClick={() => deletePortal(p.id)} className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-[10px] hover:bg-red-500/30">🗑️</button>
+                          <Button size="xs" icon="copy" className="flex-1" onClick={() => copyPortalLink(p.url)}>Copy Link</Button>
+                          <Button size="xs" className="flex-1" onClick={() => togglePortalActive(p)}>{p.is_active ? 'Deactivate' : 'Activate'}</Button>
+                          <Button variant="danger" size="icon-sm" icon="trash" onClick={() => deletePortal(p.id)} aria-label="Remove link" title="Remove link" />
                         </div>
                       </div>
                     ))}
@@ -876,69 +769,64 @@ export default function ShipmentsPage() {
               </div>
 
               {/* Container Tracking (Terminal49) */}
-              <div className={`border-t ${theme.cardBorder} pt-3`}>
-                <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-2`}>Container Tracking</p>
+              <div className="border-t border-app-line pt-3">
+                <p className={sideLabel}>Container Tracking</p>
                 {!selectedCard.t49TrackingActive ? (
-                  <div className={`rounded-lg border border-[#9E14FB]/20 p-3 opacity-80`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-base">🛰️</span>
-                      <div>
-                        <p className={`text-xs font-semibold ${theme.text}`}>Live Container Tracking</p>
-                        <p className="text-[10px] text-[#9E14FB] font-medium">Coming Soon</p>
-                      </div>
+                  <div className="rounded-fw-btn border border-dashed border-app-line-strong p-3">
+                    <div className="mb-1 flex items-center gap-2">
+                      <Icon name="tracking" size={16} className="text-app-ink-3" />
+                      <p className="text-app-ui-sm font-semibold text-app-ink">Live Container Tracking</p>
+                      <Tag tone="neutral" className="ml-auto">Coming soon</Tag>
                     </div>
-                    <p className={`text-[11px] ${theme.textDim} leading-snug mb-2`}>
+                    <p className="mb-2 text-app-ui-sm leading-snug text-app-ink-3">
                       Real-time milestone updates powered by Terminal49 — vessel departures, arrivals, customs clearance and more. Available in an upcoming update.
                     </p>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${darkMode ? 'bg-white/5 text-gray-400' : 'bg-slate-100 text-slate-500'}`}>Powered by Terminal49</span>
+                    <span className="font-fw-mono text-app-mono-xs uppercase text-app-ink-3">Powered by Terminal49</span>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 font-medium">● Live Tracking Active</span>
-                        <button onClick={() => refreshTracking(selectedCard.id)} disabled={refreshing[selectedCard.id] || refreshCooldown[selectedCard.id]}
-                          title="Refresh" className={`text-[10px] px-1.5 py-0.5 rounded-full border ${theme.cardBorder} ${theme.hover} ${theme.textMuted} disabled:opacity-40 flex items-center gap-1`}>
-                          {refreshing[selectedCard.id]
-                            ? <span className="w-2.5 h-2.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                            : '🔄'} Refresh
-                        </button>
+                        <Tag tone="ok">Live tracking</Tag>
+                        <Button size="xs" icon={refreshing[selectedCard.id] ? undefined : 'refresh'} onClick={() => refreshTracking(selectedCard.id)} disabled={refreshing[selectedCard.id] || refreshCooldown[selectedCard.id]} title="Refresh">
+                          {refreshing[selectedCard.id] && <Spinner className="size-3" />} Refresh
+                        </Button>
                       </div>
-                      <button onClick={() => stopTracking(selectedCard)} className="text-[10px] text-red-400 hover:underline">Stop Tracking</button>
+                      <button onClick={() => stopTracking(selectedCard)} className="text-app-ui-sm text-app-danger-ink hover:underline">Stop Tracking</button>
                     </div>
 
-                    {justUpdated[selectedCard.id] && <p className="text-[10px] text-green-400 transition-opacity">✓ Updated just now</p>}
-                    {refreshError[selectedCard.id] && <p className="text-[10px] text-red-400">{refreshError[selectedCard.id]}</p>}
+                    {justUpdated[selectedCard.id] && <p className="flex items-center gap-1 text-app-ui-sm text-app-ok-ink"><Icon name="check" size={13} /> Updated just now</p>}
+                    {refreshError[selectedCard.id] && <p className="text-app-ui-sm text-app-danger-ink">{refreshError[selectedCard.id]}</p>}
                     {lastRefreshedAt[selectedCard.id] && (
-                      <p className={`text-[10px] ${theme.textDim}`}>Last refreshed: {timeAgo(lastRefreshedAt[selectedCard.id])}</p>
+                      <p className="text-app-ui-sm text-app-ink-3">Last refreshed: {timeAgo(lastRefreshedAt[selectedCard.id])}</p>
                     )}
 
                     {selectedCard.t49LastEvent && (
                       <div>
-                        <p className={`text-xs ${theme.textMuted}`}>{selectedCard.t49LastEvent}</p>
-                        {selectedCard.t49LastEventAt && <p className={`text-[10px] ${theme.textDim}`}>{new Date(selectedCard.t49LastEventAt).toLocaleString()}</p>}
+                        <p className="text-app-ui-sm text-app-ink-2">{selectedCard.t49LastEvent}</p>
+                        {selectedCard.t49LastEventAt && <p className="font-fw-mono text-app-mono-xs text-app-ink-3">{new Date(selectedCard.t49LastEventAt).toLocaleString()}</p>}
                       </div>
                     )}
                     {selectedCard.t49PodEta && (
-                      <p className="text-xs"><span className={theme.textDim}>ETA:</span> {new Date(selectedCard.t49PodEta).toLocaleDateString()} <span className="text-green-400">(live)</span></p>
+                      <p className="text-app-ui-sm"><span className="text-app-ink-3">ETA:</span> <span className="font-fw-mono">{new Date(selectedCard.t49PodEta).toLocaleDateString()}</span> <span className="text-app-ok-ink">(live)</span></p>
                     )}
-                    {selectedCard.t49Vessel && <p className="text-xs"><span className={theme.textDim}>Vessel:</span> {selectedCard.t49Vessel}</p>}
+                    {selectedCard.t49Vessel && <p className="text-app-ui-sm"><span className="text-app-ink-3">Vessel:</span> <span className="font-fw-mono">{selectedCard.t49Vessel}</span></p>}
 
                     {/* Event timeline */}
                     {shipmentEvents[selectedCard.id]?.length > 0 ? (
-                      <div className="mt-2 space-y-2 max-h-48 overflow-y-auto pr-1">
+                      <ol className="mt-2 max-h-48 space-y-2 overflow-y-auto pr-1">
                         {shipmentEvents[selectedCard.id].map(ev => (
-                          <div key={ev.id} className="flex gap-2 text-xs">
-                            <span className="text-[#1BA1FF] mt-0.5">●</span>
+                          <li key={ev.id} className="flex gap-2 text-app-ui-sm">
+                            <span aria-hidden className="mt-1.5 size-1.5 flex-none rounded-full bg-app-info-dot" />
                             <div className="min-w-0">
-                              <p className={theme.text}>{ev.description}</p>
-                              <p className={`text-[10px] ${theme.textDim}`}>{ev.location ? `${ev.location} · ` : ''}{new Date(ev.event_at).toLocaleString()}</p>
+                              <p className="text-app-ink">{ev.description}</p>
+                              <p className="font-fw-mono text-app-mono-xs text-app-ink-3">{ev.location ? `${ev.location} · ` : ''}{new Date(ev.event_at).toLocaleString()}</p>
                             </div>
-                          </div>
+                          </li>
                         ))}
-                      </div>
+                      </ol>
                     ) : lastRefreshedAt[selectedCard.id] && !refreshing[selectedCard.id] && (
-                      <p className={`text-xs ${theme.textDim}`}>No tracking data available yet — Terminal49 may still be processing this container.</p>
+                      <p className="text-app-ui-sm text-app-ink-3">No tracking data available yet — Terminal49 may still be processing this container.</p>
                     )}
                   </div>
                 )}
@@ -946,292 +834,167 @@ export default function ShipmentsPage() {
 
               {/* Portbase Status (Netherlands) */}
               {portbaseConfigured && selectedCard.containerNumber && (isDutchPort(selectedCard.origin) || isDutchPort(selectedCard.destination)) && (
-                <div className={`border-t ${theme.cardBorder} pt-3`}>
-                  <p className={`text-xs font-semibold ${theme.textDim} uppercase tracking-wider mb-2`}>Portbase Status</p>
+                <div className="border-t border-app-line pt-3">
+                  <p className={sideLabel}>Portbase Status</p>
                   {!portbaseStatus[selectedCard.id] ? (
-                    <button onClick={() => checkPortbaseStatus(selectedCard.id, selectedCard.containerNumber!)}
-                      disabled={portbaseLoading[selectedCard.id]}
-                      className={`w-full py-2 border ${theme.cardBorder} ${theme.hover} rounded-lg text-xs font-medium ${theme.text} disabled:opacity-50`}>
-                      {portbaseLoading[selectedCard.id] ? 'Checking...' : '🇳🇱 Check Portbase Status'}
-                    </button>
+                    <Button size="sm" icon={portbaseLoading[selectedCard.id] ? undefined : 'search'} className="w-full" onClick={() => checkPortbaseStatus(selectedCard.id, selectedCard.containerNumber!)} disabled={portbaseLoading[selectedCard.id]}>
+                      {portbaseLoading[selectedCard.id] ? 'Checking...' : 'Check Portbase Status (NL)'}
+                    </Button>
                   ) : portbaseStatus[selectedCard.id].error ? (
-                    <p className="text-xs text-red-400">{portbaseStatus[selectedCard.id].error}</p>
+                    <p className="text-app-ui-sm text-app-danger-ink">{portbaseStatus[selectedCard.id].error}</p>
                   ) : (
-                    <div className="space-y-1.5 text-xs">
-                      {portbaseStatus[selectedCard.id].status && <p><span className={theme.textDim}>Status:</span> {portbaseStatus[selectedCard.id].status}</p>}
-                      {portbaseStatus[selectedCard.id].terminal && <p><span className={theme.textDim}>Terminal:</span> {portbaseStatus[selectedCard.id].terminal}</p>}
-                      {portbaseStatus[selectedCard.id].customs_status && <p><span className={theme.textDim}>Customs:</span> {portbaseStatus[selectedCard.id].customs_status}</p>}
-                      {portbaseStatus[selectedCard.id].release_status && <p><span className={theme.textDim}>Release:</span> {portbaseStatus[selectedCard.id].release_status}</p>}
-                    </div>
+                    <dl className="space-y-1.5 text-app-ui-sm">
+                      {portbaseStatus[selectedCard.id].status && <p><span className="text-app-ink-3">Status:</span> {portbaseStatus[selectedCard.id].status}</p>}
+                      {portbaseStatus[selectedCard.id].terminal && <p><span className="text-app-ink-3">Terminal:</span> {portbaseStatus[selectedCard.id].terminal}</p>}
+                      {portbaseStatus[selectedCard.id].customs_status && <p><span className="text-app-ink-3">Customs:</span> {portbaseStatus[selectedCard.id].customs_status}</p>}
+                      {portbaseStatus[selectedCard.id].release_status && <p><span className="text-app-ink-3">Release:</span> {portbaseStatus[selectedCard.id].release_status}</p>}
+                    </dl>
                   )}
                 </div>
               )}
             </div>
-          </div>
+          </aside>
         )}
-      </div>
+      </main>
 
       {/* Create / Edit Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl`}>
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${theme.cardBorder} sticky top-0 ${theme.card} z-10`}>
-              <h2 className="font-bold text-lg">{editingId ? 'Edit Shipment' : 'New Shipment'}</h2>
-              <button onClick={() => { setShowForm(false); setEditingId(null); setForm({ ...EMPTY_FORM }); }} className={`${theme.textDim} hover:text-white text-xl`}>✕</button>
-            </div>
-
-            <div className="p-6 grid grid-cols-2 gap-4">
-              {/* Reference */}
-              <div className="col-span-2 sm:col-span-1">
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Reference *</label>
-                <input value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))}
-                  placeholder="e.g. FW-2024-001"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              {/* Customer */}
-              <div className="col-span-2 sm:col-span-1">
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Customer *</label>
-                <input value={form.customer} onChange={e => setForm(f => ({ ...f, customer: e.target.value }))}
-                  placeholder="Customer name"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              {/* Origin */}
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Origin (POL)</label>
-                <input value={form.origin} onChange={e => setForm(f => ({ ...f, origin: e.target.value }))}
-                  placeholder="e.g. Santos, BR"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              {/* Destination */}
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Destination (POD)</label>
-                <input value={form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))}
-                  placeholder="e.g. Rotterdam, NL"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              {/* Mode */}
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Mode</label>
-                <select value={form.mode} onChange={e => setForm(f => ({ ...f, mode: e.target.value as any }))}
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}>
-                  <option value="">Select mode</option>
-                  <option value="ocean">🚢 Ocean</option>
-                  <option value="air">✈️ Air</option>
-                  <option value="road">🚛 Road</option>
-                  <option value="rail">🚂 Rail</option>
-                </select>
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Status</label>
-                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as ShipmentStatus }))}
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}>
-                  {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                </select>
-              </div>
-
-              {/* Commodity */}
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Commodity</label>
-                <input value={form.commodity} onChange={e => setForm(f => ({ ...f, commodity: e.target.value }))}
-                  placeholder="e.g. General Cargo"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              {/* Weight */}
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Weight</label>
-                <input value={form.weight} onChange={e => setForm(f => ({ ...f, weight: e.target.value }))}
-                  placeholder="e.g. 12,500 KG"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              {/* Container */}
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Container</label>
-                <input value={form.container} onChange={e => setForm(f => ({ ...f, container: e.target.value }))}
-                  placeholder="e.g. 1x40HC"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              {/* Incoterm */}
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Incoterm</label>
-                <select value={form.incoterm} onChange={e => setForm(f => ({ ...f, incoterm: e.target.value }))}
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}>
-                  <option value="">Select incoterm</option>
-                  {['EXW','FCA','FAS','FOB','CFR','CIF','CPT','CIP','DAP','DPU','DDP'].map(i => <option key={i} value={i}>{i}</option>)}
-                </select>
-              </div>
-
-              {/* Carrier */}
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Carrier</label>
-                <input value={form.carrier} onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))}
-                  placeholder="e.g. Maersk"
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              {/* ETD */}
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>ETD</label>
-                <input type="date" value={form.etd} onChange={e => setForm(f => ({ ...f, etd: e.target.value }))}
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              {/* ETA */}
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>ETA</label>
-                <input type="date" value={form.eta} onChange={e => setForm(f => ({ ...f, eta: e.target.value }))}
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              {/* Notes */}
-              <div className="col-span-2">
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Notes</label>
-                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                  placeholder="Internal notes..."
-                  rows={3}
-                  className={`w-full px-3 py-2 rounded-xl border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF] resize-none`} />
-              </div>
-            </div>
-
-            <div className={`flex gap-3 px-6 py-4 border-t ${theme.cardBorder}`}>
-              <button onClick={saveShipment}
-                className="flex-1 py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium">
-                {editingId ? 'Save Changes' : 'Create Shipment'}
-              </button>
-              <button onClick={() => { setShowForm(false); setEditingId(null); setForm({ ...EMPTY_FORM }); }}
-                className={`px-6 py-2.5 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-xl text-sm`}>
-                Cancel
-              </button>
-            </div>
+        <Modal title={editingId ? 'Edit Shipment' : 'New Shipment'} icon="tracking" size="lg" onClose={closeForm}
+          footer={<>
+            <Button onClick={closeForm}>Cancel</Button>
+            <Button variant="primary" onClick={saveShipment}>{editingId ? 'Save Changes' : 'Create Shipment'}</Button>
+          </>}>
+          <div className="grid grid-cols-2 gap-4 p-5">
+            <Field label="Reference *" className="col-span-2 sm:col-span-1">
+              <input value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} placeholder="e.g. FW-2024-001" className={`${fieldInput} font-fw-mono`} />
+            </Field>
+            <Field label="Customer *" className="col-span-2 sm:col-span-1">
+              <input value={form.customer} onChange={e => setForm(f => ({ ...f, customer: e.target.value }))} placeholder="Customer name" className={fieldInput} />
+            </Field>
+            <Field label="Origin (POL)">
+              <input value={form.origin} onChange={e => setForm(f => ({ ...f, origin: e.target.value }))} placeholder="e.g. Santos, BR" className={fieldInput} />
+            </Field>
+            <Field label="Destination (POD)">
+              <input value={form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))} placeholder="e.g. Rotterdam, NL" className={fieldInput} />
+            </Field>
+            <Field label="Mode">
+              <select value={form.mode} onChange={e => setForm(f => ({ ...f, mode: e.target.value as any }))} className={selectClass}>
+                <option value="">Select mode</option>
+                <option value="ocean">Ocean</option>
+                <option value="air">Air</option>
+                <option value="road">Road</option>
+                <option value="rail">Rail</option>
+              </select>
+            </Field>
+            <Field label="Status">
+              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as ShipmentStatus }))} className={selectClass}>
+                {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Commodity">
+              <input value={form.commodity} onChange={e => setForm(f => ({ ...f, commodity: e.target.value }))} placeholder="e.g. General Cargo" className={fieldInput} />
+            </Field>
+            <Field label="Weight">
+              <input value={form.weight} onChange={e => setForm(f => ({ ...f, weight: e.target.value }))} placeholder="e.g. 12,500 KG" className={`${fieldInput} font-fw-mono`} />
+            </Field>
+            <Field label="Container">
+              <input value={form.container} onChange={e => setForm(f => ({ ...f, container: e.target.value }))} placeholder="e.g. 1x40HC" className={`${fieldInput} font-fw-mono`} />
+            </Field>
+            <Field label="Incoterm">
+              <select value={form.incoterm} onChange={e => setForm(f => ({ ...f, incoterm: e.target.value }))} className={selectClass}>
+                <option value="">Select incoterm</option>
+                {['EXW','FCA','FAS','FOB','CFR','CIF','CPT','CIP','DAP','DPU','DDP'].map(i => <option key={i} value={i}>{i}</option>)}
+              </select>
+            </Field>
+            <Field label="Carrier">
+              <input value={form.carrier} onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))} placeholder="e.g. Maersk" className={fieldInput} />
+            </Field>
+            <Field label="ETD">
+              <input type="date" value={form.etd} onChange={e => setForm(f => ({ ...f, etd: e.target.value }))} className={`${fieldInput} font-fw-mono`} />
+            </Field>
+            <Field label="ETA">
+              <input type="date" value={form.eta} onChange={e => setForm(f => ({ ...f, eta: e.target.value }))} className={`${fieldInput} font-fw-mono`} />
+            </Field>
+            <Field label="Notes" className="col-span-2">
+              <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Internal notes..." rows={3} className={textareaClass} />
+            </Field>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Share Settings Modal */}
       {shareShipment && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-md shadow-2xl`}>
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${theme.cardBorder}`}>
-              <h2 className="font-bold text-lg">🔗 Share with Customer</h2>
-              <button onClick={() => { setShareShipment(null); setSharePortal(null); }} className={`${theme.textDim} hover:text-white text-xl`}>✕</button>
-            </div>
+        <Modal title="Share with Customer" icon="link" onClose={() => { setShareShipment(null); setSharePortal(null); }}>
+          <div className="space-y-4 p-5">
+            {!sharePortal ? (
+              <p className="flex items-center gap-2 text-app-ui text-app-ink-3"><Spinner className="size-3.5" /> Generating share link...</p>
+            ) : (
+              <>
+                <Field label="Tracking Link">
+                  <div className="flex gap-2">
+                    <input readOnly value={sharePortal.url} className={`${fieldInput} font-fw-mono text-app-mono`} />
+                    <Button icon="copy" onClick={() => copyPortalLink(sharePortal.url)}>Copy Link</Button>
+                  </div>
+                </Field>
 
-            <div className="p-6 space-y-4">
-              {!sharePortal ? (
-                <p className={`text-sm ${theme.textDim}`}>Generating share link...</p>
-              ) : (
-                <>
-                  <div>
-                    <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Tracking Link</label>
+                <div className="flex items-center justify-between">
+                  <span className="text-app-ui">Show carrier name</span>
+                  <Toggle checked={sharePortal.show_carrier} onChange={() => setSharePortal(p => p ? { ...p, show_carrier: !p.show_carrier } : p)} label="Show carrier name" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-app-ui">Show quoted rate</span>
+                  <Toggle checked={sharePortal.show_rate} onChange={() => setSharePortal(p => p ? { ...p, show_rate: !p.show_rate } : p)} label="Show quoted rate" />
+                </div>
+
+                <Field label="Personal Message (optional)">
+                  <textarea value={sharePortal.message || ''} onChange={e => setSharePortal(p => p ? { ...p, message: e.target.value } : p)} rows={2}
+                    placeholder="e.g. Thanks for your business! Track your shipment below." className={textareaClass} />
+                </Field>
+
+                <Field label="Expiry Date (optional)">
+                  <input type="date" value={sharePortal.expires_at ? sharePortal.expires_at.slice(0, 10) : ''} onChange={e => setSharePortal(p => p ? { ...p, expires_at: e.target.value || null } : p)}
+                    className={`${fieldInput} font-fw-mono`} />
+                </Field>
+
+                <Button className="w-full" onClick={saveShareSettings} disabled={shareSaving}>{shareSaving ? 'Saving...' : 'Save Settings'}</Button>
+
+                <div className="border-t border-app-line pt-4">
+                  <Field label="Send by Email">
                     <div className="flex gap-2">
-                      <input readOnly value={sharePortal.url} className={`flex-1 px-3 py-2 rounded-lg border ${theme.input} text-xs`} />
-                      <button onClick={() => copyPortalLink(sharePortal.url)} className={`px-3 py-2 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-lg text-xs font-medium`}>Copy Link</button>
+                      <input value={shareEmail} onChange={e => setShareEmail(e.target.value)} placeholder="customer@example.com" className={fieldInput} />
+                      <Button variant="primary" icon={shareSending ? undefined : 'send'} onClick={sendPortalByEmail} disabled={shareSending}>{shareSending ? 'Sending...' : 'Send'}</Button>
                     </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Show carrier name</span>
-                    <button onClick={() => setSharePortal(p => p ? { ...p, show_carrier: !p.show_carrier } : p)} type="button"
-                      className={`relative flex-shrink-0 w-9 h-5 rounded-full border-0 p-0 transition-colors ${sharePortal.show_carrier ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF]' : (darkMode ? 'bg-white/20' : 'bg-slate-300')}`}>
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${sharePortal.show_carrier ? 'translate-x-4' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Show quoted rate</span>
-                    <button onClick={() => setSharePortal(p => p ? { ...p, show_rate: !p.show_rate } : p)} type="button"
-                      className={`relative flex-shrink-0 w-9 h-5 rounded-full border-0 p-0 transition-colors ${sharePortal.show_rate ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF]' : (darkMode ? 'bg-white/20' : 'bg-slate-300')}`}>
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${sharePortal.show_rate ? 'translate-x-4' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Personal Message (optional)</label>
-                    <textarea value={sharePortal.message || ''} onChange={e => setSharePortal(p => p ? { ...p, message: e.target.value } : p)} rows={2}
-                      placeholder="e.g. Thanks for your business! Track your shipment below."
-                      className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF] resize-none`} />
-                  </div>
-
-                  <div>
-                    <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Expiry Date (optional)</label>
-                    <input type="date" value={sharePortal.expires_at ? sharePortal.expires_at.slice(0, 10) : ''} onChange={e => setSharePortal(p => p ? { ...p, expires_at: e.target.value || null } : p)}
-                      className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-                  </div>
-
-                  <button onClick={saveShareSettings} disabled={shareSaving}
-                    className={`w-full py-2 ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-200 hover:bg-slate-300'} rounded-lg text-sm font-medium disabled:opacity-50`}>
-                    {shareSaving ? 'Saving...' : 'Save Settings'}
-                  </button>
-
-                  <div className={`border-t ${theme.cardBorder} pt-4`}>
-                    <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Send by Email</label>
-                    <div className="flex gap-2">
-                      <input value={shareEmail} onChange={e => setShareEmail(e.target.value)} placeholder="customer@example.com"
-                        className={`flex-1 px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-                      <button onClick={sendPortalByEmail} disabled={shareSending}
-                        className="px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-lg text-white text-sm font-medium disabled:opacity-50">
-                        {shareSending ? 'Sending...' : 'Send'}
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+                  </Field>
+                </div>
+              </>
+            )}
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Track Container Modal */}
       {trackShipment && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`${theme.card} border ${theme.cardBorder} rounded-2xl w-full max-w-sm shadow-2xl`}>
-            <div className={`flex items-center justify-between px-6 py-4 border-b ${theme.cardBorder}`}>
-              <h2 className="font-bold text-lg">🔍 Track Container</h2>
-              <button onClick={() => setTrackShipment(null)} className={`${theme.textDim} hover:text-white text-xl`}>✕</button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {trackError && <div className="px-3 py-2 rounded-lg bg-red-500/20 text-red-400 text-xs">{trackError}</div>}
-
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Container Number *</label>
-                <input value={trackContainerNumber} onChange={e => setTrackContainerNumber(e.target.value.toUpperCase())}
-                  placeholder="e.g. MSCU1234567"
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>BL Number (optional)</label>
-                <input value={trackBlNumber} onChange={e => setTrackBlNumber(e.target.value)}
-                  placeholder="e.g. MAEU221876618"
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`} />
-              </div>
-
-              <div>
-                <label className={`text-xs font-medium ${theme.textDim} mb-1 block`}>Carrier *</label>
-                <select value={trackCarrier} onChange={e => setTrackCarrier(e.target.value)}
-                  className={`w-full px-3 py-2 rounded-lg border ${theme.input} text-sm focus:outline-none focus:border-[#5200FF]`}>
-                  <option value="">Select carrier</option>
-                  {CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-
-              <button onClick={startTracking} disabled={trackSaving || !trackContainerNumber || !trackCarrier}
-                className="w-full py-2.5 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-xl text-white text-sm font-medium disabled:opacity-50">
-                {trackSaving ? 'Starting...' : 'Start Tracking'}
-              </button>
-
-              <p className={`text-[10px] ${theme.textDim} text-center`}>Powered by Terminal49 — supports 33+ shipping lines</p>
-            </div>
+        <Modal title="Track Container" icon="container" size="sm" onClose={() => setTrackShipment(null)}>
+          <div className="space-y-4 p-5">
+            {trackError && <Notice tone="danger" icon="alert">{trackError}</Notice>}
+            <Field label="Container Number *">
+              <input value={trackContainerNumber} onChange={e => setTrackContainerNumber(e.target.value.toUpperCase())} placeholder="e.g. MSCU1234567" className={`${fieldInput} font-fw-mono`} />
+            </Field>
+            <Field label="BL Number (optional)">
+              <input value={trackBlNumber} onChange={e => setTrackBlNumber(e.target.value)} placeholder="e.g. MAEU221876618" className={`${fieldInput} font-fw-mono`} />
+            </Field>
+            <Field label="Carrier *">
+              <select value={trackCarrier} onChange={e => setTrackCarrier(e.target.value)} className={selectClass}>
+                <option value="">Select carrier</option>
+                {CARRIERS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Button variant="primary" className="w-full" onClick={startTracking} disabled={trackSaving || !trackContainerNumber || !trackCarrier}>
+              {trackSaving ? 'Starting...' : 'Start Tracking'}
+            </Button>
+            <p className="text-center font-fw-mono text-app-mono-xs text-app-ink-3">Powered by Terminal49 — supports 33+ shipping lines</p>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

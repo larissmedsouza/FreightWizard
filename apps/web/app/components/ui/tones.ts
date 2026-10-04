@@ -45,6 +45,47 @@ export function workflowTone(status?: string | null): Tone {
   }
 }
 
+/** Shipment tracker status -> tone. */
+export function shipmentTone(status?: string | null): Tone {
+  switch (status) {
+    case "quoted":
+    case "in_transit":
+      return "info"
+    case "booked":
+      return "accent"
+    case "at_destination":
+      return "warn"
+    case "delivered":
+      return "ok"
+    case "cancelled":
+      return "danger"
+    default:
+      return "neutral" // inquiry, closed
+  }
+}
+
+/** Quote status -> tone. */
+export function quoteTone(status?: string | null): Tone {
+  switch (status) {
+    case "sent":
+      return "info"
+    case "accepted":
+      return "ok"
+    case "rejected":
+    case "declined":
+      return "danger"
+    case "expired":
+      return "warn"
+    default:
+      return "neutral" // draft
+  }
+}
+
+/** Transport mode -> line icon name. */
+export const MODE_ICON: Record<string, "ocean" | "air" | "road" | "rail" | "container"> = {
+  ocean: "ocean", sea: "ocean", fcl: "ocean", lcl: "ocean", air: "air", road: "road", truck: "road", rail: "rail", "": "container",
+}
+
 /**
  * Custom folder/label colours were stored in localStorage as Tailwind classes
  * ("text-purple-400"). Map them onto tones so existing labels keep a distinct,
