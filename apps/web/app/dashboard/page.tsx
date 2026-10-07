@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { useSearchParams, usePathname } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import QuoteBuilderModal, { Quote } from '../components/QuoteBuilderModal';
 import TrialBanner from '../components/TrialBanner';
@@ -564,8 +564,12 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const pathname = usePathname();
   const [session, setSession] = useState<string | null>(null);
+  // Opened from an Overview card: emails come from /api/emails/waiting (server-side filter)
+  const [serverView, setServerView] = useState<'awaiting' | 'urgent' | null>(null);
+  const [serverTotal, setServerTotal] = useState<number | null>(null);
   const [user, setUser] = useState<{ email: string; name: string } | null>(null);
   const [emails, setEmails] = useState<Email[]>([]);
   const [selected, setSelected] = useState<Email | null>(null);
@@ -678,11 +682,13 @@ export default function DashboardPage() {
     if (saved.statuses) try { setWorkflowStatuses(JSON.parse(saved.statuses)); } catch {}
     if (saved.assignments) try { setAssignments(JSON.parse(saved.assignments)); } catch {}
     // Filtered views opened from the Overview KPI cards
-    const view = searchParams.get('view');
-    if (view === 'awaiting') setActiveFolder('not_replied');
-    if (view === 'urgent') setActiveFolder('urgent_high_waiting');
+    const param = searchParams.get('view');
+    const view = param === 'awaiting' || param === 'urgent' ? param : null;
+    setServerView(view);
+    setServerTotal(null);
+    setActiveFolder(view === 'awaiting' ? 'not_replied' : view === 'urgent' ? 'urgent_high_waiting' : 'all');
     const sid = searchParams.get('session') || localStorage.getItem('fw_session');
-    if (sid) { localStorage.setItem('fw_session', sid); setSession(sid); checkAuth(sid); }
+    if (sid) { localStorage.setItem('fw_session', sid); setSession(sid); checkAuth(sid, view); }
     else setLoading(false);
   }, [searchParams]);
 
@@ -695,19 +701,22 @@ export default function DashboardPage() {
   useEffect(() => { localStorage.setItem('fw_assignments', JSON.stringify(assignments)); }, [assignments]);
   useEffect(() => { setActiveDetailTab('analysis'); setAiActionResult(null); }, [selected?.id]);
 
-  const checkAuth = async (sid: string) => {
+  const checkAuth = async (sid: string, view: 'awaiting' | 'urgent' | null = serverView) => {
     try {
       const res = await fetch(`${API_URL}/api/auth/status?session=${sid}`);
       const data = await res.json();
-      if (data.authenticated) { setUser({ email: data.email, name: data.name }); await loadEmails(sid); }
+      if (data.authenticated) { setUser({ email: data.email, name: data.name }); await loadEmails(sid, view); }
     } catch (e) { console.error(e); }
     setLoading(false);
   };
 
-  const loadEmails = async (sid: string) => {
+  const loadEmails = async (sid: string, view: 'awaiting' | 'urgent' | null = serverView) => {
     try {
-      const res = await fetch(`${API_URL}/api/emails?session=${sid}`);
+      const res = await fetch(view
+        ? `${API_URL}/api/emails/waiting?session=${sid}&view=${view}`
+        : `${API_URL}/api/emails?session=${sid}`);
       const data = await res.json();
+      if (view) setServerTotal(typeof data.total === 'number' ? data.total : null);
       if (data.emails) setEmails(data.emails.map((e: any) => ({ ...e, analysis: e.analysis || null, isAnalyzing: false })));
     } catch (e) { console.error(e); }
   };
@@ -1312,6 +1321,15 @@ export default function DashboardPage() {
               </label>
 
               <div className="flex flex-1 flex-col overflow-hidden rounded-fw-card border border-app-line bg-app-card">
+                {serverView && (
+                  <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-b border-app-line bg-app-selected px-3 py-2 text-app-ui-sm text-app-ink-2">
+                    <span>
+                      <span className="font-fw-mono font-medium text-app-ink">{serverTotal ?? '…'}</span>{' '}
+                      {serverView === 'urgent' ? 'urgent & high, not replied' : 'not replied'} · last 30 days
+                    </span>
+                    <Button variant="ghost" size="xs" icon="close" onClick={() => router.replace(`/dashboard${session ? `?session=${session}` : ''}`)}>Show full inbox</Button>
+                  </div>
+                )}
                 <div className="flex-shrink-0 border-b border-app-line px-3 py-2.5">
                   <div className="mb-2 flex items-center justify-between">
                     <div>

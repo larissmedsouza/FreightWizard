@@ -9,7 +9,7 @@ import path from 'path';
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID, createHmac, timingSafeEqual } from 'crypto';
 import https from 'https';
 import { PORT_LOCODES } from './ports';
-import { buildOverview, type Db } from './overview';
+import { buildOverview, listWaitingEmails, type Db, type WaitingView } from './overview';
 
 // Load env from root (for local dev)
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -615,6 +615,85 @@ app.get('/api/emails', async (req, res) => {
     res.json({ emails, provider: session.provider || 'google' });
   } catch (error) {
     console.error('Error fetching emails:', error);
+    res.status(500).json({ error: 'Failed to fetch emails' });
+  }
+});
+
+// Read-only: the user's analysed emails still waiting for a reply in the last
+// 30 days (?view=awaiting) or only the urgent/high ones (?view=urgent). Opened
+// from the Overview cards; the list comes from email_analysis with the same
+// filter as the card (overview.ts listWaitingEmails), so the counts match.
+// Message bodies are loaded from the mail provider; a message that can no
+// longer be fetched still appears, with its stored subject/sender/summary.
+app.get('/api/emails/waiting', async (req, res) => {
+  const sessionId = req.query.session as string;
+  const session = await getSession(sessionId);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+  const view: WaitingView = req.query.view === 'urgent' ? 'urgent' : 'awaiting';
+
+  try {
+    const rows = await listWaitingEmails(supabase as unknown as Db, session.userId, view);
+
+    const fetchMessage = async (id: string): Promise<any | null> => {
+      try {
+        if (session.provider === 'outlook') {
+          const r = await fetch(`${MICROSOFT_CONFIG.graphUrl}/me/messages/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${session.tokens.access_token}` } });
+          if (!r.ok) return null;
+          const msg: any = await r.json();
+          const body = msg.body?.content
+            ? (msg.body.contentType === 'html' ? msg.body.content.replace(/<[^>]*>/g, ' ').replace(/s+/g, ' ').trim() : msg.body.content)
+            : '';
+          return { threadId: msg.conversationId, subject: msg.subject, from: msg.from?.emailAddress?.address || msg.from?.emailAddress?.name || '', fromName: msg.from?.emailAddress?.name || '', date: msg.receivedDateTime, snippet: msg.bodyPreview || '', body };
+        }
+        oauth2Client.setCredentials(session.tokens);
+        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+        const full = await gmail.users.messages.get({ userId: 'me', id, format: 'full' });
+        const headers = full.data.payload?.headers || [];
+        const getHeader = (name: string) => headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
+        let body = '';
+        const payload = full.data.payload;
+        if (payload?.body?.data) body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
+        else if (payload?.parts) {
+          const textPart = payload.parts.find(p => p.mimeType === 'text/plain');
+          if (textPart?.body?.data) body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
+        }
+        return { threadId: full.data.threadId, subject: getHeader('Subject'), from: getHeader('From'), date: getHeader('Date'), snippet: full.data.snippet || '', body };
+      } catch {
+        return null;
+      }
+    };
+
+    // Fetch bodies 8 at a time to stay well inside provider rate limits
+    const emails: any[] = [];
+    for (let i = 0; i < rows.length; i += 8) {
+      const batch = rows.slice(i, i + 8);
+      const fetched = await Promise.all(batch.map(r => fetchMessage(r.email_id)));
+      batch.forEach((a, j) => {
+        const m = fetched[j];
+        emails.push({
+          id: a.email_id,
+          threadId: m?.threadId || null,
+          subject: m?.subject || a.subject || '(No Subject)',
+          from: m?.from || a.from_email || '',
+          fromName: m?.fromName,
+          date: m?.date || a.created_at,
+          snippet: m?.snippet || a.summary || '',
+          body: m?.body || '',
+          analysis: {
+            intent: a.intent, priority: a.priority, mode: a.mode,
+            pol: a.pol, pod: a.pod, incoterm: a.incoterm,
+            cargo_type: a.cargo_type, container_type: a.container_type,
+            container_count: a.container_count, missing_info: a.missing_info,
+            summary: a.summary, suggested_reply: a.suggested_reply,
+            replied_at: null,
+          },
+        });
+      });
+    }
+
+    res.json({ emails, total: rows.length, view, provider: session.provider || 'google' });
+  } catch (error) {
+    console.error('Error fetching waiting emails:', error);
     res.status(500).json({ error: 'Failed to fetch emails' });
   }
 });
@@ -2243,14 +2322,16 @@ app.post('/api/track-draft', async (req, res) => {
 
 // ============================================
 // OPERATIONS OVERVIEW (read-only)
-// Scoped to the user's team (profiles.team_id) or to the user alone.
-// Logic and scope test: overview.ts / overview.test.ts
+// ?scope=me (default): same scope as the linked pages. ?scope=team: the
+// user's team (profiles.team_id). Logic and scope test: overview.ts / overview.test.ts
 // ============================================
 app.get('/api/overview', async (req, res) => {
-  const session = await getSession(req.query.session as string);
+  const sessionId = req.query.session as string;
+  const session = await getSession(sessionId);
   if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+  const mode = req.query.scope === 'team' ? 'team' : 'me';
   try {
-    res.json(await buildOverview(supabase as unknown as Db, session.userId));
+    res.json(await buildOverview(supabase as unknown as Db, session.userId, { mode, sessionId }));
   } catch (error) {
     console.error('Overview error:', error);
     res.status(500).json({ error: 'Failed to load overview' });

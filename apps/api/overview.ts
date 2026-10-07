@@ -1,9 +1,12 @@
-// Operations Overview: read-only counts for the logged-in user's team (or the
-// user alone when they have no team). Scoping follows the existing data model:
-//   - team members come from profiles.team_id (same as /api/team/leaderboard)
-//   - shipments and email_analysis are keyed by user_id
-//   - quotes and rate_cards are keyed by the Gmail session_id, so every
-//     session belonging to a member is included
+// Operations Overview: read-only counts in one of two scopes.
+//   'me'   (default) - exactly the scope of the pages the cards link to, so a
+//          card's number matches what the click shows:
+//            shipments, email_analysis -> user_id (as /api/shipments, /api/emails)
+//            quotes, rate_cards        -> the current session_id (as /api/quotes, /api/rates)
+//   'team' - every member of the user's team (profiles.team_id, same as
+//          /api/team/leaderboard) and all of their sessions. No list page shows
+//          this scope, so team cards are not links. Users without a team fall
+//          back to 'me'.
 // The database client is injected so the logic can be tested without Supabase.
 import { portCode } from './ports';
 
@@ -20,9 +23,10 @@ export interface Db { from(table: string): QueryBuilder }
 const CLOSED_STATUSES = new Set(['delivered', 'closed', 'cancelled']);
 const DAY = 86_400_000;
 
-export interface OverviewScope { kind: 'team' | 'user'; name: string | null; members: number; userIds: string[]; sessionIds: string[] }
+export type OverviewMode = 'me' | 'team';
+export interface OverviewScope { kind: 'team' | 'user'; mode: OverviewMode; hasTeam: boolean; name: string | null; members: number; userIds: string[]; sessionIds: string[] }
 
-export async function resolveScope(db: Db, userId: string): Promise<OverviewScope> {
+export async function resolveScope(db: Db, userId: string, mode: OverviewMode = 'me', sessionId?: string): Promise<OverviewScope> {
   const { data: profiles } = await db.from('profiles').select('id, team_id').eq('id', userId);
   const teamId = profiles?.[0]?.team_id || null;
 
@@ -35,16 +39,38 @@ export async function resolveScope(db: Db, userId: string): Promise<OverviewScop
     name = teams?.[0]?.name || null;
   }
 
+  const hasTeam = !!teamId;
+  if (mode === 'me' || !hasTeam) {
+    return { kind: hasTeam ? 'team' : 'user', mode: 'me', hasTeam, name, members: userIds.length, userIds: [userId], sessionIds: sessionId ? [sessionId] : [] };
+  }
+
   const { data: sessions } = await db.from('gmail_sessions').select('session_id, user_id').in('user_id', userIds);
   const sessionIds = Array.from(new Set((sessions || []).map((s: any) => s.session_id).filter(Boolean)));
 
-  return { kind: teamId ? 'team' : 'user', name, members: userIds.length, userIds, sessionIds };
+  return { kind: 'team', mode: 'team', hasTeam, name, members: userIds.length, userIds, sessionIds };
+}
+
+// ---- Inbox: analysed emails still waiting for a reply ----------------------
+// One definition shared by the Overview cards and GET /api/emails/waiting, so
+// the card count and the Inbox list cannot drift apart.
+export type WaitingView = 'awaiting' | 'urgent';
+const isWaiting = (e: any, view: WaitingView) =>
+  !e.replied_at && (view === 'awaiting' || ['urgent', 'high'].includes(String(e.priority || '').toLowerCase()));
+
+/** The current user's analysed, unreplied emails from the last 30 days (newest first). */
+export async function listWaitingEmails(db: Db, userId: string, view: WaitingView, now: Date = new Date()) {
+  const ago30 = new Date(now.getTime() - 30 * DAY).toISOString();
+  const { data } = await db.from('email_analysis').select('*').eq('user_id', userId).gte('created_at', ago30);
+  return ((data || []) as any[])
+    .filter(e => isWaiting(e, view))
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 }
 
 const dateOnly = (d: Date) => d.toISOString().slice(0, 10);
 
-export async function buildOverview(db: Db, userId: string, now: Date = new Date()) {
-  const scope = await resolveScope(db, userId);
+export async function buildOverview(db: Db, userId: string, opts: { mode?: OverviewMode; sessionId?: string; now?: Date } = {}) {
+  const now = opts.now || new Date();
+  const scope = await resolveScope(db, userId, opts.mode || 'me', opts.sessionId);
   const today = dateOnly(now);
   const in7 = dateOnly(new Date(now.getTime() + 7 * DAY));
   const in30 = dateOnly(new Date(now.getTime() + 30 * DAY));
@@ -63,7 +89,7 @@ export async function buildOverview(db: Db, userId: string, now: Date = new Date
   const active = approved.filter(s => !CLOSED_STATUSES.has(s.status));
   const etaOf = (s: any): string | null => (s.t49_pod_eta || s.eta || null) && String(s.t49_pod_eta || s.eta).slice(0, 10);
 
-  const waiting = ((emailRes.data || []) as any[]).filter(e => !e.replied_at);
+  const recentEmails = (emailRes.data || []) as any[];
   const repliedRecent = ((repliedRes.data || []) as any[]).filter(e => typeof e.response_time_minutes === 'number');
 
   const quotes = (quoteRes.data || []) as any[];
@@ -77,10 +103,11 @@ export async function buildOverview(db: Db, userId: string, now: Date = new Date
   const rates = (rateRes.data || []) as any[];
 
   // AI suggestions: Approve only works on your own suggestions
-  // (POST /api/shipments/:id/approve checks ownership), so the strip and its
-  // count are the current user's review queue.
-  const myPending = shipments
-    .filter(s => !s.approved && s.user_id === userId)
+  // (POST /api/shipments/:id/approve checks ownership), so the strip is always
+  // the current user's review queue. The count follows the scope.
+  const pending = shipments.filter(s => !s.approved);
+  const myPending = pending
+    .filter(s => s.user_id === userId)
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 
   const row = (s: any) => {
@@ -102,16 +129,17 @@ export async function buildOverview(db: Db, userId: string, now: Date = new Date
 
   return {
     generatedAt: now.toISOString(),
-    scope: { kind: scope.kind, name: scope.name, members: scope.members },
+    scope: { kind: scope.kind, mode: scope.mode, hasTeam: scope.hasTeam, name: scope.name, members: scope.members },
     kpis: {
       activeShipments: active.length,
       arriving7d: active.filter(s => { const e = etaOf(s); return !!e && e >= today && e <= in7; }).length,
-      inboxWaiting30d: waiting.length,
-      urgentHighWaiting30d: waiting.filter(e => ['urgent', 'high'].includes(String(e.priority || '').toLowerCase())).length,
+      inboxWaiting30d: recentEmails.filter(e => isWaiting(e, 'awaiting')).length,
+      urgentHighWaiting30d: recentEmails.filter(e => isWaiting(e, 'urgent')).length,
       avgReplyMinutes30d: repliedRecent.length
         ? Math.round(repliedRecent.reduce((sum, e) => sum + e.response_time_minutes, 0) / repliedRecent.length)
         : null,
-      aiSuggestions: myPending.length,
+      aiSuggestions: pending.length,
+      myAiSuggestions: myPending.length,
       bookings: approved.filter(s => s.status === 'booked').length,
       inTransit: approved.filter(s => s.status === 'in_transit').length,
       atDestination: approved.filter(s => s.status === 'at_destination').length,

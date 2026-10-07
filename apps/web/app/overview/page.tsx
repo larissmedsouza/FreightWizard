@@ -9,7 +9,7 @@ import TopBar, { type Language } from '../components/ui/TopBar';
 import { appRootClass, EmptyState, Notice } from '../components/ui/Panel';
 import { Button, ButtonLink, Spinner } from '../components/ui/Button';
 import { Tag } from '../components/ui/Tag';
-import { Toast, type ToastData, DataTable, th, td, tdMono, tr } from '../components/ui/Data';
+import { Toast, type ToastData, DataTable, Segmented, th, td, tdMono, tr } from '../components/ui/Data';
 import { shipmentTone, MODE_ICON } from '../components/ui/tones';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
@@ -18,12 +18,14 @@ interface Row {
   id: string; reference: string; customer: string; origin: string; destination: string;
   originCode: string | null; destinationCode: string | null; mode: string; status: string; eta: string | null; mine: boolean;
 }
+type Scope = 'me' | 'team';
+
 interface Overview {
   generatedAt: string;
-  scope: { kind: 'team' | 'user'; name: string | null; members: number };
+  scope: { kind: 'team' | 'user'; mode: Scope; hasTeam: boolean; name: string | null; members: number };
   kpis: {
     activeShipments: number; arriving7d: number; inboxWaiting30d: number; urgentHighWaiting30d: number;
-    avgReplyMinutes30d: number | null; aiSuggestions: number; bookings: number; inTransit: number; atDestination: number;
+    avgReplyMinutes30d: number | null; aiSuggestions: number; myAiSuggestions: number; bookings: number; inTransit: number; atDestination: number;
     quotesAwaiting: { count: number; valueByCurrency: Record<string, number> }; ratesExpiring30d: number;
   };
   suggestions: (Row & { emailSubject: string | null; isUpdate: boolean })[];
@@ -38,7 +40,8 @@ const STATUS_LABEL: Record<string, string> = {
 const T = {
   en: {
     title: 'Operations Overview', team: 'Team', members: 'members', you: 'Your workspace',
-    teamNote: 'Counts cover the whole team; linked pages show your own records.',
+    me: 'Me', scopeLabel: 'Scope', meNote: 'Your records, the same ones each card opens.',
+    teamNote: 'Team totals. The linked pages show your own records, so team cards are not clickable.', teamPending: 'Team · pending', teammate: 'Teammate',
     active: 'Active shipments', arriving: 'Arriving', inbox: 'Customer inbox', urgent: 'Urgent and high waiting',
     avgReply: 'Avg reply time', suggestions: 'AI suggestions to review', bookings: 'Bookings', inTransit: 'In transit',
     atDest: 'At destination', quotes: 'Quotes awaiting answer', rates: 'Rates expiring',
@@ -53,7 +56,8 @@ const T = {
   },
   pt: {
     title: 'Visão Geral das Operações', team: 'Equipa', members: 'membros', you: 'O seu espaço',
-    teamNote: 'Os totais incluem toda a equipa; as páginas ligadas mostram os seus próprios registos.',
+    me: 'Eu', scopeLabel: 'Âmbito', meNote: 'Os seus registos, os mesmos que cada cartão abre.',
+    teamNote: 'Totais da equipa. As páginas ligadas mostram os seus próprios registos, por isso os cartões da equipa não são clicáveis.', teamPending: 'Equipa · pendentes', teammate: 'Colega',
     active: 'Embarques ativos', arriving: 'A chegar', inbox: 'Caixa de clientes', urgent: 'Urgentes e altos em espera',
     avgReply: 'Tempo médio de resposta', suggestions: 'Sugestões de IA para rever', bookings: 'Reservas', inTransit: 'Em trânsito',
     atDest: 'No destino', quotes: 'Cotações a aguardar resposta', rates: 'Tarifas a expirar',
@@ -68,7 +72,8 @@ const T = {
   },
   nl: {
     title: 'Operationeel Overzicht', team: 'Team', members: 'leden', you: 'Jouw werkruimte',
-    teamNote: 'Aantallen gelden voor het hele team; gekoppelde pagina’s tonen je eigen gegevens.',
+    me: 'Ik', scopeLabel: 'Bereik', meNote: 'Jouw gegevens, dezelfde die elke kaart opent.',
+    teamNote: 'Teamtotalen. De gekoppelde pagina’s tonen je eigen gegevens, dus teamkaarten zijn niet klikbaar.', teamPending: 'Team · in afwachting', teammate: 'Teamlid',
     active: 'Actieve zendingen', arriving: 'Aankomend', inbox: 'Klanteninbox', urgent: 'Urgent en hoog wachtend',
     avgReply: 'Gem. reactietijd', suggestions: 'AI-suggesties te beoordelen', bookings: 'Boekingen', inTransit: 'Onderweg',
     atDest: 'Op bestemming', quotes: 'Offertes wachtend op antwoord', rates: 'Tarieven die verlopen',
@@ -90,30 +95,40 @@ const formatMinutes = (m: number) => {
   return h > 0 ? `${h}h ${m % 60}m` : `${m}m`;
 };
 
+const cardBase = 'rounded-fw-card border border-app-line bg-app-card';
+const cardLink = 'group transition-colors hover:border-app-line-strong hover:bg-app-raised';
+
+/** A link when the target page shows the same scope as the number; otherwise plain. */
+function CardShell({ href, className, children }: { href?: string; className: string; children: React.ReactNode }) {
+  return href
+    ? <Link href={href} className={`${cardBase} ${cardLink} ${className}`}>{children}</Link>
+    : <div className={`${cardBase} ${className}`}>{children}</div>;
+}
+
 /** Main KPI card: links to the matching filtered view. */
-function KpiCard({ href, label, value, window, icon, attention = false }: { href: string; label: string; value: React.ReactNode; window: string; icon: IconName; attention?: boolean }) {
+function KpiCard({ href, label, value, window, icon, attention = false }: { href?: string; label: string; value: React.ReactNode; window: string; icon: IconName; attention?: boolean }) {
   return (
-    <Link href={href} className="group flex flex-col rounded-fw-card border border-app-line bg-app-card px-4 py-3 transition-colors hover:border-app-line-strong hover:bg-app-raised">
+    <CardShell href={href} className="flex flex-col px-4 py-3">
       <span className="flex items-start justify-between gap-2 text-app-ui-sm leading-snug text-app-ink-2">
         <span className="flex min-w-0 items-start gap-1.5"><Icon name={icon} size={14} className="mt-0.5 flex-none text-app-ink-3" /><span>{label}</span></span>
-        <Icon name="arrow-right" size={13} className="flex-none text-app-ink-3 opacity-0 transition-opacity group-hover:opacity-100" />
+        {href && <Icon name="arrow-right" size={13} className="flex-none text-app-ink-3 opacity-0 transition-opacity group-hover:opacity-100" />}
       </span>
       <span className={`mt-auto pt-1 font-fw-display text-app-kpi font-normal tabular-nums ${attention ? 'text-app-warn-ink' : 'text-app-ink'}`}>{value}</span>
       <span className="mt-0.5 font-fw-mono text-app-mono-xs uppercase text-app-ink-3">{window}</span>
-    </Link>
+    </CardShell>
   );
 }
 
 /** Compact secondary KPI. */
-function KpiSmall({ href, label, value, extra, window }: { href: string; label: string; value: number; extra?: string; window?: string }) {
+function KpiSmall({ href, label, value, extra, window }: { href?: string; label: string; value: number; extra?: string; window?: string }) {
   return (
-    <Link href={href} className="group flex items-center justify-between gap-3 rounded-fw-card border border-app-line bg-app-card px-3 py-2.5 transition-colors hover:border-app-line-strong hover:bg-app-raised">
+    <CardShell href={href} className="flex items-center justify-between gap-3 px-3 py-2.5">
       <span className="min-w-0">
         <span className="block truncate text-app-ui-sm text-app-ink-2">{label}</span>
         {(extra || window) && <span className="block font-fw-mono text-app-mono-xs uppercase text-app-ink-3">{[extra, window].filter(Boolean).join(' · ')}</span>}
       </span>
       <span className="font-fw-mono text-[1.0625rem] font-medium tabular-nums text-app-ink">{value}</span>
-    </Link>
+    </CardShell>
   );
 }
 
@@ -143,6 +158,8 @@ export default function OverviewPage() {
   const [now, setNow] = useState(() => new Date());
 
   const t = T[language];
+  // Remembered in the URL (?scope=team), never in localStorage. Default: me.
+  const scope: Scope = searchParams.get('scope') === 'team' ? 'team' : 'me';
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('fw_theme');
@@ -160,11 +177,11 @@ export default function OverviewPage() {
       .catch(() => {});
   }, [searchParams, router]);
 
-  const load = useCallback(async (sid: string) => {
+  const load = useCallback(async (sid: string, sc: Scope) => {
     setLoading(true);
     setLoadError(false);
     try {
-      const res = await fetch(`${API_URL}/api/overview?session=${sid}`);
+      const res = await fetch(`${API_URL}/api/overview?session=${sid}&scope=${sc}`);
       if (!res.ok) throw new Error(String(res.status));
       setData(await res.json());
     } catch {
@@ -173,7 +190,7 @@ export default function OverviewPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { if (session) load(session); }, [session, load]);
+  useEffect(() => { if (session) load(session, scope); }, [session, scope, load]);
   useEffect(() => { const i = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(i); }, []);
 
   const notify = (n: ToastData) => { setNotification(n); setTimeout(() => setNotification(null), 3000); };
@@ -186,7 +203,7 @@ export default function OverviewPage() {
       const res = await fetch(`${API_URL}/api/shipments/${id}/approve?session=${session}`, { method: 'POST' });
       if (!res.ok) throw new Error();
       notify({ type: 'success', msg: t.approved });
-      await load(session);
+      await load(session, scope);
     } catch {
       notify({ type: 'error', msg: t.approveFail });
     }
@@ -201,7 +218,16 @@ export default function OverviewPage() {
 
   const dateLine = `${now.toLocaleDateString(LOCALE[language], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · ${now.toLocaleTimeString(LOCALE[language], { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}`;
 
+  const setScope = (sc: Scope) => {
+    const p = new URLSearchParams(searchParams.toString());
+    if (sc === 'team') p.set('scope', 'team'); else p.delete('scope');
+    router.replace(`/overview?${p.toString()}`, { scroll: false });
+  };
+
   const k = data?.kpis;
+  // Team numbers have no matching list page, so they are not links.
+  const isMe = data?.scope.mode !== 'team';
+  const to = (path: string, params: Record<string, string> = {}, hash = '') => (isMe ? link(path, params) + hash : undefined);
   const quoteValue = k ? Object.entries(k.quotesAwaiting.valueByCurrency).map(([cur, v]) => `${cur} ${Math.round(v).toLocaleString(LOCALE[language])}`).join(' · ') : '';
 
   return (
@@ -220,14 +246,16 @@ export default function OverviewPage() {
             <h1 className="mt-1 font-fw-display text-app-title font-light text-app-ink">{t.title}</h1>
           </div>
           {data && (
-            <div className="text-right">
-              <p className="inline-flex items-center gap-1.5 text-app-ui-sm text-app-ink-2">
-                <Icon name={data.scope.kind === 'team' ? 'team' : 'user'} size={14} className="text-app-ink-3" />
-                {data.scope.kind === 'team'
-                  ? <>{t.team} · <span className="font-medium text-app-ink">{data.scope.name}</span> · <span className="font-fw-mono">{data.scope.members}</span> {t.members}</>
-                  : t.you}
+            <div className="flex flex-col items-start gap-1.5 sm:items-end">
+              {data.scope.hasTeam ? (
+                <Segmented<Scope> label={t.scopeLabel} value={scope} onChange={setScope}
+                  options={[{ value: 'me', label: t.me, icon: 'user' }, { value: 'team', label: <>{t.team} · {data.scope.name}</>, icon: 'team' }]} />
+              ) : (
+                <p className="inline-flex items-center gap-1.5 text-app-ui-sm text-app-ink-2"><Icon name="user" size={14} className="text-app-ink-3" />{t.you}</p>
+              )}
+              <p className="max-w-md text-app-ui-sm text-app-ink-3 sm:text-right">
+                {isMe ? t.meNote : <>{t.teamNote} <span className="font-fw-mono">{data.scope.members}</span> {t.members}.</>}
               </p>
-              {data.scope.kind === 'team' && <p className="mt-0.5 text-app-ui-sm text-app-ink-3">{t.teamNote}</p>}
             </div>
           )}
         </div>
@@ -236,26 +264,26 @@ export default function OverviewPage() {
           <div className="flex h-64 items-center justify-center"><Spinner className="size-6 text-app-accent" /></div>
         ) : loadError && !data ? (
           <Notice tone="danger" icon="alert" title={t.loadError}
-            action={<Button size="sm" icon="refresh" onClick={() => session && load(session)}>{t.retry}</Button>} />
+            action={<Button size="sm" icon="refresh" onClick={() => session && load(session, scope)}>{t.retry}</Button>} />
         ) : k && data ? (
           <>
             {/* Main KPI grid */}
             <section aria-label="Key figures" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-              <KpiCard href={link('/shipments')} icon="tracking" label={t.active} value={k.activeShipments} window={t.now} />
-              <KpiCard href={link('/shipments', { view: 'arriving' })} icon="calendar" label={`${t.arriving}`} value={k.arriving7d} window={t.next7} />
-              <KpiCard href={link('/dashboard', { view: 'awaiting' })} icon="inbox" label={t.inbox} value={k.inboxWaiting30d} window={`${t.notReplied} · ${t.last30}`} />
-              <KpiCard href={link('/dashboard', { view: 'urgent' })} icon="flag" label={t.urgent} value={k.urgentHighWaiting30d} window={t.last30} attention={k.urgentHighWaiting30d > 0} />
-              <KpiCard href={link('/analytics')} icon="clock" label={t.avgReply} value={k.avgReplyMinutes30d == null ? '—' : formatMinutes(k.avgReplyMinutes30d)} window={k.avgReplyMinutes30d == null ? `${t.noReplies} · ${t.last30}` : t.last30} />
-              <KpiCard href={`${link('/shipments')}#suggestions`} icon="sparkle" label={t.suggestions} value={k.aiSuggestions} window={t.yours} />
+              <KpiCard href={to('/shipments')} icon="tracking" label={t.active} value={k.activeShipments} window={t.now} />
+              <KpiCard href={to('/shipments', { view: 'arriving' })} icon="calendar" label={`${t.arriving}`} value={k.arriving7d} window={t.next7} />
+              <KpiCard href={to('/dashboard', { view: 'awaiting' })} icon="inbox" label={t.inbox} value={k.inboxWaiting30d} window={`${t.notReplied} · ${t.last30}`} />
+              <KpiCard href={to('/dashboard', { view: 'urgent' })} icon="flag" label={t.urgent} value={k.urgentHighWaiting30d} window={t.last30} attention={k.urgentHighWaiting30d > 0} />
+              <KpiCard icon="clock" label={t.avgReply} value={k.avgReplyMinutes30d == null ? '—' : formatMinutes(k.avgReplyMinutes30d)} window={k.avgReplyMinutes30d == null ? `${t.noReplies} · ${t.last30}` : t.last30} />
+              <KpiCard href={to('/shipments', {}, '#suggestions')} icon="sparkle" label={t.suggestions} value={k.aiSuggestions} window={isMe ? t.yours : t.teamPending} />
             </section>
 
             {/* Secondary row */}
             <section aria-label="Pipeline" className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5">
-              <KpiSmall href={link('/shipments', { status: 'booked' })} label={t.bookings} value={k.bookings} />
-              <KpiSmall href={link('/shipments', { status: 'in_transit' })} label={t.inTransit} value={k.inTransit} />
-              <KpiSmall href={link('/shipments', { status: 'at_destination' })} label={t.atDest} value={k.atDestination} />
-              <KpiSmall href={link('/quotes', { status: 'sent' })} label={t.quotes} value={k.quotesAwaiting.count} extra={quoteValue || undefined} />
-              <KpiSmall href={link('/rates', { filter: 'expiring' })} label={t.rates} value={k.ratesExpiring30d} window={t.next30} />
+              <KpiSmall href={to('/shipments', { status: 'booked' })} label={t.bookings} value={k.bookings} />
+              <KpiSmall href={to('/shipments', { status: 'in_transit' })} label={t.inTransit} value={k.inTransit} />
+              <KpiSmall href={to('/shipments', { status: 'at_destination' })} label={t.atDest} value={k.atDestination} />
+              <KpiSmall href={to('/quotes', { status: 'sent' })} label={t.quotes} value={k.quotesAwaiting.count} extra={quoteValue || undefined} />
+              <KpiSmall href={to('/rates', { filter: 'expiring' })} label={t.rates} value={k.ratesExpiring30d} window={t.next30} />
             </section>
 
             {/* Suggestions strip */}
@@ -263,11 +291,12 @@ export default function OverviewPage() {
               <div className="flex items-center justify-between gap-3 border-b border-app-line px-4 py-2.5">
                 <p className="flex items-center gap-2 text-app-ui font-semibold">
                   <Tag tone="info">Review</Tag> {t.sugTitle}
-                  <span className="font-fw-mono text-app-mono text-app-ink-3">{k.aiSuggestions}</span>
+                  <span className="font-fw-mono text-app-mono text-app-ink-3">{k.myAiSuggestions}</span>
+                  <span className="text-app-ui-sm font-normal text-app-ink-3">· {t.yours}</span>
                 </p>
-                {k.aiSuggestions > 3 && (
+                {k.myAiSuggestions > 3 && (
                   <Link href={`${link('/shipments')}#suggestions`} className="inline-flex items-center gap-1 text-app-ui-sm font-medium text-app-accent hover:underline">
-                    {t.reviewAll} · <span className="font-fw-mono">{k.aiSuggestions}</span> <Icon name="arrow-right" size={13} />
+                    {t.reviewAll} · <span className="font-fw-mono">{k.myAiSuggestions}</span> <Icon name="arrow-right" size={13} />
                   </Link>
                 )}
               </div>
@@ -326,9 +355,11 @@ export default function OverviewPage() {
                   </thead>
                   <tbody>
                     {data.shipments.map(r => (
-                      <tr key={r.id} className={`${tr} cursor-pointer hover:bg-app-raised`} onClick={() => router.push(link('/shipments'))}>
+                      <tr key={r.id} className={`${tr} ${r.mine ? 'cursor-pointer hover:bg-app-raised' : ''}`} onClick={r.mine ? () => router.push(link('/shipments')) : undefined}>
                         <th scope="row" className={`${tdMono} text-left font-normal`}>
-                          <Link href={link('/shipments')} className="hover:underline" onClick={e => e.stopPropagation()}>{r.reference || '—'}</Link>
+                          {r.mine
+                            ? <Link href={link('/shipments')} className="hover:underline" onClick={e => e.stopPropagation()}>{r.reference || '—'}</Link>
+                            : <>{r.reference || '—'} <span className="ml-1 font-fw-sans text-app-ui-sm text-app-ink-3">· {t.teammate}</span></>}
                         </th>
                         <td className={`${td} max-w-xs`}><RouteCell r={r} /></td>
                         <td className={td}>
