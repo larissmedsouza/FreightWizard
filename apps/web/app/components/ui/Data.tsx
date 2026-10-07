@@ -94,9 +94,9 @@ export function Segmented<T extends string>({
 /* ---- Tables ---------------------------------------------------------------- */
 
 /** FreightGuild table: mono uppercase headers, hairline rows, values in mono where they are data. */
-export const th = "px-4 py-2.5 text-left font-fw-mono text-app-mono-xs font-normal uppercase text-app-ink-3 whitespace-nowrap"
-export const td = "px-4 py-3 align-middle"
-export const tdMono = "px-4 py-3 align-middle font-fw-mono text-app-mono whitespace-nowrap"
+export const th = "px-3 py-2.5 xl:px-4 text-left font-fw-mono text-app-mono-xs font-normal uppercase text-app-ink-3 whitespace-nowrap"
+export const td = "px-3 py-3 align-middle xl:px-4"
+export const tdMono = "px-3 py-3 align-middle xl:px-4 font-fw-mono text-app-mono whitespace-nowrap"
 export const tr = "border-b border-app-line last:border-0"
 
 export function DataTable({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) {
@@ -145,10 +145,10 @@ export function SearchField({
 /** Route rendered as mono "A → B". */
 export function Route({ from, to, className = "" }: { from?: string; to?: string; className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 font-fw-mono text-app-mono ${className}`}>
-      <span className="truncate">{from || "—"}</span>
+    <span className={`inline-flex flex-wrap items-center gap-x-1.5 font-fw-mono text-app-mono ${className}`}>
+      <span className="whitespace-nowrap">{from || "—"}</span>
       <Icon name="arrow-right" size={12} className="flex-none text-app-ink-3" />
-      <span className="truncate">{to || "—"}</span>
+      <span className="whitespace-nowrap">{to || "—"}</span>
     </span>
   )
 }

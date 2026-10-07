@@ -13,13 +13,14 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger"
 export type ButtonSize = "xs" | "sm" | "md" | "lg" | "icon" | "icon-sm"
 
 const base =
-  "inline-flex items-center justify-center gap-1.5 rounded-fw-btn font-medium whitespace-nowrap transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+  "inline-flex items-center justify-center gap-1.5 rounded-fw-btn font-medium whitespace-nowrap transition-colors duration-150 disabled:cursor-not-allowed"
 
 const variants: Record<ButtonVariant, string> = {
-  primary: "bg-app-accent-fill text-app-on-accent hover:bg-app-accent-hover",
-  secondary: "border border-app-line-strong bg-app-card text-app-ink hover:bg-app-raised",
-  ghost: "text-app-ink-2 hover:bg-app-raised hover:text-app-ink",
-  danger: "border border-app-line-strong bg-app-card text-app-danger-ink hover:bg-app-danger-bg",
+  // Disabled primary goes neutral rather than a faded indigo
+  primary: "bg-app-accent-fill text-app-on-accent hover:bg-app-accent-hover disabled:bg-app-raised disabled:text-app-ink-3 disabled:hover:bg-app-raised",
+  secondary: "border border-app-line-strong bg-app-card text-app-ink hover:bg-app-raised disabled:opacity-50",
+  ghost: "text-app-ink-2 hover:bg-app-raised hover:text-app-ink disabled:opacity-50",
+  danger: "border border-app-line-strong bg-app-card text-app-danger-ink hover:bg-app-danger-bg disabled:opacity-50",
 }
 
 const sizes: Record<ButtonSize, string> = {

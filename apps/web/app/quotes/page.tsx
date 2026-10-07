@@ -99,7 +99,7 @@ export default function QuotesPage() {
 
       <TrialBanner session={session} />
 
-      <main className="p-4 lg:p-6">
+      <main className="mx-auto max-w-7xl p-4 lg:p-6">
         <PageHeader className="mb-5" title="Quote History" />
 
         {/* Summary stats */}
@@ -134,7 +134,7 @@ export default function QuotesPage() {
                 <td className={td}>{q.customer_name || '—'}</td>
                 <td className={td}><Route from={q.origin} to={q.destination} className="text-app-ink-2" /></td>
                 <td className={td}>
-                  <span className="inline-flex items-center gap-1.5 font-fw-mono text-app-mono-xs uppercase text-app-ink-2">
+                  <span className="flex items-center gap-1.5 font-fw-mono text-app-mono-xs uppercase text-app-ink-2">
                     <Icon name={MODE_ICON[q.mode] || 'container'} size={15} className="text-app-ink-3" />{q.mode || '—'}
                   </span>
                 </td>

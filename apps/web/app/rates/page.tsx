@@ -200,7 +200,7 @@ export default function RatesPage() {
 
       <TrialBanner session={session} />
 
-      <main className="p-4 lg:p-6">
+      <main className="mx-auto max-w-7xl p-4 lg:p-6">
         <PageHeader
           className="mb-5"
           title="Rate Cards"
@@ -268,7 +268,7 @@ export default function RatesPage() {
                 <th scope="col" className={th}>Buy</th>
                 <th scope="col" className={th}>Sell</th>
                 <th scope="col" className={th}>Margin</th>
-                <th scope="col" className={th}>Transit</th>
+                <th scope="col" className={`${th} hidden xl:table-cell`}>Transit</th>
                 <th scope="col" className={th}>Validity</th>
                 <th scope="col" className={th}><span className="sr-only">Actions</span></th>
               </tr>
@@ -280,13 +280,13 @@ export default function RatesPage() {
                 return (
                   <tr key={r.id} className={`${tr} ${!r.is_active ? 'opacity-50' : ''}`}>
                     <th scope="row" className={`${td} text-left font-normal`}><Route from={r.origin} to={r.destination} /></th>
-                    <td className={td}><span className="inline-flex items-center gap-1.5 font-fw-mono text-app-mono-xs uppercase text-app-ink-2"><Icon name={MODE_ICON[r.mode] || 'container'} size={15} className="text-app-ink-3" />{r.mode}</span></td>
+                    <td className={td}><span className="flex items-center gap-1.5 font-fw-mono text-app-mono-xs uppercase text-app-ink-2"><Icon name={MODE_ICON[r.mode] || 'container'} size={15} className="text-app-ink-3" />{r.mode}</span></td>
                     <td className={td}>{r.carrier}</td>
                     <td className={`${tdMono} text-app-ink-2`}>{r.container_type || '—'}</td>
                     <td className={tdMono}>{r.buy_rate != null ? `${r.currency} ${Number(r.buy_rate).toFixed(2)}` : '—'}</td>
                     <td className={`${tdMono} font-medium`}>{r.sell_rate != null ? `${r.currency} ${Number(r.sell_rate).toFixed(2)}` : '—'}</td>
                     <td className={tdMono}>{margin != null ? <span className={`font-medium ${toneClass[marginTone(margin)].text}`}>{margin.toFixed(0)}%</span> : '—'}</td>
-                    <td className={`${tdMono} text-app-ink-2`}>{r.transit_time || '—'}</td>
+                    <td className={`${tdMono} hidden text-app-ink-2 xl:table-cell`}>{r.transit_time || '—'}</td>
                     <td className={td}><Tag tone={validity.tone}>{validity.label}</Tag></td>
                     <td className={td}>
                       <div className="flex gap-1">
