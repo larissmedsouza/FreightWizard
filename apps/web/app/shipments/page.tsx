@@ -171,6 +171,9 @@ export default function ShipmentsPage() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
+  // Filtered views opened from the Overview (status=..., view=arriving)
+  const [statusOnly, setStatusOnly] = useState<ShipmentStatus | null>(null);
+  const [arrivingOnly, setArrivingOnly] = useState(false);
 
   const [portals, setPortals] = useState<Portal[]>([]);
   const [shareShipment, setShareShipment] = useState<Shipment | null>(null);
@@ -211,6 +214,9 @@ export default function ShipmentsPage() {
     if (savedTheme) setDarkMode(savedTheme === 'dark');
     if (savedLang) setLanguage(savedLang);
     if (savedAutoDetect !== null) setAiAutoDetect(savedAutoDetect === 'true');
+    const statusParam = searchParams.get('status') as ShipmentStatus | null;
+    if (statusParam && STATUSES.some(s => s.key === statusParam)) setStatusOnly(statusParam);
+    if (searchParams.get('view') === 'arriving') setArrivingOnly(true);
 
     const sid = searchParams.get('session') || localStorage.getItem('fw_session');
     if (sid) {
@@ -527,7 +533,12 @@ export default function ShipmentsPage() {
   const filtered = shipments.filter(s => {
     const matchMode = !filterMode || s.mode === filterMode;
     const matchSearch = !searchQuery || [s.reference, s.customer, s.origin, s.destination, s.commodity].some(f => f?.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchMode && matchSearch;
+    const matchStatus = !statusOnly || s.status === statusOnly;
+    const eta = (s.t49PodEta || s.eta || '').slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const in7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const matchArriving = !arrivingOnly || (!!eta && eta >= today && eta <= in7 && !['delivered', 'closed', 'cancelled'].includes(s.status));
+    return matchMode && matchSearch && matchStatus && matchArriving;
   });
 
   const byStatus = (status: ShipmentStatus) => filtered.filter(s => s.status === status);
@@ -571,7 +582,7 @@ export default function ShipmentsPage() {
 
         {/* Pending AI suggestions */}
         {pending.length > 0 && (
-          <section className="mb-5 rounded-fw-card border border-app-line bg-app-panel p-4" aria-label="AI suggestions">
+          <section id="suggestions" className="mb-5 scroll-mt-16 rounded-fw-card border border-app-line bg-app-panel p-4" aria-label="AI suggestions">
             <h2 className="mb-3 flex items-center gap-2 text-app-ui font-semibold text-app-ink">
               <Tag tone="accent">AI</Tag>
               Detected <span className="font-fw-mono">{pending.length}</span> shipment{pending.length > 1 ? 's' : ''} from your emails — review before adding
@@ -612,6 +623,14 @@ export default function ShipmentsPage() {
               ))}
             </div>
           </section>
+        )}
+
+        {(statusOnly || arrivingOnly) && (
+          <div className="mb-3 flex items-center gap-2 text-app-ui-sm text-app-ink-2">
+            <Icon name="filter" size={14} className="text-app-ink-3" /> Showing
+            <Chip>{statusOnly ? STATUSES.find(s => s.key === statusOnly)?.label : 'Arriving in the next 7 days'}</Chip>
+            <Button variant="ghost" size="xs" icon="close" onClick={() => { setStatusOnly(null); setArrivingOnly(false); }}>Clear filter</Button>
+          </div>
         )}
 
         {/* Kanban Board */}

@@ -9,6 +9,7 @@ export type Language = 'en' | 'pt' | 'nl';
 
 /** Top navigation, shared by every logged-in page. Order is the product's main flow. */
 export const APP_NAV = [
+  { href: '/overview', label: { en: 'Overview', pt: 'Visão Geral', nl: 'Overzicht' } },
   { href: '/dashboard', label: { en: 'Inbox', pt: 'Caixa de Entrada', nl: 'Inbox' } },
   { href: '/shipments', label: { en: 'Shipments', pt: 'Embarques', nl: 'Zendingen' } },
   { href: '/quotes', label: { en: 'Quotes', pt: 'Cotações', nl: 'Offertes' } },
@@ -66,7 +67,7 @@ export default function TopBar({
   return (
     <header className="sticky top-0 z-40 border-b border-app-bar-line bg-app-bar-bg font-fw-sans text-app-bar-ink">
       <div className="flex h-12 items-center gap-4 px-4 lg:px-6">
-        <Link href={session ? withSession('/dashboard') : '/'} className="flex flex-shrink-0 items-center" aria-label="FreightWizard">
+        <Link href={session ? withSession('/overview') : '/'} className="flex flex-shrink-0 items-center" aria-label="FreightWizard">
           <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-5 w-auto" />
         </Link>
 

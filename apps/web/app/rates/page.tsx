@@ -84,6 +84,7 @@ export default function RatesPage() {
   const [filterMode, setFilterMode] = useState('');
   const [filterCarrier, setFilterCarrier] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [expiringOnly, setExpiringOnly] = useState(false); // opened from the Overview
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -98,6 +99,7 @@ export default function RatesPage() {
     const savedLang = localStorage.getItem('fw_lang') as Language;
     if (savedTheme) setDarkMode(savedTheme === 'dark');
     if (savedLang) setLanguage(savedLang);
+    if (searchParams.get('filter') === 'expiring') setExpiringOnly(true);
 
     const sid = searchParams.get('session') || localStorage.getItem('fw_session');
     if (sid) {
@@ -173,6 +175,7 @@ export default function RatesPage() {
   const filtered = rates.filter(r => {
     if (filterMode && r.mode !== filterMode) return false;
     if (filterCarrier && r.carrier !== filterCarrier) return false;
+    if (expiringOnly && !(r.is_active && r.validity_end && daysUntil(r.validity_end) >= 0 && daysUntil(r.validity_end) <= 30)) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       if (!r.origin.toLowerCase().includes(q) && !r.destination.toLowerCase().includes(q)) return false;
@@ -240,6 +243,12 @@ export default function RatesPage() {
             {carriers.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <SearchField value={searchQuery} onChange={setSearchQuery} placeholder="Search origin or destination..." className="w-64" />
+          {expiringOnly && (
+            <span className="flex items-center gap-1.5">
+              <Chip>Expiring in the next 30 days</Chip>
+              <Button variant="ghost" size="xs" icon="close" onClick={() => setExpiringOnly(false)}>Clear filter</Button>
+            </span>
+          )}
         </div>
 
         {/* Table / empty state */}

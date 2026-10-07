@@ -8,6 +8,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID, createHmac, timingSafeEqual } from 'crypto';
 import https from 'https';
+import { PORT_LOCODES } from './ports';
+import { buildOverview, type Db } from './overview';
 
 // Load env from root (for local dev)
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -372,7 +374,7 @@ app.get('/auth/google/callback', async (req, res) => {
     await getOrCreateSubscription(data.email!, sessionId);
 
     console.log(`✅ Google OAuth success: ${data.email} (User ID: ${userId})`);
-    res.redirect(`${FRONTEND_URL}/dashboard?session=${sessionId}`);
+    res.redirect(`${FRONTEND_URL}/overview?session=${sessionId}`);
   } catch (error) {
     console.error('OAuth error:', error);
     res.status(500).send('Authentication failed: ' + (error as any).message);
@@ -436,7 +438,7 @@ app.get('/auth/outlook/callback', async (req, res) => {
     await getOrCreateSubscription(userEmail, sessionId);
 
     console.log(`✅ Outlook OAuth success: ${userEmail} (User ID: ${userId})`);
-    res.redirect(`${FRONTEND_URL}/dashboard?session=${sessionId}`);
+    res.redirect(`${FRONTEND_URL}/overview?session=${sessionId}`);
   } catch (error) {
     console.error('Outlook OAuth error:', error);
     res.status(500).send('Authentication failed');
@@ -1886,17 +1888,7 @@ app.delete('/api/rates/:id', async (req, res) => {
   res.json({ rate: data });
 });
 
-// Common UN/LOCODEs -> city name, so "Santos" and "BRSSZ" resolve to the same
-// token. Pure substring matching can't know BRSSZ *means* Santos — token
-// overlap alone isn't enough, this mapping is what actually makes port-code
-// vs free-text lane entry match. Not exhaustive; covers common freight ports.
-const PORT_LOCODES: Record<string, string> = {
-  brssz: 'santos', nlrtm: 'rotterdam', cnsha: 'shanghai', cnngb: 'ningbo', cnszx: 'shenzhen',
-  deham: 'hamburg', usnyc: 'new york', uslax: 'los angeles', uslgb: 'long beach',
-  sgsin: 'singapore', gbfxt: 'felixstowe', beanr: 'antwerp', esvlc: 'valencia', itgoa: 'genoa',
-  innsa: 'nhava sheva', aejea: 'jebel ali', krpus: 'busan', jptyo: 'tokyo', jpyok: 'yokohama',
-  mypkg: 'port klang', thbkk: 'bangkok', vnsgn: 'ho chi minh', brrig: 'rio grande', brpnb: 'paranagua',
-};
+// UN/LOCODE table lives in ports.ts (shared with the Operations Overview).
 
 // Fuzzy-match tokens for lane matching — "Santos, BR" -> ["santos, br", "santos", "br"
 // (short tokens filtered out below)]. Forwarders type ports inconsistently
@@ -2248,6 +2240,22 @@ app.post('/api/track-draft', async (req, res) => {
 // ============================================
 // ANALYTICS ENDPOINTS
 // ============================================
+
+// ============================================
+// OPERATIONS OVERVIEW (read-only)
+// Scoped to the user's team (profiles.team_id) or to the user alone.
+// Logic and scope test: overview.ts / overview.test.ts
+// ============================================
+app.get('/api/overview', async (req, res) => {
+  const session = await getSession(req.query.session as string);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    res.json(await buildOverview(supabase as unknown as Db, session.userId));
+  } catch (error) {
+    console.error('Overview error:', error);
+    res.status(500).json({ error: 'Failed to load overview' });
+  }
+});
 
 app.get('/api/analytics', async (req, res) => {
   const sessionId = req.query.session as string;

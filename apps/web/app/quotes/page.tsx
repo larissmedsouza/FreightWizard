@@ -50,6 +50,8 @@ export default function QuotesPage() {
     const savedLang = localStorage.getItem('fw_lang') as Language;
     if (savedTheme) setDarkMode(savedTheme === 'dark');
     if (savedLang) setLanguage(savedLang);
+    const statusParam = searchParams.get('status') as QuoteStatus | null;
+    if (statusParam && STATUS_TABS.some(t => t.key === statusParam)) setStatusFilter(statusParam);
 
     const sid = searchParams.get('session') || localStorage.getItem('fw_session');
     if (sid) {

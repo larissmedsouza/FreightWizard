@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "start": "npx tsx server.ts",
-    "dev": "npx tsx watch server.ts"
+    "dev": "npx tsx watch server.ts",
+    "test": "npx tsx --test overview.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",

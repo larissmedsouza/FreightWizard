@@ -199,6 +199,8 @@ const SYSTEM_FOLDERS: FolderDef[] = [
   { key: 'booking_confirmation', label: 'Bookings', icon: 'booking', group: 'intent' },
   { key: 'tracking_inquiry', label: 'Tracking', icon: 'tracking', group: 'intent' },
   { key: 'documentation_request', label: 'Documents', icon: 'docs', group: 'intent' },
+  // Not in the sidebar: opened from the Overview ("Urgent and high waiting").
+  { key: 'urgent_high_waiting', label: 'Urgent & high · not replied', icon: 'flag', group: 'view' },
 ];
 
 const AI_ACTIONS = [
@@ -675,6 +677,10 @@ export default function DashboardPage() {
     if (saved.notes) try { setNotes(JSON.parse(saved.notes)); } catch {}
     if (saved.statuses) try { setWorkflowStatuses(JSON.parse(saved.statuses)); } catch {}
     if (saved.assignments) try { setAssignments(JSON.parse(saved.assignments)); } catch {}
+    // Filtered views opened from the Overview KPI cards
+    const view = searchParams.get('view');
+    if (view === 'awaiting') setActiveFolder('not_replied');
+    if (view === 'urgent') setActiveFolder('urgent_high_waiting');
     const sid = searchParams.get('session') || localStorage.getItem('fw_session');
     if (sid) { localStorage.setItem('fw_session', sid); setSession(sid); checkAuth(sid); }
     else setLoading(false);
@@ -966,6 +972,7 @@ export default function DashboardPage() {
         case 'booking_confirmation': return a?.intent === 'booking_confirmation';
         case 'tracking_inquiry': return a?.intent === 'tracking_inquiry';
         case 'documentation_request': return a?.intent === 'documentation_request';
+        case 'urgent_high_waiting': return !!a && !a.replied_at && ['urgent', 'high'].includes(a?.priority?.toLowerCase());
         default: return false;
       }
     });
@@ -996,6 +1003,7 @@ export default function DashboardPage() {
           case 'booking_confirmation': return a?.intent === 'booking_confirmation';
           case 'tracking_inquiry': return a?.intent === 'tracking_inquiry';
           case 'documentation_request': return a?.intent === 'documentation_request';
+          case 'urgent_high_waiting': return !!a && !a.replied_at && ['urgent', 'high'].includes(a?.priority?.toLowerCase());
           default: return false;
         }
       }).length;
