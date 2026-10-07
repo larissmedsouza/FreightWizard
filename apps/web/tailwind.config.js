@@ -28,7 +28,7 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['var(--font-inter)', ...defaultTheme.fontFamily.sans],
+        sans: ['var(--font-plex-sans)', ...defaultTheme.fontFamily.sans],
         // Landing page + app (brand/tokens.js)
         'fw-display': fw.fontFamily.display,
         'fw-sans': fw.fontFamily.sans,

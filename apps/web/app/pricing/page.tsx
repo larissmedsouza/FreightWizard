@@ -4,6 +4,10 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { PLANS } from '../lib/plans';
+import { ButtonLink, buttonClass } from '../components/marketing/Button';
+import { SectionHeader } from '../components/marketing/Section';
+import FwIcon from '../components/ui/Icon';
+import RevealObserver from '../components/marketing/RevealObserver';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
@@ -72,112 +76,137 @@ export default function PricingPage() {
     }
   };
 
+  const statusTag = 'rounded-fw-btn bg-fw-indigo-tint px-2 py-0.5 font-fw-mono text-fw-data-xs uppercase text-fw-indigo-200';
+  const yes = <><FwIcon name="check" size={16} className="text-fw-indigo-300" /><span className="sr-only">Included</span></>;
+  const no = <><FwIcon name="minus" size={16} className="text-fw-ink-3" /><span className="sr-only">Not included</span></>;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#050510] via-[#0a0a1a] to-[#050510] text-white">
-      <header className="px-6 py-4 flex items-center justify-between max-w-6xl mx-auto">
-        <Link href="/" className="flex items-center gap-2">
-          <img src="/icons/webpage_main_logo_white.svg" alt="FreightWizard" className="h-6 w-6 object-contain" />
-          <span className="font-bold">FreightWizard</span>
-        </Link>
-        {session ? (
-          <Link href={`/billing?session=${session}`} className="text-sm text-gray-400 hover:text-white">Billing</Link>
-        ) : (
-          <Link href="/dashboard" className="px-4 py-2 bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] rounded-full text-sm font-medium">Start Free Trial</Link>
-        )}
+    <div className="min-h-screen bg-fw-canvas font-fw-sans text-fw-body text-fw-ink antialiased selection:bg-fw-indigo-500 selection:text-fw-white [&_:focus-visible]:rounded-[2px] [&_:focus-visible]:outline [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-offset-[3px] [&_:focus-visible]:outline-fw-indigo-300">
+      <RevealObserver />
+      <header className="border-b border-fw-line bg-fw-canvas">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-10">
+          <Link href="/" className="flex items-center">
+            <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-7 w-auto" />
+          </Link>
+          {session ? (
+            <Link href={`/billing?session=${session}`} className="text-fw-small text-fw-ink-2 transition-colors hover:text-fw-ink">Billing</Link>
+          ) : (
+            <ButtonLink href="/dashboard">Start Free Trial</ButtonLink>
+          )}
+        </div>
       </header>
 
       {/* Hero */}
-      <div className="text-center px-6 pt-12 pb-10 max-w-2xl mx-auto">
-        <h1 className="text-4xl sm:text-5xl font-bold mb-4">Simple, transparent pricing</h1>
-        <p className="text-gray-400 text-lg">Start free for 14 days — no credit card required</p>
+      <section aria-labelledby="pricing-title" className="mx-auto max-w-6xl px-4 pb-10 pt-16 md:px-10 md:pt-24">
+        <SectionHeader id="pricing-title" eyebrow="Pricing" title="Simple, transparent pricing" intro={<p>Start free for 14 days — no credit card required</p>} />
 
-        <div className="inline-flex items-center gap-3 mt-8 p-1 bg-white/5 rounded-full">
-          <button onClick={() => setAnnual(false)} className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${!annual ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : 'text-gray-400'}`}>Monthly</button>
-          <button onClick={() => setAnnual(true)} className={`px-4 py-1.5 rounded-full text-sm font-medium transition flex items-center gap-2 ${annual ? 'bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white' : 'text-gray-400'}`}>
-            Annual <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/20 text-green-400">Save 2 months</span>
-          </button>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <div role="group" aria-label="Billing period" className="inline-flex rounded-fw-btn border border-fw-line bg-fw-panel p-1">
+            {[{ label: 'Monthly', value: false }, { label: 'Annual', value: true }].map((opt) => (
+              <button
+                key={opt.label}
+                type="button"
+                aria-pressed={annual === opt.value}
+                onClick={() => setAnnual(opt.value)}
+                className={`min-h-[2.25rem] rounded-[2px] px-4 text-fw-small transition-colors ${annual === opt.value ? 'bg-fw-raised text-fw-ink' : 'text-fw-ink-3 hover:text-fw-ink'}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <span className={statusTag}>Save 2 months</span>
         </div>
-      </div>
+      </section>
 
       {/* Plan cards */}
-      <div className="max-w-5xl mx-auto px-6 grid sm:grid-cols-3 gap-5 mb-16">
+      <section aria-label="Plans" className="mx-auto mb-16 grid max-w-5xl items-stretch gap-4 px-4 md:grid-cols-3 md:gap-6 md:px-10">
         {PLANS.map(p => {
           const price = annual ? p.price * 10 : p.price;
           const isCurrent = currentPlan === p.key;
           return (
-            <div key={p.key} className={`relative rounded-2xl border p-6 flex flex-col ${p.popular ? 'border-[#9E14FB]/60 bg-[#9E14FB]/5' : 'border-white/10 bg-white/[0.02]'}`}>
-              {p.popular && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-semibold px-3 py-1 rounded-full bg-gradient-to-r from-[#9E14FB] to-[#1BA1FF] text-white">
-                  MOST POPULAR
-                </span>
-              )}
-              <h3 className="font-bold text-lg mt-2">{p.name}</h3>
-              <p className="text-3xl font-bold mt-2">${price}<span className="text-sm font-normal text-gray-400">/{annual ? 'year' : 'mo'}</span></p>
-              <p className="text-sm text-gray-400 mb-4">{p.users}</p>
+            <div key={p.key} className={`flex flex-col rounded-fw-card border bg-fw-panel p-6 ${p.popular ? 'border-fw-indigo-500 shadow-fw-frame' : 'border-fw-line'}`}>
+              {/* Tag row reserved on every card from md up so prices line up */}
+              <div className={`mb-3 h-5 ${p.popular ? '' : 'hidden md:block'}`}>
+                {p.popular && <span className={statusTag}>MOST POPULAR</span>}
+              </div>
+              <h3 className="font-fw-display text-fw-h3 font-semibold text-fw-ink">{p.name}</h3>
+              <div className="mb-2 mt-4 flex flex-wrap items-baseline gap-x-1.5">
+                <span className="font-fw-display text-fw-price font-semibold text-fw-ink">${price}</span>
+                <span className="font-fw-mono text-fw-data text-fw-ink-3">/{annual ? 'year' : 'mo'}</span>
+              </div>
+              <p className="mb-6 text-fw-small text-fw-ink-2">{p.users}</p>
 
-              <ul className="space-y-2 mb-6 flex-1">
+              <ul className="mb-6 flex-1 space-y-3 border-t border-fw-line pt-5">
                 {p.features.map(f => (
-                  <li key={f.label} className="flex items-start gap-2 text-sm">
-                    <span className={f.included ? 'text-green-400' : 'text-gray-600'}>{f.included ? '✓' : '✗'}</span>
-                    <span className={f.included ? 'text-gray-200' : 'text-gray-500'}>{f.label}</span>
+                  <li key={f.label} className={`flex items-start gap-2.5 font-fw-mono text-fw-data ${f.included ? 'text-fw-ink-2' : 'text-fw-ink-3'}`}>
+                    <span className="mt-[3px] flex flex-none">{f.included ? yes : no}</span>
+                    <span>{f.label}</span>
                   </li>
                 ))}
               </ul>
 
               {isCurrent ? (
-                <button disabled className="w-full py-2.5 rounded-xl text-sm font-medium bg-white/10 text-gray-400 cursor-not-allowed">Current Plan</button>
+                <button disabled className={buttonClass('secondary', 'mt-auto w-full cursor-not-allowed text-fw-ink-3 hover:border-fw-line-strong hover:bg-transparent')}>Current Plan</button>
               ) : !session ? (
-                <Link href="/dashboard" className="w-full py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] text-white text-center block">
+                <ButtonLink href="/dashboard" variant={p.popular ? 'primary' : 'secondary'} className="mt-auto w-full">
                   Start Free Trial
-                </Link>
+                </ButtonLink>
               ) : (
                 <button onClick={() => handleChoose(p.key)} disabled={loadingPlan === p.key}
-                  className="w-full py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-[#9E14FB] via-[#5200FF] to-[#1BA1FF] text-white disabled:opacity-50">
+                  className={buttonClass(p.popular ? 'primary' : 'secondary', 'mt-auto w-full disabled:cursor-wait disabled:opacity-60')}>
                   {loadingPlan === p.key ? 'Loading...' : currentPlan && currentPlan !== 'trial' ? `Switch to ${p.name}` : `Upgrade to ${p.name}`}
                 </button>
               )}
             </div>
           );
         })}
-      </div>
+      </section>
 
       {/* Comparison table */}
-      <div className="max-w-5xl mx-auto px-6 mb-16 overflow-x-auto">
-        <h2 className="text-xl font-bold mb-4 text-center">Compare all features</h2>
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="border-b border-white/10 text-gray-400">
-              <th className="text-left py-3 font-medium">Feature</th>
-              <th className="text-center py-3 font-medium">Starter</th>
-              <th className="text-center py-3 font-medium">Professional</th>
-              <th className="text-center py-3 font-medium">Enterprise</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ALL_FEATURES.map(f => (
-              <tr key={f} className="border-b border-white/5">
-                <td className="py-3 text-gray-300">{f}</td>
-                {FEATURE_MATRIX[f].map((v, i) => (
-                  <td key={i} className={`py-3 text-center ${v === '✓' ? 'text-green-400' : v === '✗' ? 'text-gray-600' : 'text-gray-200'}`}>{v}</td>
+      <section aria-labelledby="compare-title" className="border-t border-fw-line">
+        <div className="mx-auto max-w-5xl px-4 py-16 md:px-10 md:py-20">
+          <SectionHeader id="compare-title" eyebrow="Plans" title="Compare all features" className="mb-8" />
+          <div className="overflow-x-auto rounded-fw-card border border-fw-line" role="region" aria-label="Feature comparison" tabIndex={0}>
+            <table className="w-full min-w-[34rem] border-collapse text-fw-small">
+              <thead>
+                <tr className="border-b border-fw-line bg-fw-panel">
+                  <th scope="col" className="px-4 py-3 text-left font-fw-mono text-fw-data-xs font-normal uppercase text-fw-ink-3">Feature</th>
+                  <th scope="col" className="px-4 py-3 text-center font-fw-mono text-fw-data-xs font-normal uppercase text-fw-ink-3">Starter</th>
+                  <th scope="col" className="px-4 py-3 text-center font-fw-mono text-fw-data-xs font-normal uppercase text-fw-indigo-300">Professional</th>
+                  <th scope="col" className="px-4 py-3 text-center font-fw-mono text-fw-data-xs font-normal uppercase text-fw-ink-3">Enterprise</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ALL_FEATURES.map(f => (
+                  <tr key={f} className="border-b border-fw-line last:border-0">
+                    <th scope="row" className="px-4 py-3 text-left font-normal text-fw-ink-2">{f}</th>
+                    {FEATURE_MATRIX[f].map((v, i) => (
+                      <td key={i} className="px-4 py-3 text-center font-fw-mono text-fw-data text-fw-ink">
+                        {v === '✓' || v === '✗' ? <span className="inline-flex">{v === '✓' ? yes : no}</span> : v}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
       {/* FAQ */}
-      <div className="max-w-2xl mx-auto px-6 pb-20">
-        <h2 className="text-xl font-bold mb-6 text-center">Frequently asked questions</h2>
-        <div className="space-y-4">
-          {FAQS.map(f => (
-            <div key={f.q} className="border border-white/10 rounded-xl p-4">
-              <p className="font-semibold text-sm mb-1">{f.q}</p>
-              <p className="text-sm text-gray-400">{f.a}</p>
-            </div>
-          ))}
+      <section aria-labelledby="faq-title" className="border-t border-fw-line">
+        <div className="mx-auto max-w-3xl px-4 py-16 md:px-10 md:py-20">
+          <SectionHeader id="faq-title" eyebrow="FAQ" title="Frequently asked questions" className="mb-8" />
+          <div className="divide-y divide-fw-line rounded-fw-card border border-fw-line bg-fw-panel">
+            {FAQS.map(f => (
+              <div key={f.q} className="p-5">
+                <h3 className="mb-1 font-fw-display text-fw-body font-semibold text-fw-ink">{f.q}</h3>
+                <p className="text-fw-small text-fw-ink-2">{f.a}</p>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
