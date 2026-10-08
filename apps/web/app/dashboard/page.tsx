@@ -33,7 +33,11 @@ interface Email {
   body: string;
   analysis?: any;
   isAnalyzing?: boolean;
+  // From /api/emails: bulk = newsletter/marketing (labelled without AI), score = freight likelihood
+  triage?: { bulk: boolean; reasons: string[]; score: number };
 }
+
+type AnalyzeOutcome = 'analyzed' | 'marketing' | 'limit' | 'failed';
 
 interface CustomLabel {
   key: string;
@@ -721,36 +725,45 @@ export default function DashboardPage() {
     } catch (e) { console.error(e); }
   };
 
-  const analyzeEmail = async (email: Email) => {
+  const analyzeEmail = async (email: Email, opts: { force?: boolean; quiet?: boolean } = {}): Promise<AnalyzeOutcome> => {
     setEmails(prev => prev.map(e => e.id === email.id ? { ...e, isAnalyzing: true } : e));
     if (selected?.id === email.id) setSelected({ ...email, isAnalyzing: true });
+    let outcome: AnalyzeOutcome = 'failed';
     try {
       const res = await fetch(`${API_URL}/api/analyze`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: email.subject, body: email.body || email.snippet, from: email.from, emailId: email.id, sessionId: session, language })
+        body: JSON.stringify({ subject: email.subject, body: email.body || email.snippet, from: email.from, emailId: email.id, sessionId: session, language, force: !!opts.force })
       });
       if (res.status === 402) {
         const data = await res.json();
         const reasonMap: Record<string, UpgradeReason> = { trial_expired: 'trial_expired', trial_limit_reached: 'trial_limit', monthly_limit_reached: 'analyses_limit' };
         setUpgradeReason(reasonMap[data.reason] || 'analyses_limit');
         setEmails(prev => prev.map(e => e.id === email.id ? { ...e, isAnalyzing: false } : e));
-        return;
+        return 'limit';
       }
       const data = await res.json();
+      if (!res.ok || !data.analysis) {
+        if (!opts.quiet) notify('error', `Couldn't analyze "${email.subject}"`, { sub: 'No analysis was used. Try again in a moment.' });
+      }
       if (data.analysis) {
+        outcome = data.skipped === 'marketing' ? 'marketing' : 'analyzed';
         const updated = { ...email, analysis: data.analysis, isAnalyzing: false };
         setEmails(prev => prev.map(e => e.id === email.id ? updated : e));
         if (selected?.id === email.id) setSelected(updated);
-        addTimelineEvent(email.id, 'analyzed', 'AI Analysis completed');
-        matchShipment(email, data.analysis);
+        addTimelineEvent(email.id, 'analyzed', data.skipped === 'marketing' ? 'Marked as marketing (not sent to AI)' : 'AI Analysis completed');
+        if (data.skipped !== 'marketing') matchShipment(email, data.analysis);
 
         if (typeof data.analyses_remaining === 'number' && data.analyses_remaining > 0 && data.analyses_remaining <= 5 && !lowAnalysesToastShown) {
           setLowAnalysesToastShown(true);
           notify('warning', `Only ${data.analyses_remaining} analyses remaining in your trial`, { sub: 'Upgrade to Professional for unlimited access', duration: 8000 });
         }
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      if (!opts.quiet) notify('error', `Couldn't analyze "${email.subject}"`, { sub: 'No analysis was used. Try again in a moment.' });
+    }
     setEmails(prev => prev.map(e => e.id === email.id ? { ...e, isAnalyzing: false } : e));
+    return outcome;
   };
 
   const matchShipment = async (email: Email, analysis: any) => {
@@ -769,15 +782,29 @@ export default function DashboardPage() {
   };
 
   const analyzeAll = async () => {
-    const toAnalyze = filteredEmails.filter(e => !e.analysis && !e.isAnalyzing);
+    // Likely freight emails first (server triage score); newsletters last, where
+    // they are labelled Marketing without using an analysis.
+    const toAnalyze = filteredEmails
+      .filter(e => !e.analysis && !e.isAnalyzing)
+      .map((e, i) => ({ e, i }))
+      .sort((a, b) => (b.e.triage?.score ?? 0) - (a.e.triage?.score ?? 0) || a.i - b.i)
+      .map(x => x.e);
     if (!toAnalyze.length) return;
     setAnalyzing(true); setProgress({ current: 0, total: toAnalyze.length });
+    const tally: Record<AnalyzeOutcome, number> = { analyzed: 0, marketing: 0, limit: 0, failed: 0 };
     for (let i = 0; i < toAnalyze.length; i++) {
       setProgress({ current: i + 1, total: toAnalyze.length });
-      await analyzeEmail(toAnalyze[i]);
+      const outcome = await analyzeEmail(toAnalyze[i], { quiet: true });
+      tally[outcome]++;
+      if (outcome === 'limit') break; // the upgrade modal is open; don't keep hitting the limit
       await new Promise(r => setTimeout(r, 500));
     }
-    setAnalyzing(false); notify('success', `Analyzed ${toAnalyze.length} emails!`);
+    setAnalyzing(false);
+    const parts = [`${tally.analyzed} analyzed`];
+    if (tally.marketing) parts.push(`${tally.marketing} marked as marketing (no analysis used)`);
+    if (tally.failed) parts.push(`${tally.failed} failed`);
+    if (tally.limit) parts.push('stopped at your plan limit');
+    notify(tally.failed || tally.limit ? 'warning' : 'success', parts.join(' · '), tally.failed ? { sub: 'Failed emails used no analysis; run Analyze All again to retry them.' } : undefined);
   };
 
   const addTimelineEvent = (emailId: string, type: string, label: string) => {
@@ -1558,7 +1585,13 @@ export default function DashboardPage() {
                       {/* ANALYSIS TAB */}
                       {activeDetailTab === 'analysis' && (
                         <>
-                          {selected.analysis && (
+                          {selected.analysis?.intent === 'marketing' && (
+                            <Notice tone="neutral" icon="inbox" title="Marketing"
+                              action={<Button size="sm" icon="sparkle" onClick={() => analyzeEmail(selected, { force: true })} disabled={selected.isAnalyzing}>Analyze anyway</Button>}>
+                              {selected.analysis.summary}
+                            </Notice>
+                          )}
+                          {selected.analysis && selected.analysis.intent !== 'marketing' && (
                             <div className="rounded-fw-card border border-app-line bg-app-panel p-4">
                               <h3 className="mb-3 flex items-center gap-2 text-app-ui font-semibold"><Icon name="sparkle" size={16} className="text-app-accent" /> {t.aiAnalysis}</h3>
                               <div className="mb-3 grid grid-cols-2 gap-3">

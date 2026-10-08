@@ -101,6 +101,7 @@ export default function BillingPage() {
   if (!sub) return <div data-theme={darkMode ? 'dark' : 'light'} className={`${appRootClass} flex items-center justify-center`}><Spinner className="size-8 text-app-accent" /></div>;
 
   const isPaid = sub.plan !== 'trial';
+  const isInternal = sub.plan === 'internal'; // staff/test account: no limits, no Stripe billing
   const showUpgrade = sub.plan === 'trial' || sub.plan === 'starter';
   const usageBar = (label: string, used: number, max: number) => {
     const pct = Math.min(100, (used / max) * 100);
@@ -129,11 +130,11 @@ export default function BillingPage() {
             <div>
               <DataLabel className="mb-1">Current Plan</DataLabel>
               <p className="flex items-center gap-2 font-fw-display text-app-title-sm font-normal">
-                {PLAN_LABELS[sub.plan as keyof typeof PLAN_LABELS] || sub.plan}
+                {isInternal ? 'Internal' : PLAN_LABELS[sub.plan as keyof typeof PLAN_LABELS] || sub.plan}
                 <Tag tone={STATUS_TONE[sub.status] || 'neutral'}>{sub.status === 'past_due' ? 'Past Due' : sub.status[0].toUpperCase() + sub.status.slice(1)}</Tag>
               </p>
             </div>
-            {isPaid && (
+            {isPaid && !isInternal && (
               <Button icon="external" onClick={openPortal} disabled={portalLoading}>{portalLoading ? 'Loading...' : 'Manage Subscription'}</Button>
             )}
           </div>
@@ -144,6 +145,8 @@ export default function BillingPage() {
               {usageBar('Days', 14 - sub.trial_days_remaining, 14)}
               {usageBar('Analyses', sub.trial_analyses_used, 30)}
             </div>
+          ) : isInternal ? (
+            <p className="mt-3 text-app-ui text-app-ink-2">Internal account: no plan limits and no billing.</p>
           ) : (
             <p className="mt-3 text-app-ui text-app-ink-2">
               {sub.cancel_at_period_end ? 'Cancels on ' : 'Renews on '}

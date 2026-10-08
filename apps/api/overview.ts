@@ -54,8 +54,9 @@ export async function resolveScope(db: Db, userId: string, mode: OverviewMode = 
 // One definition shared by the Overview cards and GET /api/emails/waiting, so
 // the card count and the Inbox list cannot drift apart.
 export type WaitingView = 'awaiting' | 'urgent';
+// Newsletters labelled 'marketing' (triage.ts) are not customer mail.
 const isWaiting = (e: any, view: WaitingView) =>
-  !e.replied_at && (view === 'awaiting' || ['urgent', 'high'].includes(String(e.priority || '').toLowerCase()));
+  !e.replied_at && e.intent !== 'marketing' && (view === 'awaiting' || ['urgent', 'high'].includes(String(e.priority || '').toLowerCase()));
 
 /** The current user's analysed, unreplied emails from the last 30 days (newest first). */
 export async function listWaitingEmails(db: Db, userId: string, view: WaitingView, now: Date = new Date()) {
@@ -78,7 +79,7 @@ export async function buildOverview(db: Db, userId: string, opts: { mode?: Overv
 
   const [shipRes, emailRes, repliedRes, quoteRes, rateRes] = await Promise.all([
     db.from('shipments').select('id, user_id, approved, status, reference, customer, origin, destination, mode, eta, t49_pod_eta, created_at, email_subject, update_target_id').in('user_id', scope.userIds),
-    db.from('email_analysis').select('user_id, priority, replied_at, created_at').in('user_id', scope.userIds).gte('created_at', ago30),
+    db.from('email_analysis').select('user_id, intent, priority, replied_at, created_at').in('user_id', scope.userIds).gte('created_at', ago30),
     db.from('email_analysis').select('user_id, replied_at, response_time_minutes').in('user_id', scope.userIds).gte('replied_at', ago30),
     scope.sessionIds.length ? db.from('quotes').select('id, session_id, status, sell_rate, currency').in('session_id', scope.sessionIds) : Promise.resolve({ data: [], error: null }),
     scope.sessionIds.length ? db.from('rate_cards').select('id, session_id, is_active, validity_end').in('session_id', scope.sessionIds) : Promise.resolve({ data: [], error: null }),

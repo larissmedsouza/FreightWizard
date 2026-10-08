@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from './Icon';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
 export type Language = 'en' | 'pt' | 'nl';
 
@@ -57,6 +59,17 @@ export default function TopBar({
 }) {
   const pathname = usePathname() || '';
   const [langMenuOpen, setLangMenuOpen] = useState(false);
+  // Internal (staff/test) accounts: plan set in Supabase, read from the server.
+  const [internal, setInternal] = useState(false);
+  useEffect(() => {
+    if (!session) { setInternal(false); return; }
+    let live = true;
+    fetch(`${API_URL}/api/billing/subscription?session=${session}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (live) setInternal(d?.plan === 'internal'); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [session]);
 
   const isActive = (href: string) => (href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href));
   const withSession = (href: string) => (session ? `${href}?session=${session}` : href);
@@ -133,6 +146,10 @@ export default function TopBar({
               <Icon name="settings" size={16} />
               {alert && <span aria-hidden className="absolute right-0.5 top-0.5 size-2 rounded-full bg-app-danger-dot" />}
             </Link>
+          )}
+
+          {internal && (
+            <span title="Internal account: no plan limits" className="rounded-fw-btn border border-app-bar-rule px-1.5 py-0.5 font-fw-mono text-app-mono-xs uppercase text-app-bar-ink">Internal</span>
           )}
 
           {showEmail && user && (

@@ -10,6 +10,8 @@ import { createCipheriv, createDecipheriv, randomBytes, randomUUID, createHmac, 
 import https from 'https';
 import { PORT_LOCODES } from './ports';
 import { buildOverview, listWaitingEmails, type Db, type WaitingView } from './overview';
+import { analysisPolicy, getPlanLimits, isTrialExpired, TRIAL_ANALYSES } from './billing';
+import { headerMap, isBulkMail, freightScore, marketingAnalysis, type Headers } from './triage';
 
 // Load env from root (for local dev)
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -37,22 +39,7 @@ const PRICE_ID_TO_PLAN: Record<string, string> = Object.fromEntries(
   Object.entries(PLAN_PRICE_IDS).filter(([, id]) => id).map(([plan, id]) => [id, plan])
 );
 
-function isTrialExpired(sub: any): boolean {
-  if (sub.plan !== 'trial') return false;
-  const analysesExpired = sub.trial_analyses_used >= 30;
-  const daysExpired = new Date() > new Date(new Date(sub.trial_started_at).getTime() + 14 * 24 * 60 * 60 * 1000);
-  return analysesExpired || daysExpired;
-}
-
-function getPlanLimits(plan: string) {
-  const limits: Record<string, any> = {
-    trial: { analyses: 30, shipments: 5, quotes: 5, users: 1, documents: true, rateCards: true },
-    starter: { analyses: 200, shipments: 10, quotes: 20, users: 1, documents: false, rateCards: true },
-    professional: { analyses: -1, shipments: -1, quotes: -1, users: 5, documents: true, rateCards: true },
-    enterprise: { analyses: -1, shipments: -1, quotes: -1, users: -1, documents: true, rateCards: true },
-  };
-  return limits[plan] || limits.trial;
-}
+// isTrialExpired / getPlanLimits / analysisPolicy: see billing.ts (incl. the 'internal' plan)
 
 // Looks up (or lazily creates, e.g. on first login) the subscription row for
 // a user, and keeps its expired/active status current. Shared by the OAuth
@@ -538,6 +525,11 @@ app.get('/api/emails', async (req, res) => {
           date: msg.receivedDateTime,
           snippet: msg.bodyPreview || '',
           body,
+          triage: (() => {
+            const t = { from: msg.from?.emailAddress?.address || '', subject: msg.subject || '', body };
+            const bulk = isBulkMail(t);
+            return { bulk: bulk.bulk, reasons: bulk.reasons, score: freightScore(t) };
+          })(),
         };
       });
 
@@ -577,6 +569,8 @@ app.get('/api/emails', async (req, res) => {
             if (!existing) await trackActivity(session.userId, msg.id!, 'received');
           }
 
+          const triageIn = { headers: headerMap(headers as any), labels: full.data.labelIds || [], from: getHeader('From'), subject: getHeader('Subject'), body };
+          const bulk = isBulkMail(triageIn);
           return {
             id: msg.id,
             threadId: msg.threadId,
@@ -585,6 +579,7 @@ app.get('/api/emails', async (req, res) => {
             date: getHeader('Date'),
             snippet: full.data.snippet || '',
             body,
+            triage: { bulk: bulk.bulk, reasons: bulk.reasons, score: freightScore(triageIn) },
           };
         })
       );
@@ -703,9 +698,14 @@ app.get('/api/emails/waiting', async (req, res) => {
 // tokens on a request we're going to block) and POST /api/billing/increment-analysis.
 // Handles both the session-based dashboard flow and the emailless Gmail/Outlook
 // add-on flow (userEmail + source, no FreightWizard session).
-async function checkAndIncrementAnalysis(opts: { sessionId?: string; userEmail?: string }): Promise<{ allowed: boolean; reason?: string; analyses_remaining?: number }> {
+type AnalysisGate = { allowed: boolean; reason?: string; analyses_remaining?: number; charge?: () => Promise<number | undefined> };
+
+// Checks whether an analysis may run. Nothing is charged here: the caller
+// calls gate.charge() once the analysis succeeded, so failed AI calls and
+// marketing emails never use up the quota.
+async function checkAnalysis(opts: { sessionId?: string; userEmail?: string }): Promise<AnalysisGate> {
   let email: string | null = null;
-  let sessionId = opts.sessionId || 'addon';
+  const sessionId = opts.sessionId || 'addon';
   if (opts.sessionId) {
     const session = await getSession(opts.sessionId);
     if (!session) return { allowed: false, reason: 'not_authenticated' };
@@ -717,35 +717,66 @@ async function checkAndIncrementAnalysis(opts: { sessionId?: string; userEmail?:
 
   const sub = await getOrCreateSubscription(email, sessionId);
   if (!sub) return { allowed: true };
-  if (sub.status === 'expired') {
-    // getOrCreateSubscription already flips status to expired for either
-    // cause (days OR analyses) as soon as it's checked, so by the time we
-    // get here sub.status alone can't tell us which — check the specific
-    // cause directly so the frontend shows the right copy (limit vs time).
-    if (sub.plan === 'trial' && sub.trial_analyses_used >= 30) return { allowed: false, reason: 'trial_limit_reached' };
-    return { allowed: false, reason: 'trial_expired' };
-  }
 
-  if (sub.plan === 'trial') {
-    if (sub.trial_analyses_used >= 30) {
+  const policy = analysisPolicy(sub);
+  if (policy.kind === 'blocked') {
+    if (policy.reason === 'trial_limit_reached' && sub.status !== 'expired') {
       await supabase.from('subscriptions').update({ status: 'expired', updated_at: new Date().toISOString() }).eq('id', sub.id);
-      return { allowed: false, reason: 'trial_limit_reached' };
     }
-    const nextCount = sub.trial_analyses_used + 1;
-    await supabase.from('subscriptions').update({ trial_analyses_used: nextCount, updated_at: new Date().toISOString() }).eq('id', sub.id);
-    return { allowed: true, analyses_remaining: Math.max(0, 30 - nextCount) };
+    return { allowed: false, reason: policy.reason };
   }
 
-  if (sub.plan === 'starter') {
+  if (policy.kind === 'trial') {
+    return {
+      allowed: true,
+      analyses_remaining: Math.max(0, TRIAL_ANALYSES - policy.used - 1),
+      charge: async () => {
+        // Re-read so concurrent analyses each count once.
+        const { data: fresh } = await supabase.from('subscriptions').select('trial_analyses_used').eq('id', sub.id).single();
+        const nextCount = (fresh?.trial_analyses_used ?? policy.used) + 1;
+        await supabase.from('subscriptions').update({ trial_analyses_used: nextCount, updated_at: new Date().toISOString() }).eq('id', sub.id);
+        return Math.max(0, TRIAL_ANALYSES - nextCount);
+      },
+    };
+  }
+
+  if (policy.kind === 'monthly') {
     const startOfMonth = new Date(); startOfMonth.setUTCDate(1); startOfMonth.setUTCHours(0, 0, 0, 0);
     const { count } = await supabase.from('email_analysis').select('*', { count: 'exact', head: true })
       .eq('user_id', sub.user_email).gte('created_at', startOfMonth.toISOString());
-    if ((count || 0) >= 200) return { allowed: false, reason: 'monthly_limit_reached' };
-    return { allowed: true, analyses_remaining: Math.max(0, 200 - (count || 0) - 1) };
+    if ((count || 0) >= policy.limit) return { allowed: false, reason: 'monthly_limit_reached' };
+    return { allowed: true, analyses_remaining: Math.max(0, policy.limit - (count || 0) - 1) };
   }
 
-  // professional / enterprise — unlimited
+  // professional / enterprise / internal — unlimited
   return { allowed: true };
+}
+
+// Check and charge in one step. Used by the Gmail/Outlook add-on, which
+// reports usage itself through POST /api/billing/increment-analysis.
+async function checkAndIncrementAnalysis(opts: { sessionId?: string; userEmail?: string }): Promise<{ allowed: boolean; reason?: string; analyses_remaining?: number }> {
+  const gate = await checkAnalysis(opts);
+  if (!gate.allowed) return { allowed: false, reason: gate.reason };
+  const remaining = gate.charge ? await gate.charge() : gate.analyses_remaining;
+  return { allowed: true, analyses_remaining: remaining };
+}
+
+// Headers and labels of one message, for marketing detection before the AI call.
+async function fetchTriageInfo(session: any, emailId: string): Promise<{ headers: Headers; labels: string[] } | null> {
+  try {
+    if (session.provider === 'outlook') {
+      const r = await fetch(`${MICROSOFT_CONFIG.graphUrl}/me/messages/${encodeURIComponent(emailId)}?$select=internetMessageHeaders`, { headers: { Authorization: `Bearer ${session.tokens.access_token}` } });
+      if (!r.ok) return null;
+      const msg: any = await r.json();
+      return { headers: headerMap(msg.internetMessageHeaders), labels: [] };
+    }
+    oauth2Client.setCredentials(session.tokens);
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+    const m = await gmail.users.messages.get({ userId: 'me', id: emailId, format: 'metadata' });
+    return { headers: headerMap(m.data.payload?.headers as any), labels: m.data.labelIds || [] };
+  } catch {
+    return null; // can't tell: fall through to a normal analysis
+  }
 }
 
 app.post('/api/billing/increment-analysis', async (req, res) => {
@@ -845,15 +876,32 @@ function extractAnalysisJson(text: string): any | null {
 }
 
 app.post('/api/analyze', async (req, res) => {
-  const { subject, body, from, emailId, sessionId, source, userEmail, language } = req.body;
+  const { subject, body, from, emailId, sessionId, source, userEmail, language, force } = req.body;
 
-  const gate = await checkAndIncrementAnalysis({ sessionId, userEmail: (source === 'gmail_addon' || source === 'outlook_addon') ? userEmail : undefined });
+  // Newsletters / marketing: label without calling the AI or using an analysis.
+  // Decided from the message's own headers on the server; force=true analyses anyway.
+  if (!force && sessionId && emailId) {
+    const session = await getSession(sessionId);
+    if (!session) return res.status(402).json({ error: 'limit_reached', reason: 'not_authenticated' });
+    const info = await fetchTriageInfo(session, emailId);
+    const bulk = info ? isBulkMail({ headers: info.headers, labels: info.labels, from, subject, body }) : { bulk: false, reasons: [] };
+    if (bulk.bulk) {
+      const analysis = marketingAnalysis(bulk.reasons);
+      if (session.userId) await saveAnalysis(session.userId, sessionId, emailId, subject, from, analysis);
+      console.log(`📭 Marked as marketing (no AI call): ${emailId} — ${bulk.reasons.join('; ')}`);
+      return res.json({ analysis, skipped: 'marketing', reasons: bulk.reasons });
+    }
+  }
+
+  const gate = await checkAnalysis({ sessionId, userEmail: (source === 'gmail_addon' || source === 'outlook_addon') ? userEmail : undefined });
   if (!gate.allowed) return res.status(402).json({ error: 'limit_reached', reason: gate.reason });
 
   try {
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-5',
-      max_tokens: 1024,
+      // 1024 was too small: thinking plus the full JSON for a real freight
+      // email ran out of tokens and the truncated JSON failed to parse.
+      max_tokens: 4096,
       messages: [{
         role: 'user',
         content: `You are FreightWizard AI, an expert freight forwarding email analyst.
@@ -925,10 +973,12 @@ Respond in JSON format:
       }]
     });
 
-    const text = message.content[0].type === 'text' ? message.content[0].text : '';
+    // The reply can start with a thinking block; read every text block, not content[0].
+    const text = message.content.map(b => (b.type === 'text' ? b.text : '')).join('');
     const analysis = extractAnalysisJson(text);
 
     if (analysis) {
+      const analyses_remaining = gate.charge ? await gate.charge() : gate.analyses_remaining;
       let userId: string | null = null;
 
       if (sessionId) {
@@ -952,8 +1002,9 @@ Respond in JSON format:
       const taric = await maybeAutoTaricLookup(analysis, sessionId);
       if (taric) analysis.taric_lookup = taric;
 
-      res.json({ analysis, analyses_remaining: gate.analyses_remaining });
+      res.json({ analysis, analyses_remaining });
     } else {
+      console.error(`Analysis parse failed for ${emailId}: stop_reason=${message.stop_reason}, output_tokens=${message.usage?.output_tokens}, text_chars=${text.length}`);
       res.status(500).json({ error: 'Failed to parse AI response' });
     }
   } catch (error) {

@@ -48,6 +48,7 @@ const db = fakeDb({
   email_analysis: [
     { user_id: 'alice', email_id: 'm1', priority: 'urgent', replied_at: null, created_at: daysFromNow(-2) },
     { user_id: 'alice', email_id: 'm2', priority: 'medium', replied_at: null, created_at: daysFromNow(-4) },
+    { user_id: 'alice', email_id: 'nl1', intent: 'marketing', priority: 'low', replied_at: null, created_at: daysFromNow(-1) }, // newsletter: never counted
     { user_id: 'bob', priority: 'low', replied_at: null, created_at: daysFromNow(-5) },
     { user_id: 'bob', priority: 'high', replied_at: daysFromNow(-1), created_at: daysFromNow(-3), response_time_minutes: 40 },
     { user_id: 'alice', priority: 'high', replied_at: null, created_at: daysFromNow(-45) }, // outside 30 days
