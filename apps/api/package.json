@@ -4,7 +4,7 @@
   "scripts": {
     "start": "npx tsx server.ts",
     "dev": "npx tsx watch server.ts",
-    "test": "npx tsx --test overview.test.ts billing.test.ts triage.test.ts"
+    "test": "npx tsx --test overview.test.ts billing.test.ts triage.test.ts claude.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",

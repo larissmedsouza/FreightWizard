@@ -5,6 +5,8 @@
 // staff/test accounts: no limits, no trial expiry, never upgrade prompts.
 // Set it in Supabase:  update subscriptions set plan = 'internal', status = 'active' where user_email = '...';
 
+import type { Db } from './overview';
+
 export const TRIAL_ANALYSES = 30;
 export const TRIAL_DAYS = 14;
 export const STARTER_MONTHLY_ANALYSES = 200;
@@ -58,4 +60,14 @@ export function analysisPolicy(sub: Sub): AnalysisPolicy {
   }
   if (sub.plan === 'starter') return { kind: 'monthly', limit: STARTER_MONTHLY_ANALYSES };
   return { kind: 'unlimited' };
+}
+
+/**
+ * Analyses this calendar month (UTC) for one user, keyed by user ID like the
+ * rest of email_analysis. Marketing labels are free, so they don't count.
+ */
+export async function countMonthlyAnalyses(db: Db, userId: string, now: Date = new Date()): Promise<number> {
+  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  const { data } = await db.from('email_analysis').select('intent, created_at').eq('user_id', userId).gte('created_at', startOfMonth);
+  return ((data || []) as any[]).filter(r => r.intent !== 'marketing').length;
 }

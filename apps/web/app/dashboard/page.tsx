@@ -37,7 +37,7 @@ interface Email {
   triage?: { bulk: boolean; reasons: string[]; score: number };
 }
 
-type AnalyzeOutcome = 'analyzed' | 'marketing' | 'limit' | 'failed';
+type AnalyzeOutcome = 'analyzed' | 'marketing' | 'limit' | 'auth' | 'failed';
 
 interface CustomLabel {
   key: string;
@@ -734,12 +734,16 @@ export default function DashboardPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subject: email.subject, body: email.body || email.snippet, from: email.from, emailId: email.id, sessionId: session, language, force: !!opts.force })
       });
-      if (res.status === 402) {
-        const data = await res.json();
-        const reasonMap: Record<string, UpgradeReason> = { trial_expired: 'trial_expired', trial_limit_reached: 'trial_limit', monthly_limit_reached: 'analyses_limit' };
-        setUpgradeReason(reasonMap[data.reason] || 'analyses_limit');
+      // The upgrade modal is only for real plan limits. Anything else used to
+      // fall back to "Monthly analysis limit reached", even a failed session lookup.
+      const LIMIT_REASONS: Record<string, UpgradeReason> = { trial_expired: 'trial_expired', trial_limit_reached: 'trial_limit', monthly_limit_reached: 'analyses_limit' };
+      if (res.status === 401 || res.status === 402) {
+        const data = await res.json().catch(() => ({}));
         setEmails(prev => prev.map(e => e.id === email.id ? { ...e, isAnalyzing: false } : e));
-        return 'limit';
+        const upgrade = res.status === 402 ? LIMIT_REASONS[data.reason] : undefined;
+        if (upgrade) { setUpgradeReason(upgrade); return 'limit'; }
+        notify('error', 'Your session could not be verified', { sub: 'Refresh the page or reconnect your email. No analysis was used.' });
+        return 'auth';
       }
       const data = await res.json();
       if (!res.ok || !data.analysis) {
@@ -791,12 +795,12 @@ export default function DashboardPage() {
       .map(x => x.e);
     if (!toAnalyze.length) return;
     setAnalyzing(true); setProgress({ current: 0, total: toAnalyze.length });
-    const tally: Record<AnalyzeOutcome, number> = { analyzed: 0, marketing: 0, limit: 0, failed: 0 };
+    const tally: Record<AnalyzeOutcome, number> = { analyzed: 0, marketing: 0, limit: 0, auth: 0, failed: 0 };
     for (let i = 0; i < toAnalyze.length; i++) {
       setProgress({ current: i + 1, total: toAnalyze.length });
       const outcome = await analyzeEmail(toAnalyze[i], { quiet: true });
       tally[outcome]++;
-      if (outcome === 'limit') break; // the upgrade modal is open; don't keep hitting the limit
+      if (outcome === 'limit' || outcome === 'auth') break; // modal or session error shown; stop the run
       await new Promise(r => setTimeout(r, 500));
     }
     setAnalyzing(false);
@@ -804,7 +808,8 @@ export default function DashboardPage() {
     if (tally.marketing) parts.push(`${tally.marketing} marked as marketing (no analysis used)`);
     if (tally.failed) parts.push(`${tally.failed} failed`);
     if (tally.limit) parts.push('stopped at your plan limit');
-    notify(tally.failed || tally.limit ? 'warning' : 'success', parts.join(' · '), tally.failed ? { sub: 'Failed emails used no analysis; run Analyze All again to retry them.' } : undefined);
+    if (tally.auth) parts.push('stopped: session could not be verified');
+    notify(tally.failed || tally.limit || tally.auth ? 'warning' : 'success', parts.join(' · '), tally.failed ? { sub: 'Failed emails used no analysis; run Analyze All again to retry them.' } : undefined);
   };
 
   const addTimelineEvent = (emailId: string, type: string, label: string) => {

@@ -10,7 +10,8 @@ import { createCipheriv, createDecipheriv, randomBytes, randomUUID, createHmac, 
 import https from 'https';
 import { PORT_LOCODES } from './ports';
 import { buildOverview, listWaitingEmails, type Db, type WaitingView } from './overview';
-import { analysisPolicy, getPlanLimits, isTrialExpired, TRIAL_ANALYSES } from './billing';
+import { analysisPolicy, countMonthlyAnalyses, getPlanLimits, isTrialExpired, TRIAL_ANALYSES } from './billing';
+import { CLAUDE_MODEL, CLAUDE_MAX_TOKENS, replyText, warnIfTruncated } from './claude';
 import { headerMap, isBulkMail, freightScore, marketingAnalysis, type Headers } from './triage';
 
 // Load env from root (for local dev)
@@ -224,12 +225,15 @@ async function saveSession(sessionId: string, userId: string, email: string, nam
 // ============================================
 async function getSession(sessionId: string) {
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('gmail_sessions')
       .select('*')
       .eq('session_id', sessionId)
       .single();
 
+    // PGRST116 = no row. Anything else is a failed lookup, which callers
+    // otherwise can't tell apart from a logged-out user.
+    if (error && error.code !== 'PGRST116') console.error(`getSession lookup failed: ${error.code} ${error.message}`);
     if (!data) return null;
 
     return {
@@ -705,11 +709,13 @@ type AnalysisGate = { allowed: boolean; reason?: string; analyses_remaining?: nu
 // marketing emails never use up the quota.
 async function checkAnalysis(opts: { sessionId?: string; userEmail?: string }): Promise<AnalysisGate> {
   let email: string | null = null;
+  let userId: string | null = null;
   const sessionId = opts.sessionId || 'addon';
   if (opts.sessionId) {
     const session = await getSession(opts.sessionId);
     if (!session) return { allowed: false, reason: 'not_authenticated' };
     email = session.email;
+    userId = session.userId || null;
   } else if (opts.userEmail) {
     email = opts.userEmail;
   }
@@ -741,11 +747,11 @@ async function checkAnalysis(opts: { sessionId?: string; userEmail?: string }): 
   }
 
   if (policy.kind === 'monthly') {
-    const startOfMonth = new Date(); startOfMonth.setUTCDate(1); startOfMonth.setUTCHours(0, 0, 0, 0);
-    const { count } = await supabase.from('email_analysis').select('*', { count: 'exact', head: true })
-      .eq('user_id', sub.user_email).gte('created_at', startOfMonth.toISOString());
-    if ((count || 0) >= policy.limit) return { allowed: false, reason: 'monthly_limit_reached' };
-    return { allowed: true, analyses_remaining: Math.max(0, policy.limit - (count || 0) - 1) };
+    // email_analysis is keyed by user ID (the add-on resolves it from the email).
+    if (!userId) userId = await getOrCreateUser(email);
+    const count = userId ? await countMonthlyAnalyses(supabase as unknown as Db, userId) : 0;
+    if (count >= policy.limit) return { allowed: false, reason: 'monthly_limit_reached' };
+    return { allowed: true, analyses_remaining: Math.max(0, policy.limit - count - 1) };
   }
 
   // professional / enterprise / internal — unlimited
@@ -882,7 +888,7 @@ app.post('/api/analyze', async (req, res) => {
   // Decided from the message's own headers on the server; force=true analyses anyway.
   if (!force && sessionId && emailId) {
     const session = await getSession(sessionId);
-    if (!session) return res.status(402).json({ error: 'limit_reached', reason: 'not_authenticated' });
+    if (!session) return res.status(401).json({ error: 'Not authenticated', reason: 'not_authenticated' });
     const info = await fetchTriageInfo(session, emailId);
     const bulk = info ? isBulkMail({ headers: info.headers, labels: info.labels, from, subject, body }) : { bulk: false, reasons: [] };
     if (bulk.bulk) {
@@ -894,14 +900,16 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   const gate = await checkAnalysis({ sessionId, userEmail: (source === 'gmail_addon' || source === 'outlook_addon') ? userEmail : undefined });
-  if (!gate.allowed) return res.status(402).json({ error: 'limit_reached', reason: gate.reason });
+  if (!gate.allowed) {
+    console.warn(`🚫 Analysis refused (${gate.reason}) for email ${emailId || '-'}`);
+    if (gate.reason === 'not_authenticated') return res.status(401).json({ error: 'Not authenticated', reason: gate.reason });
+    return res.status(402).json({ error: 'limit_reached', reason: gate.reason });
+  }
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-5',
-      // 1024 was too small: thinking plus the full JSON for a real freight
-      // email ran out of tokens and the truncated JSON failed to parse.
-      max_tokens: 4096,
+      model: CLAUDE_MODEL,
+      max_tokens: CLAUDE_MAX_TOKENS, // see claude.ts: thinking + full JSON must fit
       messages: [{
         role: 'user',
         content: `You are FreightWizard AI, an expert freight forwarding email analyst.
@@ -973,8 +981,9 @@ Respond in JSON format:
       }]
     });
 
-    // The reply can start with a thinking block; read every text block, not content[0].
-    const text = message.content.map(b => (b.type === 'text' ? b.text : '')).join('');
+    // The reply can start with a thinking block; read every text block (claude.ts).
+    warnIfTruncated('analyze', message);
+    const text = replyText(message);
     const analysis = extractAnalysisJson(text);
 
     if (analysis) {
@@ -2178,7 +2187,7 @@ app.get('/api/billing/usage', async (req, res) => {
   const startOfMonth = new Date(); startOfMonth.setUTCDate(1); startOfMonth.setUTCHours(0, 0, 0, 0);
 
   const [analysesRes, quotesRes, shipmentsRes, teamRes] = await Promise.all([
-    supabase.from('email_analysis').select('*', { count: 'exact', head: true }).eq('user_id', session.email).gte('created_at', startOfMonth.toISOString()),
+    session.userId ? countMonthlyAnalyses(supabase as unknown as Db, session.userId).then(count => ({ count })) : Promise.resolve({ count: 0 }),
     supabase.from('quotes').select('*', { count: 'exact', head: true }).eq('session_id', sessionId).gte('created_at', startOfMonth.toISOString()),
     supabase.from('shipments').select('*', { count: 'exact', head: true }).eq('user_id', session.userId).not('status', 'in', '(delivered,closed,cancelled)'),
     session.userId ? supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('team_id', session.userId) : Promise.resolve({ count: 0 } as any),
@@ -2695,8 +2704,8 @@ async function processQueueItem(
 ) {
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 1024,
+      model: CLAUDE_MODEL,
+      max_tokens: CLAUDE_MAX_TOKENS,
       messages: [{
         role: 'user',
         content: `You are FreightWizard AI, an expert freight forwarding email analyst.
@@ -2725,7 +2734,8 @@ Respond in JSON format:
       }]
     });
 
-    const text = message.content[0].type === 'text' ? message.content[0].text : '';
+    warnIfTruncated('queue analysis', message);
+    const text = replyText(message);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
 
     if (jsonMatch) {
@@ -2760,8 +2770,8 @@ app.post('/api/analyze-document', async (req, res) => {
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 2048,
+      model: CLAUDE_MODEL,
+      max_tokens: CLAUDE_MAX_TOKENS,
       messages: [{
         role: 'user',
         content: `You are an expert freight forwarding document analyst. You specialize in interpreting international shipping documents including Master Bill of Lading (MBL), House Bill of Lading (HBL), Air Waybill (AWB), Commercial Invoice, and Packing List.
@@ -2843,7 +2853,8 @@ ${text?.substring(0, 8000)}`
       }]
     });
 
-    const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
+    warnIfTruncated('analyze-document', message);
+    const responseText = replyText(message);
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) return res.status(500).json({ error: 'Failed to parse document' });
@@ -2918,8 +2929,8 @@ app.post('/api/compare-documents', async (req, res) => {
 
   try {
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 3000,
+      model: CLAUDE_MODEL,
+      max_tokens: CLAUDE_MAX_TOKENS,
       messages: [{
         role: 'user',
         content: `You are an expert freight document compliance analyst. Compare these two shipping documents and identify matches, mismatches, and missing fields.
@@ -2962,7 +2973,8 @@ For severity:
       }]
     });
 
-    const text = message.content[0].type === 'text' ? message.content[0].text : '';
+    warnIfTruncated('compare-documents', message);
+    const text = replyText(message);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return res.status(500).json({ error: 'Failed to parse comparison' });
 
@@ -2995,8 +3007,8 @@ app.post('/api/extract-text', async (req, res) => {
     }
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 4000,
+      model: CLAUDE_MODEL,
+      max_tokens: CLAUDE_MAX_TOKENS,
       messages: [{
         role: 'user',
         content: [
@@ -3016,7 +3028,8 @@ app.post('/api/extract-text', async (req, res) => {
       }]
     });
 
-    const text = message.content[0].type === 'text' ? message.content[0].text : '';
+    warnIfTruncated('extract-text', message);
+    const text = replyText(message);
     res.json({ text });
   } catch (error) {
     console.error('Extract text error:', error);
@@ -3824,11 +3837,14 @@ app.post('/api/translate', async (req, res) => {
   const lang = langNames[targetLanguage] || targetLanguage;
   try {
     const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 1024,
+      model: CLAUDE_MODEL,
+      max_tokens: CLAUDE_MAX_TOKENS,
       messages: [{ role: 'user', content: `Translate the following professional freight email reply to ${lang}. Preserve all formatting, names, references (CE numbers, BL numbers, ports, carriers), and the professional tone. Return only the translated text, no explanations.\n\n${text}` }],
     });
-    const translated = (msg.content[0] as any).text || text;
+    warnIfTruncated('translate', msg);
+    const translated = replyText(msg).trim();
+    // Previously an empty reply silently returned the untranslated text.
+    if (!translated) return res.status(500).json({ error: 'Translation failed' });
     res.json({ translated });
   } catch {
     res.status(500).json({ error: 'Translation failed' });
