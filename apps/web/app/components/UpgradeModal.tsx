@@ -59,7 +59,7 @@ export default function UpgradeModal({ reason, session, onLogout }: UpgradeModal
             <Icon name={copy.icon} size={20} />
           </span>
           <h2 id="upgrade-title" className="font-fw-display text-app-title-sm font-normal">{copy.title}</h2>
-          <p className="mt-1 text-app-ui text-app-ink-2">Choose a plan to continue using FreightWizard</p>
+          <p className="mt-1 text-app-ui text-app-ink-2">Choose a plan to continue using Freightwizard</p>
         </div>
 
         <div className="grid gap-3 px-6 pb-6 sm:grid-cols-3">

@@ -1,5 +1,5 @@
 /**
- * FreightWizard line icons, in the FreightGuild style: route motif, one
+ * Freightwizard line icons, in the FreightGuild style: route motif, one
  * continuous stroke where possible, round caps and joins, node dots and one
  * filled "accent" node. 24px grid, 1.5px stroke everywhere. Single colour via
  * currentColor. One set for the whole product: landing page and app.

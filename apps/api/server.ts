@@ -353,7 +353,7 @@ async function saveAnalysis(
 // ============================================
 
 app.get('/', (req, res) => {
-  res.json({ status: 'FreightWizard API running', version: '2.0' });
+  res.json({ status: 'Freightwizard API running', version: '2.0' });
 });
 
 // Start Google OAuth
@@ -826,7 +826,7 @@ app.get('/api/emails/waiting', async (req, res) => {
 // Shared by POST /api/analyze (inline, before the Claude call — never waste
 // tokens on a request we're going to block) and POST /api/billing/increment-analysis.
 // Handles both the session-based dashboard flow and the emailless Gmail/Outlook
-// add-on flow (userEmail + source, no FreightWizard session).
+// add-on flow (userEmail + source, no Freightwizard session).
 type AnalysisGate = { allowed: boolean; reason?: string; analyses_remaining?: number; charge?: () => Promise<number | undefined> };
 
 // Checks whether an analysis may run. Nothing is charged here: the caller
@@ -1042,7 +1042,7 @@ app.post('/api/analyze', async (req, res) => {
       max_tokens: CLAUDE_MAX_TOKENS, // see claude.ts: thinking + full JSON must fit
       messages: [{
         role: 'user',
-        content: `You are FreightWizard AI, an expert freight forwarding email analyst.
+        content: `You are Freightwizard AI, an expert freight forwarding email analyst.
 IMPORTANT: Respond with summary and suggested_reply in ${language === 'pt' ? 'Brazilian Portuguese' : language === 'nl' ? 'Dutch' : 'English'}. Keep intent, priority, mode, pol, pod values in English always.
 
 Analyze this freight email and extract:
@@ -2770,7 +2770,7 @@ async function processQueueItem(
       max_tokens: CLAUDE_MAX_TOKENS,
       messages: [{
         role: 'user',
-        content: `You are FreightWizard AI, an expert freight forwarding email analyst.
+        content: `You are Freightwizard AI, an expert freight forwarding email analyst.
 
 Analyze this freight email and extract:
 1. Intent: quote_request, booking_confirmation, tracking_inquiry, documentation_request, rate_inquiry, status_update, complaint, general_inquiry
@@ -3984,7 +3984,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 // Vercel runs the exported app as a function; locally we listen on a port.
 if (!process.env.VERCEL) {
   app.listen(PORT, () => {
-    console.log(`🚀 FreightWizard API running on http://localhost:${PORT}`);
+    console.log(`🚀 Freightwizard API running on http://localhost:${PORT}`);
     console.log(`📊 Analytics tracking enabled`);
     console.log(`💾 Supabase connected: ${process.env.SUPABASE_URL ? '✅' : '❌'}`);
   });

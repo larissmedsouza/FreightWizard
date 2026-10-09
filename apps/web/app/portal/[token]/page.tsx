@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Icon from '../../components/ui/Icon';
+import Logo from '../../components/ui/Logo';
 import { Tag } from '../../components/ui/Tag';
 import { appRootClass } from '../../components/ui/Panel';
 import { MODE_ICON } from '../../components/ui/tones';
@@ -73,24 +74,24 @@ async function getPortalData(token: string): Promise<PortalData | null> {
 export async function generateMetadata({ params }: { params: { token: string } }): Promise<Metadata> {
   const data = await getPortalData(params.token);
   if (!data) {
-    return { title: 'Shipment Tracking — FreightWizard', description: 'Track your freight shipment status.' };
+    return { title: 'Shipment Tracking — Freightwizard', description: 'Track your freight shipment status.' };
   }
   const title = `${data.reference || 'Shipment'} — ${data.origin} → ${data.destination}`;
   const description = `Status: ${STATUS_LABEL[data.status] || data.status}${data.eta ? ` · ETA: ${data.eta}` : ''}`;
   return {
     title, description,
-    openGraph: { title, description, siteName: 'FreightWizard' },
+    openGraph: { title, description, siteName: 'Freightwizard' },
   };
 }
 
 // Customer-facing page: always light, whatever the forwarder's own theme.
 const shell = (children: React.ReactNode) => (
   <div data-theme="light" className={appRootClass}>
-    <header className="bg-app-bar-bg">
+    <header className="border-b border-app-line bg-app-bg">
       <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
-        <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-6 w-auto" />
-        <span aria-hidden className="h-4 w-px bg-app-bar-muted/40" />
-        <span className="text-app-ui-sm text-app-bar-muted">Shipment Tracking</span>
+        <Logo tone="navy" height={20} />
+        <span aria-hidden className="h-4 w-px bg-app-line-strong" />
+        <span className="text-app-ui-sm text-app-ink-2">Shipment Tracking</span>
       </div>
     </header>
     {children}
@@ -223,7 +224,7 @@ export default async function PortalPage({ params }: { params: { token: string }
       {/* Contact */}
       <footer className="py-6 text-center">
         <p className="mb-1 text-app-ui-sm text-app-ink-2">Questions about your shipment? Contact your freight forwarder.</p>
-        <p className="font-fw-mono text-app-mono-xs text-app-ink-3">Powered by FreightWizard</p>
+        <p className="font-fw-mono text-app-mono-xs text-app-ink-3">Powered by Freightwizard</p>
       </footer>
     </main>
   );

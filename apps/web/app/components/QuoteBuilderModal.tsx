@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Icon from './ui/Icon';
+import Logo from './ui/Logo';
 import { Button } from './ui/Button';
 import { inputClass, inputInlineClass, selectClass, textareaClass, Field, DataLabel } from './ui/Field';
 import { toneClass } from './ui/tones';
@@ -288,7 +289,7 @@ export default function QuoteBuilderModal({ session, initial, onClose, onSaved, 
           <div data-theme="light" className="overflow-y-auto bg-app-panel p-5 print:overflow-visible print:bg-white print:p-0" id="quote-print-area">
             <div className="rounded-fw-frame border border-app-line bg-app-bg p-6 font-fw-sans text-app-ink print:border-0">
               <div className="mb-4 flex items-center justify-between border-b border-app-line pb-4">
-                <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-6 w-auto invert" />
+                <Logo tone="navy" height={18} />
                 <h3 className="text-right font-fw-display text-app-title-sm font-light tracking-wide">FREIGHT<br />QUOTATION</h3>
               </div>
 

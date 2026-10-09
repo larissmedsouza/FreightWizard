@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { SALES_CONTACT } from '@/app/lib/plans';
+import Logo from '@/app/components/ui/Logo';
 import FreightGlobe from '@/app/components/FreightGlobe';
 import RevealObserver from '@/app/components/marketing/RevealObserver';
 import CountUp from '@/app/components/marketing/CountUp';
@@ -27,7 +28,7 @@ const translations = {
     product: {
       title: 'Everything your freight inbox needs, automated by AI',
       desc: 'Freight forwarding operations rely heavily on email communication. Quote requests, shipment updates, documentation questions, and follow-ups arrive continuously throughout the day. Managing this inbox manually slows teams down and increases the risk of missed opportunities.',
-      desc2: 'FreightWizard uses artificial intelligence to analyze incoming freight emails, extract key shipment information, and suggest the appropriate actions automatically.',
+      desc2: 'Freightwizard uses artificial intelligence to analyze incoming freight emails, extract key shipment information, and suggest the appropriate actions automatically.',
       features: [
         { icon: 'email' as FwIconName, title: 'AI Email Understanding', desc: 'Automatically reads freight emails and extracts shipment details such as ports, container types, cargo information, and delivery dates.' },
         { icon: 'workflow' as FwIconName, title: 'Smart Workflow Suggestions', desc: 'Identifies whether an email is a quote request, booking update, documentation request, or status inquiry and suggests the correct next step.' },
@@ -56,13 +57,13 @@ const translations = {
       steps: [
         { num: '1', title: 'Connect Your Inbox', desc: 'Connect your Gmail or Outlook inbox securely. New messages load every time you open or refresh your inbox, and you analyze them with one click, without changing how customers contact you.' },
         { num: '2', title: 'AI Analyzes Each Email', desc: 'The system reads incoming messages and identifies shipment details: origin/destination ports, container type, shipment dates, and customer intent.' },
-        { num: '3', title: 'Structured Data & Suggestions', desc: 'Extracted information is displayed in a structured format. FreightWizard suggests the next action: prepare a quote, request missing info, or forward to operations.' },
+        { num: '3', title: 'Structured Data & Suggestions', desc: 'Extracted information is displayed in a structured format. Freightwizard suggests the next action: prepare a quote, request missing info, or forward to operations.' },
         { num: '4', title: 'Review & Send', desc: 'Your team can review the AI-generated reply, make adjustments if needed, and send the response immediately.' },
       ],
     },
     useCases: {
       title: 'Built for freight forwarding teams',
-      desc: 'FreightWizard is designed specifically for companies whose operations depend on managing large volumes of freight communication.',
+      desc: 'Freightwizard is designed specifically for companies whose operations depend on managing large volumes of freight communication.',
       cases: [
         { icon: 'forwarder' as FwIconName, title: 'Freight Forwarding Companies', desc: 'Automate inbox processing and respond faster to quote requests.' },
         { icon: 'operations' as FwIconName, title: 'Operations Teams', desc: 'Reduce time spent sorting emails and extracting shipment data.' },
@@ -72,7 +73,7 @@ const translations = {
     },
     integrations: {
       title: 'Works with the tools you already use',
-      desc: 'FreightWizard integrates with major email platforms.',
+      desc: 'Freightwizard integrates with major email platforms.',
       supported: 'Supported integrations',
       current: ['Gmail', 'Outlook', 'Microsoft 365', 'Google Workspace'],
       complianceTitle: 'Compliance',
@@ -96,14 +97,14 @@ const translations = {
     },
     about: {
       title: 'Built for the logistics industry',
-      p1: 'FreightWizard was created to solve a common challenge in freight forwarding: managing complex shipment communication through email.',
+      p1: 'Freightwizard was created to solve a common challenge in freight forwarding: managing complex shipment communication through email.',
       p2: 'Our goal is to bring modern AI automation to logistics teams while maintaining the reliability and control required for operational workflows.',
       p3: 'We focus on building tools that help freight professionals work faster, reduce manual tasks, and deliver better service to their customers.',
     },
     faq: {
       title: 'Frequently Asked Questions',
       items: [
-        { q: 'How does FreightWizard access my emails?', a: 'We use secure OAuth connections provided by Google and Microsoft. We never store your email password and you can revoke access at any time.' },
+        { q: 'How does Freightwizard access my emails?', a: 'We use secure OAuth connections provided by Google and Microsoft. We never store your email password and you can revoke access at any time.' },
         { q: 'Is my data secure?', a: 'Yes. All data is encrypted in transit and at rest. We don\'t use your emails to train AI models. Your operational data remains private.' },
         { q: 'Can I edit AI-generated replies?', a: 'Absolutely. Every AI suggestion can be reviewed, edited, or rejected before sending. You maintain full control.' },
         { q: 'What email providers do you support?', a: 'Currently we support Gmail, Google Workspace, Outlook, and Microsoft 365. More integrations are coming soon.' },
@@ -113,7 +114,7 @@ const translations = {
     },
     security: {
       title: 'Security & Data Protection',
-      desc: 'FreightWizard is designed with security and data protection as a priority.',
+      desc: 'Freightwizard is designed with security and data protection as a priority.',
       items: ['Secure OAuth connections', 'Encrypted in transit and at rest', 'We don\'t use your emails to train AI models', 'Every request is authenticated, and your data is visible only to your account and your team'],
     },
     cta: {
@@ -127,7 +128,7 @@ const translations = {
       company: 'Company',
       legal: 'Legal',
       links: { features: 'Features', pricing: 'Pricing', integrations: 'Integrations', about: 'About', blog: 'Blog', careers: 'Careers', privacy: 'Privacy', terms: 'Terms' },
-      copy: '© 2026 FreightWizard. All rights reserved.',
+      copy: '© 2026 Freightwizard. All rights reserved.',
     },
   },
   pt: {
@@ -144,7 +145,7 @@ const translations = {
     product: {
       title: 'Tudo que sua caixa de entrada de frete precisa, automatizado por IA',
       desc: 'Operações de freight forwarding dependem muito da comunicação por e-mail. Pedidos de cotação, atualizações de embarque e follow-ups chegam continuamente.',
-      desc2: 'O FreightWizard usa inteligência artificial para analisar e-mails, extrair informações de embarque e sugerir ações automaticamente.',
+      desc2: 'O Freightwizard usa inteligência artificial para analisar e-mails, extrair informações de embarque e sugerir ações automaticamente.',
       features: [
         { icon: 'email' as FwIconName, title: 'Compreensão de E-mail por IA', desc: 'Lê automaticamente e-mails de frete e extrai detalhes como portos, tipos de container e datas.' },
         { icon: 'workflow' as FwIconName, title: 'Sugestões Inteligentes', desc: 'Identifica se o e-mail é pedido de cotação, atualização de booking ou consulta de status.' },
@@ -179,7 +180,7 @@ const translations = {
     },
     useCases: {
       title: 'Feito para equipes de freight forwarding',
-      desc: 'FreightWizard é projetado para empresas que dependem de grandes volumes de comunicação de frete.',
+      desc: 'Freightwizard é projetado para empresas que dependem de grandes volumes de comunicação de frete.',
       cases: [
         { icon: 'forwarder' as FwIconName, title: 'Freight Forwarders', desc: 'Automatize o processamento de inbox e responda mais rápido.' },
         { icon: 'operations' as FwIconName, title: 'Equipes de Operações', desc: 'Reduza tempo gasto classificando e-mails.' },
@@ -189,7 +190,7 @@ const translations = {
     },
     integrations: {
       title: 'Funciona com suas ferramentas',
-      desc: 'FreightWizard integra com principais plataformas de e-mail.',
+      desc: 'Freightwizard integra com principais plataformas de e-mail.',
       supported: 'Integrações suportadas',
       current: ['Gmail', 'Outlook', 'Microsoft 365', 'Google Workspace'],
       complianceTitle: 'Compliance',
@@ -213,14 +214,14 @@ const translations = {
     },
     about: {
       title: 'Construído para a indústria logística',
-      p1: 'FreightWizard foi criado para resolver um desafio comum no freight forwarding: gerenciar comunicação complexa de embarques por e-mail.',
+      p1: 'Freightwizard foi criado para resolver um desafio comum no freight forwarding: gerenciar comunicação complexa de embarques por e-mail.',
       p2: 'Nosso objetivo é trazer automação moderna de IA para equipes de logística, mantendo a confiabilidade e controle necessários para fluxos operacionais.',
       p3: 'Focamos em construir ferramentas que ajudam profissionais de frete a trabalhar mais rápido, reduzir tarefas manuais e entregar melhor serviço aos seus clientes.',
     },
     faq: {
       title: 'Perguntas Frequentes',
       items: [
-        { q: 'Como o FreightWizard acessa meus e-mails?', a: 'Usamos conexões OAuth seguras. Nunca armazenamos sua senha e você pode revogar acesso a qualquer momento.' },
+        { q: 'Como o Freightwizard acessa meus e-mails?', a: 'Usamos conexões OAuth seguras. Nunca armazenamos sua senha e você pode revogar acesso a qualquer momento.' },
         { q: 'Meus dados estão seguros?', a: 'Sim. Todos os dados são criptografados em trânsito e em repouso. Não usamos seus e-mails para treinar modelos de IA.' },
         { q: 'Posso editar respostas da IA?', a: 'Absolutamente. Toda sugestão pode ser revisada e editada antes de enviar.' },
         { q: 'Quais provedores de email suportam?', a: 'Gmail, Google Workspace, Outlook e Microsoft 365.' },
@@ -230,11 +231,11 @@ const translations = {
     },
     security: {
       title: 'Segurança & Proteção de Dados',
-      desc: 'FreightWizard foi projetado com segurança como prioridade.',
+      desc: 'Freightwizard foi projetado com segurança como prioridade.',
       items: ['Conexões OAuth seguras', 'Criptografia em trânsito e em repouso', 'Não usamos seus e-mails para treinar modelos de IA', 'Toda requisição é autenticada, e seus dados são visíveis apenas para sua conta e sua equipe'],
     },
     cta: { title: 'Pronto para transformar seu inbox?', desc: 'Feito para equipes de freight forwarding que querem economizar tempo e ganhar mais negócios.', button: 'Começar Grátis' },
-    footer: { desc: 'Gestão de e-mails com IA para freight forwarding.', product: 'Produto', company: 'Empresa', legal: 'Legal', links: { features: 'Recursos', pricing: 'Preços', integrations: 'Integrações', about: 'Sobre', blog: 'Blog', careers: 'Carreiras', privacy: 'Privacidade', terms: 'Termos' }, copy: '© 2026 FreightWizard. Todos os direitos reservados.' },
+    footer: { desc: 'Gestão de e-mails com IA para freight forwarding.', product: 'Produto', company: 'Empresa', legal: 'Legal', links: { features: 'Recursos', pricing: 'Preços', integrations: 'Integrações', about: 'Sobre', blog: 'Blog', careers: 'Carreiras', privacy: 'Privacidade', terms: 'Termos' }, copy: '© 2026 Freightwizard. Todos os direitos reservados.' },
   },
   nl: {
     nav: { whatWeDo: 'Wat we doen', howItWorks: 'Hoe Het Werkt', useCases: 'Use Cases', pricing: 'Prijzen', aboutUs: 'Over Ons', signIn: 'Inloggen', signUp: 'Aanmelden' },
@@ -250,7 +251,7 @@ const translations = {
     product: {
       title: 'Alles wat je vracht-inbox nodig heeft, geautomatiseerd door AI',
       desc: 'Freight forwarding operaties zijn sterk afhankelijk van e-mailcommunicatie. Offerteaanvragen, updates en follow-ups komen continu binnen.',
-      desc2: 'FreightWizard gebruikt AI om e-mails te analyseren, zendingsinformatie te extraheren en acties automatisch voor te stellen.',
+      desc2: 'Freightwizard gebruikt AI om e-mails te analyseren, zendingsinformatie te extraheren en acties automatisch voor te stellen.',
       features: [
         { icon: 'email' as FwIconName, title: 'AI E-mail Begrip', desc: 'Leest automatisch vracht-e-mails en extraheert details zoals havens, containertypes en data.' },
         { icon: 'workflow' as FwIconName, title: 'Slimme Suggesties', desc: 'Identificeert of een e-mail een offerteaanvraag, boeking of statusvraag is.' },
@@ -285,7 +286,7 @@ const translations = {
     },
     useCases: {
       title: 'Gebouwd voor freight forwarding teams',
-      desc: 'FreightWizard is ontworpen voor bedrijven die afhankelijk zijn van grote volumes vrachtcommunicatie.',
+      desc: 'Freightwizard is ontworpen voor bedrijven die afhankelijk zijn van grote volumes vrachtcommunicatie.',
       cases: [
         { icon: 'forwarder' as FwIconName, title: 'Freight Forwarders', desc: 'Automatiseer inbox-verwerking en reageer sneller.' },
         { icon: 'operations' as FwIconName, title: 'Operations Teams', desc: 'Verminder tijd besteed aan e-mail sorteren.' },
@@ -295,7 +296,7 @@ const translations = {
     },
     integrations: {
       title: 'Werkt met je bestaande tools',
-      desc: 'FreightWizard integreert met grote e-mailplatforms.',
+      desc: 'Freightwizard integreert met grote e-mailplatforms.',
       supported: 'Ondersteunde integraties',
       current: ['Gmail', 'Outlook', 'Microsoft 365', 'Google Workspace'],
       complianceTitle: 'Compliance',
@@ -319,14 +320,14 @@ const translations = {
     },
     about: {
       title: 'Gebouwd voor de logistieke industrie',
-      p1: 'FreightWizard is gemaakt om een veelvoorkomende uitdaging in freight forwarding op te lossen: het beheren van complexe zendingscommunicatie via e-mail.',
+      p1: 'Freightwizard is gemaakt om een veelvoorkomende uitdaging in freight forwarding op te lossen: het beheren van complexe zendingscommunicatie via e-mail.',
       p2: 'Ons doel is om moderne AI-automatisering naar logistieke teams te brengen, met behoud van de betrouwbaarheid en controle die nodig is voor operationele workflows.',
       p3: 'We richten ons op het bouwen van tools die vrachtprofessionals helpen sneller te werken, handmatige taken te verminderen en betere service aan hun klanten te leveren.',
     },
     faq: {
       title: 'Veelgestelde Vragen',
       items: [
-        { q: 'Hoe krijgt FreightWizard toegang tot mijn e-mails?', a: 'We gebruiken veilige OAuth-verbindingen. We slaan je wachtwoord nooit op.' },
+        { q: 'Hoe krijgt Freightwizard toegang tot mijn e-mails?', a: 'We gebruiken veilige OAuth-verbindingen. We slaan je wachtwoord nooit op.' },
         { q: 'Zijn mijn gegevens veilig?', a: 'Ja. Alle data is versleuteld tijdens verzending en opslag. We gebruiken je e-mails niet om AI-modellen te trainen.' },
         { q: 'Kan ik AI-antwoorden bewerken?', a: 'Absoluut. Elke suggestie kan worden gereviewd en bewerkt voor verzending.' },
         { q: 'Welke e-mailproviders ondersteunen jullie?', a: 'Gmail, Google Workspace, Outlook en Microsoft 365.' },
@@ -336,11 +337,11 @@ const translations = {
     },
     security: {
       title: 'Beveiliging & Gegevensbescherming',
-      desc: 'FreightWizard is ontworpen met beveiliging als prioriteit.',
+      desc: 'Freightwizard is ontworpen met beveiliging als prioriteit.',
       items: ['Veilige OAuth verbindingen', 'Versleuteld tijdens verzending en opslag', 'We gebruiken je e-mails niet om AI-modellen te trainen', 'Elk verzoek wordt geauthenticeerd en je gegevens zijn alleen zichtbaar voor je account en je team'],
     },
     cta: { title: 'Klaar om je inbox te transformeren?', desc: 'Gebouwd voor freight forwarding teams die tijd willen besparen en meer business willen winnen.', button: 'Start Gratis' },
-    footer: { desc: 'AI-gestuurd e-mailbeheer voor freight forwarding.', product: 'Product', company: 'Bedrijf', legal: 'Juridisch', links: { features: 'Functies', pricing: 'Prijzen', integrations: 'Integraties', about: 'Over Ons', blog: 'Blog', careers: 'Vacatures', privacy: 'Privacy', terms: 'Voorwaarden' }, copy: '© 2026 FreightWizard. Alle rechten voorbehouden.' },
+    footer: { desc: 'AI-gestuurd e-mailbeheer voor freight forwarding.', product: 'Product', company: 'Bedrijf', legal: 'Juridisch', links: { features: 'Functies', pricing: 'Prijzen', integrations: 'Integraties', about: 'Over Ons', blog: 'Blog', careers: 'Vacatures', privacy: 'Privacy', terms: 'Voorwaarden' }, copy: '© 2026 Freightwizard. Alle rechten voorbehouden.' },
   },
 };
 
@@ -379,11 +380,11 @@ export default function HomePage() {
       <nav className="fixed top-0 z-50 w-full border-b border-fw-line bg-fw-canvas/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-10">
           <Link href="/" className="flex items-center">
-            <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-7 w-auto" />
+            <Logo tone="white" height={22} />
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden items-center gap-8 md:flex">
+          <div className="hidden items-center gap-8 lg:flex">
             <a href="#product" className={navLink}>{t.nav.whatWeDo}</a>
             <a href="#how-it-works" className={navLink}>{t.nav.howItWorks}</a>
             <a href="#use-cases" className={navLink}>{t.nav.useCases}</a>
@@ -391,7 +392,7 @@ export default function HomePage() {
             <a href="#about" className={navLink}>{t.nav.aboutUs}</a>
           </div>
 
-          <div className="hidden items-center gap-4 md:flex">
+          <div className="hidden items-center gap-4 lg:flex">
             {/* Language Selector */}
             <div className="relative">
               <button onClick={() => setLangMenuOpen(!langMenuOpen)} aria-expanded={langMenuOpen} className={langButton}>
@@ -405,7 +406,7 @@ export default function HomePage() {
           </div>
 
           {/* Mobile: Language Selector + Menu Button */}
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex items-center gap-2 lg:hidden">
             <div className="relative">
               <button onClick={() => { setLangMenuOpen(!langMenuOpen); setMobileMenuOpen(false); }} aria-expanded={langMenuOpen} className={langButton}>
                 {langLabels[language]} <FwIcon name="chevron" size={14} />
@@ -418,7 +419,7 @@ export default function HomePage() {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="space-y-4 border-t border-fw-line bg-fw-panel px-4 py-4 md:hidden">
+          <div className="space-y-4 border-t border-fw-line bg-fw-panel px-4 py-4 lg:hidden">
             <a href="#product" className="block text-fw-ink-2">{t.nav.whatWeDo}</a>
             <a href="#how-it-works" className="block text-fw-ink-2">{t.nav.howItWorks}</a>
             <a href="#use-cases" className="block text-fw-ink-2">{t.nav.useCases}</a>
@@ -660,7 +661,7 @@ export default function HomePage() {
           <div className="mb-8 grid gap-8 md:grid-cols-4">
             <div>
               <div className="mb-4 flex items-center">
-                <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-6 w-auto" />
+                <Logo tone="white" height={20} />
               </div>
               <p className="text-fw-small text-fw-ink-3">{t.footer.desc}</p>
             </div>

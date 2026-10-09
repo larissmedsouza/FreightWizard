@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Logo from '../components/ui/Logo';
 import { PLANS, SALES_CONTACT } from '../lib/plans';
 import { ButtonLink, buttonClass } from '../components/marketing/Button';
 import { SectionHeader } from '../components/marketing/Section';
@@ -87,7 +88,7 @@ export default function PricingPage() {
       <header className="border-b border-fw-line bg-fw-canvas">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-10">
           <Link href="/" className="flex items-center">
-            <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-7 w-auto" />
+            <Logo tone="white" height={22} />
           </Link>
           {session ? (
             <Link href={`/billing?session=${session}`} className="text-fw-small text-fw-ink-2 transition-colors hover:text-fw-ink">Billing</Link>

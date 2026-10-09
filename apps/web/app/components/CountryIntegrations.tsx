@@ -158,7 +158,7 @@ export default function CountryIntegrations({ session, only }: { session: string
             return <span className={`size-2 rounded-full ${toneClass[tone].dot}`} title={label} aria-label={label} />;
           })()}
         </div>
-        <p className="mb-4 text-app-ui text-app-ink-2">Bring your own credentials (BYOC) — FreightWizard is the interface layer, you contract directly with each authority.</p>
+        <p className="mb-4 text-app-ui text-app-ink-2">Bring your own credentials (BYOC) — Freightwizard is the interface layer, you contract directly with each authority.</p>
 
         {/* Country selector */}
         <div className="flex flex-wrap gap-2">
@@ -204,7 +204,7 @@ export default function CountryIntegrations({ session, only }: { session: string
 
         <Notice tone="neutral" icon="info" title="DMS Access (Douane Management Systeem)"
           action={<a href="https://nh.douane.nl" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-app-ui-sm text-app-accent hover:underline">nh.douane.nl <Icon name="external" size={12} /></a>}>
-          DMS declarations require certified customs software. FreightWizard currently shows DMS compliance checklists only. Direct DMS filing coming in a future update.
+          DMS declarations require certified customs software. Freightwizard currently shows DMS compliance checklists only. Direct DMS filing coming in a future update.
         </Notice>
 
         <div className="flex gap-2">
@@ -241,7 +241,7 @@ export default function CountryIntegrations({ session, only }: { session: string
           </div>
         </div>
 
-        <Notice tone="neutral" icon="info">FreightWizard uses this for compliance reference only — ABI submissions require certified customs broker software.</Notice>
+        <Notice tone="neutral" icon="info">Freightwizard uses this for compliance reference only — ABI submissions require certified customs broker software.</Notice>
 
         <div className="flex gap-2">
           <Button variant="primary" onClick={() => saveIntegration('US', 'ace', { extra_fields: { ace_filer_code: us.ace_filer_code, ein: us.ein, aes_itn_prefix: us.aes_itn_prefix, ctpat: us.ctpat } })}

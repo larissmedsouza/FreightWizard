@@ -1,4 +1,4 @@
-# 🚢 FreightWizard
+# 🚢 Freightwizard
 
 AI-Powered Email Management for Freight Forwarding
 

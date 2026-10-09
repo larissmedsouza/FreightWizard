@@ -43,7 +43,7 @@ export default function BillingSuccessPage() {
         <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-fw-card border border-app-line text-app-ok-ink">
           <Icon name="check" size={24} />
         </span>
-        <h1 className="mb-2 font-fw-display text-app-title font-light">Welcome to FreightWizard {planLabel}!</h1>
+        <h1 className="mb-2 font-fw-display text-app-title font-light">Welcome to Freightwizard {planLabel}!</h1>
         <p className="mb-6 text-app-ink-2">Your subscription is now active</p>
         <a href={`/dashboard${session ? `?session=${session}` : ''}`} className={buttonClass('primary', 'lg')}>
           Go to Dashboard

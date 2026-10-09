@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from './Icon';
+import Logo from './Logo';
 
 import { API_URL } from '@/app/lib/api';
 
@@ -80,8 +81,8 @@ export default function TopBar({
   return (
     <header className="sticky top-0 z-40 border-b border-app-bar-line bg-app-bar-bg font-fw-sans text-app-bar-ink">
       <div className="flex h-12 items-center gap-4 px-4 lg:px-6">
-        <Link href={session ? withSession('/overview') : '/'} className="flex flex-shrink-0 items-center" aria-label="FreightWizard">
-          <img src="/icons/freightwizard_logo_white.png" alt="FreightWizard" className="h-5 w-auto" />
+        <Link href={session ? withSession('/overview') : '/'} className="flex flex-shrink-0 items-center" aria-label="Freightwizard">
+          <Logo tone="white" height={18} />
         </Link>
 
         {showNav && (user || session) && (
