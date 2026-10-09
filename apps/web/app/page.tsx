@@ -114,7 +114,7 @@ const translations = {
     security: {
       title: 'Security & Data Protection',
       desc: 'FreightWizard is designed with security and data protection as a priority.',
-      items: ['Secure OAuth connections', 'Encrypted in transit and at rest', 'We don\'t use your emails to train AI models', 'Strict access controls'],
+      items: ['Secure OAuth connections', 'Encrypted in transit and at rest', 'We don\'t use your emails to train AI models', 'Every request is authenticated, and your data is visible only to your account and your team'],
     },
     cta: {
       title: 'Ready to transform your freight inbox?',
@@ -231,7 +231,7 @@ const translations = {
     security: {
       title: 'Segurança & Proteção de Dados',
       desc: 'FreightWizard foi projetado com segurança como prioridade.',
-      items: ['Conexões OAuth seguras', 'Criptografia em trânsito e em repouso', 'Não usamos seus e-mails para treinar modelos de IA', 'Controles de acesso'],
+      items: ['Conexões OAuth seguras', 'Criptografia em trânsito e em repouso', 'Não usamos seus e-mails para treinar modelos de IA', 'Toda requisição é autenticada, e seus dados são visíveis apenas para sua conta e sua equipe'],
     },
     cta: { title: 'Pronto para transformar seu inbox?', desc: 'Feito para equipes de freight forwarding que querem economizar tempo e ganhar mais negócios.', button: 'Começar Grátis' },
     footer: { desc: 'Gestão de e-mails com IA para freight forwarding.', product: 'Produto', company: 'Empresa', legal: 'Legal', links: { features: 'Recursos', pricing: 'Preços', integrations: 'Integrações', about: 'Sobre', blog: 'Blog', careers: 'Carreiras', privacy: 'Privacidade', terms: 'Termos' }, copy: '© 2026 FreightWizard. Todos os direitos reservados.' },
@@ -337,7 +337,7 @@ const translations = {
     security: {
       title: 'Beveiliging & Gegevensbescherming',
       desc: 'FreightWizard is ontworpen met beveiliging als prioriteit.',
-      items: ['Veilige OAuth verbindingen', 'Versleuteld tijdens verzending en opslag', 'We gebruiken je e-mails niet om AI-modellen te trainen', 'Strikte toegangscontroles'],
+      items: ['Veilige OAuth verbindingen', 'Versleuteld tijdens verzending en opslag', 'We gebruiken je e-mails niet om AI-modellen te trainen', 'Elk verzoek wordt geauthenticeerd en je gegevens zijn alleen zichtbaar voor je account en je team'],
     },
     cta: { title: 'Klaar om je inbox te transformeren?', desc: 'Gebouwd voor freight forwarding teams die tijd willen besparen en meer business willen winnen.', button: 'Start Gratis' },
     footer: { desc: 'AI-gestuurd e-mailbeheer voor freight forwarding.', product: 'Product', company: 'Bedrijf', legal: 'Juridisch', links: { features: 'Functies', pricing: 'Prijzen', integrations: 'Integraties', about: 'Over Ons', blog: 'Blog', careers: 'Vacatures', privacy: 'Privacy', terms: 'Voorwaarden' }, copy: '© 2026 FreightWizard. Alle rechten voorbehouden.' },
@@ -640,7 +640,7 @@ export default function HomePage() {
         <ul data-reveal className="flex flex-wrap justify-center gap-3">
           {t.security.items.map((item, i) => (
             <li key={i} className={`${tag} flex items-center gap-2 text-fw-ink-2`}>
-              <FwIcon name="check" size={16} className="text-fw-indigo-300" /> {item}
+              <FwIcon name="check" size={16} className="flex-none text-fw-indigo-300" /> {item}
             </li>
           ))}
         </ul>

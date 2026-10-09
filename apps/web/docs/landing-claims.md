@@ -17,7 +17,7 @@ Reviewed against the code and decided by the product owner. Applied in EN, PT an
 | 4.1 | Reword (no live monitoring; analysis runs on click) | "New messages load every time you open or refresh your inbox, and you analyze them with one click" |
 | 5.3 | Keep | "Encrypted in transit and at rest" (HTTPS + Supabase disk encryption); PT/NL FAQ aligned |
 | 5.4 | Keep, reworded | "We don't use your emails to train AI models" |
-| 5.5 | **Pending**: /api/analysis-result is unauthenticated, so "every request is authenticated" is not true yet | "Strict access controls" (unchanged until decided) |
+| 5.5 | Fixed first (option a): every non-public endpoint now requires a login session or a verified Google ID token; add-on results are scoped to the caller (test: `apps/api/results.test.ts`). Public by design: sign-in, signed webhooks, token-protected portal links | "Every request is authenticated, and your data is visible only to your account and your team" |
 | 5.6 | Remove GDPR / LGPD / AVG in all languages; footer Privacy link removed until a privacy page exists | — |
 | 5.8 | Remove the 95% accuracy FAQ | — |
 | 6.1 | Reword Trial | "14 days free: 30 analyses, 5 shipments, 5 quotes. No credit card." ("Full Professional access" removed) |

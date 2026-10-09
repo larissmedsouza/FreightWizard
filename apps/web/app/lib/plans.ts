@@ -16,8 +16,8 @@ export interface Plan {
   features: { label: string; included: boolean }[];
 }
 
-// PLACEHOLDER: confirm the sales address before publishing. Used by every
-// Contact sales button (landing, /pricing, Billing, upgrade modal).
+// Sales address (confirmed 2026-10-09). Used by every Contact sales button
+// (landing, /pricing, Billing, upgrade modal).
 export const SALES_CONTACT = 'mailto:sales@freightwizard.app';
 
 export const PLANS: Plan[] = [

@@ -13,6 +13,9 @@ import { buildOverview, listWaitingEmails, type Db, type WaitingView } from './o
 import { analysisPolicy, countMonthlyAnalyses, getPlanLimits, isTrialExpired, TRIAL_ANALYSES } from './billing';
 import { CLAUDE_MODEL, CLAUDE_MAX_TOKENS, replyText, warnIfTruncated } from './claude';
 import { headerMap, isBulkMail, freightScore, marketingAnalysis, type Headers } from './triage';
+import { resolveCaller, type CallerDeps } from './caller';
+import { findResultForCaller } from './results';
+import { OAuth2Client } from 'google-auth-library';
 
 // Load env from root (for local dev)
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -223,6 +226,27 @@ async function saveSession(sessionId: string, userId: string, email: string, nam
 // ============================================
 // HELPER: Get session from Supabase
 // ============================================
+// ---- Caller identity (caller.ts): a login session, or a Google ID token from
+// the Gmail add-on verified against GOOGLE_ADDON_CLIENT_IDS (comma-separated
+// OAuth client IDs of the add-on's Apps Script project). A plain userEmail is
+// never accepted as identity.
+const GOOGLE_ADDON_CLIENT_IDS = (process.env.GOOGLE_ADDON_CLIENT_IDS || '').split(',').map(x => x.trim()).filter(Boolean);
+const idTokenClient = new OAuth2Client();
+const callerDeps: CallerDeps = {
+  getSession: async (sid) => { const ses = await getSession(sid); return ses ? { userId: ses.userId, email: ses.email } : null; },
+  verifyGoogleIdToken: async (token) => {
+    if (!GOOGLE_ADDON_CLIENT_IDS.length) return null;
+    try {
+      const ticket = await idTokenClient.verifyIdToken({ idToken: token, audience: GOOGLE_ADDON_CLIENT_IDS });
+      return ticket.getPayload() || null;
+    } catch {
+      return null;
+    }
+  },
+  getOrCreateUser: (email) => getOrCreateUser(email),
+};
+const callerOf = (req: express.Request) => resolveCaller(req as any, callerDeps);
+
 async function getSession(sessionId: string) {
   try {
     const { data, error } = await supabase
@@ -786,8 +810,9 @@ async function fetchTriageInfo(session: any, emailId: string): Promise<{ headers
 }
 
 app.post('/api/billing/increment-analysis', async (req, res) => {
-  const sessionId = (req.query.session as string) || req.body.sessionId;
-  const result = await checkAndIncrementAnalysis({ sessionId });
+  const caller = await callerOf(req);
+  if (!caller) return res.status(401).json({ allowed: false, reason: 'not_authenticated' });
+  const result = await checkAndIncrementAnalysis({ sessionId: caller.sessionId, userEmail: caller.via === 'google_id_token' ? caller.email : undefined });
   res.json(result);
 });
 
@@ -882,7 +907,11 @@ function extractAnalysisJson(text: string): any | null {
 }
 
 app.post('/api/analyze', async (req, res) => {
-  const { subject, body, from, emailId, sessionId, source, userEmail, language, force } = req.body;
+  const { subject, body, from, emailId, sessionId, source, language, force } = req.body;
+  // Web app: session. Add-ons: verified Google ID token. Nothing else.
+  const caller = await callerOf(req);
+  if (!caller) return res.status(401).json({ error: 'Not authenticated', reason: 'not_authenticated' });
+  const addonEmail = caller.via === 'google_id_token' ? caller.email : undefined;
 
   // Newsletters / marketing: label without calling the AI or using an analysis.
   // Decided from the message's own headers on the server; force=true analyses anyway.
@@ -899,7 +928,7 @@ app.post('/api/analyze', async (req, res) => {
     }
   }
 
-  const gate = await checkAnalysis({ sessionId, userEmail: (source === 'gmail_addon' || source === 'outlook_addon') ? userEmail : undefined });
+  const gate = await checkAnalysis({ sessionId: caller.sessionId, userEmail: addonEmail });
   if (!gate.allowed) {
     console.warn(`🚫 Analysis refused (${gate.reason}) for email ${emailId || '-'}`);
     if (gate.reason === 'not_authenticated') return res.status(401).json({ error: 'Not authenticated', reason: gate.reason });
@@ -990,13 +1019,8 @@ Respond in JSON format:
       const analyses_remaining = gate.charge ? await gate.charge() : gate.analyses_remaining;
       let userId: string | null = null;
 
-      if (sessionId) {
-        const session = await getSession(sessionId);
-        userId = session?.userId || null;
-      } else if (userEmail && (source === 'gmail_addon' || source === 'outlook_addon')) {
-        userId = await getOrCreateUser(userEmail);
-        console.log(`📧 ${source} analysis from: ${userEmail} (User ID: ${userId})`);
-      }
+      userId = caller.userId;
+      if (caller.via === 'google_id_token') console.log(`📧 ${source || 'add-on'} analysis from: ${caller.email} (User ID: ${userId})`);
 
       if (userId && emailId) {
         await saveAnalysis(userId, sessionId || 'gmail_addon', emailId, subject, from, analysis);
@@ -2326,19 +2350,15 @@ app.post('/api/save-draft', async (req, res) => {
 
 // Track reply from Gmail/Outlook Add-on
 app.post('/api/track-reply', async (req, res) => {
-  const { emailId, replyText, userEmail, source } = req.body;
-
-  if ((source !== 'gmail_addon' && source !== 'outlook_addon') || !userEmail) {
-    return res.status(400).json({ error: 'Invalid request' });
-  }
-
+  const { emailId, replyText } = req.body;
+  const caller = await callerOf(req);
+  if (!caller) return res.status(401).json({ error: 'Not authenticated' });
+  if (!emailId) return res.status(400).json({ error: 'Invalid request' });
   try {
-    const userId = await getOrCreateUser(userEmail);
-    if (!userId) return res.status(400).json({ error: 'Could not find or create user' });
-
+    const userId = caller.userId;
     const { data: activity } = await supabase
       .from('email_activity').select('created_at')
-      .eq('email_id', emailId).eq('action', 'received').single();
+      .eq('email_id', emailId).eq('user_id', userId).eq('action', 'received').single();
 
     let responseTimeMinutes;
     if (activity) {
@@ -2359,16 +2379,12 @@ app.post('/api/track-reply', async (req, res) => {
 
 // Track draft from Gmail Add-on
 app.post('/api/track-draft', async (req, res) => {
-  const { emailId, userEmail, source } = req.body;
-
-  if (source !== 'gmail_addon' || !userEmail) {
-    return res.status(400).json({ error: 'Invalid request' });
-  }
-
+  const { emailId } = req.body;
+  const caller = await callerOf(req);
+  if (!caller) return res.status(401).json({ error: 'Not authenticated' });
+  if (!emailId) return res.status(400).json({ error: 'Invalid request' });
   try {
-    const userId = await getOrCreateUser(userEmail);
-    if (!userId) return res.status(400).json({ error: 'Could not find or create user' });
-    await trackActivity(userId, emailId, 'draft_saved');
+    await trackActivity(caller.userId, emailId, 'draft_saved');
     res.json({ success: true });
   } catch (error) {
     console.error('Track draft error:', error);
@@ -2625,39 +2641,33 @@ app.get('/api/team/leaderboard', async (req, res) => {
 // ============================================
 
 app.post('/api/queue-analysis', async (req, res) => {
-  const { emailId, userEmail, subject, from, body, threadId } = req.body;
+  const { emailId, subject, from, body, threadId } = req.body;
+  const caller = await callerOf(req);
+  if (!caller) return res.status(401).json({ error: 'Not authenticated' });
+  if (!emailId) return res.status(400).json({ error: 'emailId is required' });
 
   try {
-    const { data: existing } = await supabase
-      .from('email_analysis').select('*').eq('email_id', emailId).single();
+    // Only the caller's own saved analysis or queue entry (results.ts)
+    const existing = await findResultForCaller(supabase as unknown as Db, caller, emailId);
+    if (existing.status === 'ready' || existing.status === 'processing') return res.json(existing);
 
-    if (existing) {
-      return res.json({
-        status: 'ready',
-        analysis: {
-          intent: existing.intent, priority: existing.priority, mode: existing.mode,
-          pol: existing.pol, pod: existing.pod, incoterm: existing.incoterm,
-          cargo_type: existing.cargo_type, container_type: existing.container_type,
-          container_count: existing.container_count, missing_info: existing.missing_info,
-          summary: existing.summary, suggested_reply: existing.suggested_reply,
-        }
+    // Same plan limits as /api/analyze; charged only after a successful analysis
+    const gate = await checkAnalysis({ sessionId: caller.sessionId, userEmail: caller.via === 'google_id_token' ? caller.email : undefined });
+    if (!gate.allowed) {
+      console.warn(`🚫 Queued analysis refused (${gate.reason}) for email ${emailId}`);
+      return res.status(gate.reason === 'not_authenticated' ? 401 : 402).json({ error: 'limit_reached', reason: gate.reason });
+    }
+
+    if (existing.status === 'error') {
+      await supabase.from('analysis_queue').update({ status: 'pending' }).eq('email_id', emailId).eq('user_email', caller.email);
+    } else {
+      await supabase.from('analysis_queue').insert({
+        email_id: emailId, user_email: caller.email, subject,
+        from_email: from, body: body?.substring(0, 4000), thread_id: threadId, status: 'pending',
       });
     }
 
-    const { data: queued } = await supabase
-      .from('analysis_queue').select('id, status, result').eq('email_id', emailId).single();
-
-    if (queued) {
-      if (queued.status === 'done') return res.json({ status: 'ready', analysis: queued.result });
-      return res.json({ status: 'processing' });
-    }
-
-    await supabase.from('analysis_queue').insert({
-      email_id: emailId, user_email: userEmail, subject,
-      from_email: from, body: body?.substring(0, 4000), thread_id: threadId, status: 'pending',
-    });
-
-    processQueueItem(emailId, userEmail, subject, from, body, threadId);
+    processQueueItem(emailId, caller.email, subject, from, body, threadId, gate.charge);
 
     res.json({ status: 'processing' });
   } catch (e) {
@@ -2666,33 +2676,14 @@ app.post('/api/queue-analysis', async (req, res) => {
   }
 });
 
+// Polling for the add-on: only the caller's own result, never another user's.
 app.get('/api/analysis-result', async (req, res) => {
-  const { emailId } = req.query as { emailId: string };
-
+  const caller = await callerOf(req);
+  if (!caller) return res.status(401).json({ error: 'Not authenticated' });
+  const emailId = String(req.query.emailId || '');
+  if (!emailId) return res.status(400).json({ error: 'emailId is required' });
   try {
-    const { data: existing } = await supabase
-      .from('email_analysis').select('*').eq('email_id', emailId).single();
-
-    if (existing) {
-      return res.json({
-        status: 'ready',
-        analysis: {
-          intent: existing.intent, priority: existing.priority, mode: existing.mode,
-          pol: existing.pol, pod: existing.pod, incoterm: existing.incoterm,
-          cargo_type: existing.cargo_type, container_type: existing.container_type,
-          container_count: existing.container_count, missing_info: existing.missing_info,
-          summary: existing.summary, suggested_reply: existing.suggested_reply,
-        }
-      });
-    }
-
-    const { data: queued } = await supabase
-      .from('analysis_queue').select('status, result').eq('email_id', emailId).single();
-
-    if (!queued) return res.json({ status: 'not_found' });
-    if (queued.status === 'done') return res.json({ status: 'ready', analysis: queued.result });
-
-    res.json({ status: 'processing' });
+    res.json(await findResultForCaller(supabase as unknown as Db, caller, emailId));
   } catch (e) {
     res.status(500).json({ error: 'Failed to get result' });
   }
@@ -2700,7 +2691,8 @@ app.get('/api/analysis-result', async (req, res) => {
 
 async function processQueueItem(
   emailId: string, userEmail: string, subject: string,
-  from: string, body: string, threadId: string
+  from: string, body: string, threadId: string,
+  charge?: () => Promise<number | undefined>
 ) {
   try {
     const message = await anthropic.messages.create({
@@ -2743,7 +2735,8 @@ Respond in JSON format:
 
       await supabase.from('analysis_queue')
         .update({ status: 'done', result: analysis, processed_at: new Date().toISOString() })
-        .eq('email_id', emailId);
+        .eq('email_id', emailId).eq('user_email', userEmail);
+      if (charge) await charge();
 
       const userId = await getOrCreateUser(userEmail);
       if (userId) {
@@ -2755,7 +2748,7 @@ Respond in JSON format:
     }
   } catch (e) {
     console.error('Process queue error:', e);
-    await supabase.from('analysis_queue').update({ status: 'error' }).eq('email_id', emailId);
+    await supabase.from('analysis_queue').update({ status: 'error' }).eq('email_id', emailId).eq('user_email', userEmail);
   }
 }
 
@@ -3508,6 +3501,7 @@ async function lookupTaric(hsCodeRaw: string, countryRaw: string): Promise<{ ok:
 }
 
 app.get('/api/integrations/taric/lookup', async (req, res) => {
+  if (!(await callerOf(req))) return res.status(401).json({ error: 'Not authenticated' });
   const hsCode = (req.query.hs_code as string || '').replace(/\D/g, '');
   const country = (req.query.country as string || 'NL').toUpperCase();
   if (!hsCode || hsCode.length < 6) return res.status(400).json({ error: 'A valid HS code (6-10 digits) is required' });
@@ -3831,6 +3825,7 @@ app.post('/api/mercante/query', async (req, res) => {
 
 // ── Translate reply text ───────────────────────────────────────────────────
 app.post('/api/translate', async (req, res) => {
+  if (!(await callerOf(req))) return res.status(401).json({ error: 'Not authenticated' });
   const { text, targetLanguage } = req.body as { text: string; targetLanguage: string };
   if (!text || !targetLanguage) return res.status(400).json({ error: 'Missing text or targetLanguage' });
   const langNames: Record<string, string> = { en: 'English', pt: 'Brazilian Portuguese', nl: 'Dutch' };
