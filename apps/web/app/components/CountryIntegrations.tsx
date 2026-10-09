@@ -45,7 +45,11 @@ function validateEORI(v: string) { return /^[A-Z]{2}\d{9,12}$/.test(v.replace(/\
 function validateKVK(v: string) { return /^\d{8}$/.test(v.replace(/\s/g, '')); }
 function validateEIN(v: string) { return /^\d{2}-\d{7}$/.test(v.trim()); }
 
-export default function CountryIntegrations({ session }: { session: string | null; darkMode: boolean }) {
+/**
+ * Netherlands, United States and EU panels. With `only`, the settings page
+ * tabs pick a single panel and this component hides its own selector.
+ */
+export default function CountryIntegrations({ session, only }: { session: string | null; darkMode: boolean; only?: 'NL' | 'US' | 'EU' }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [integrations, setIntegrations] = useState<IntegrationRow[]>([]);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -56,11 +60,6 @@ export default function CountryIntegrations({ session }: { session: string | nul
   const [us, setUs] = useState({ ace_filer_code: '', ein: '', aes_itn_prefix: '', ctpat: false });
   const [eu, setEu] = useState({ eori: '', aeo_status: 'None' });
 
-  const [taricHs, setTaricHs] = useState('');
-  const [taricCountry, setTaricCountry] = useState('NL');
-  const [taricLoading, setTaricLoading] = useState(false);
-  const [taricResult, setTaricResult] = useState<any>(null);
-  const [taricError, setTaricError] = useState<string | null>(null);
 
   const notify = (type: 'success' | 'error', msg: string) => { setNotice({ type, msg }); setTimeout(() => setNotice(null), 4000); };
 
@@ -85,6 +84,8 @@ export default function CountryIntegrations({ session }: { session: string | nul
   };
 
   useEffect(loadIntegrations, [session]);
+
+  const show = (code: string) => (only ? only === code : code === 'EU' || selected.has(code));
 
   const toggleCountry = (code: string) => {
     setSelected(prev => { const next = new Set(prev); next.has(code) ? next.delete(code) : next.add(code); return next; });
@@ -122,18 +123,6 @@ export default function CountryIntegrations({ session }: { session: string | nul
     setVerifyingKey(null);
   };
 
-  const lookupTaric = async () => {
-    const code = taricHs.replace(/\D/g, '');
-    if (code.length < 6) { setTaricError('Enter a valid 6-10 digit HS code'); return; }
-    setTaricLoading(true); setTaricError(null); setTaricResult(null);
-    try {
-      const res = await fetch(`${API_URL}/api/integrations/taric/lookup?hs_code=${code}&country=${taricCountry}`);
-      const data = await res.json();
-      if (!res.ok) { setTaricError(data.message || 'Lookup failed'); }
-      else setTaricResult(data);
-    } catch { setTaricError('Lookup failed — try again'); }
-    setTaricLoading(false);
-  };
 
   const helpLink = (href: string, label = 'Where do I get this?') => (
     <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-app-ui-sm text-app-accent hover:underline">{label} <Icon name="external" size={12} /></a>
@@ -156,7 +145,7 @@ export default function CountryIntegrations({ session }: { session: string | nul
     <div className="space-y-5">
       <Toast notification={notice} />
 
-      <div>
+      {!only && <div>
         <div className="mb-1 flex items-center gap-2">
           <h2 className="flex items-center gap-2 font-fw-display text-app-title-sm font-normal"><Icon name="globe" size={18} className="text-app-accent" /> Country Integrations & Compliance</h2>
           {(() => {
@@ -185,10 +174,10 @@ export default function CountryIntegrations({ session }: { session: string | nul
             <CountryCode code="EU" /> EU <span className="text-app-ui-sm text-app-ink-3">(always shown)</span>
           </span>
         </div>
-      </div>
+      </div>}
 
       {/* Netherlands panel */}
-      {selected.has('NL') && card('NL', 'Netherlands', verifiedBadge(rowFor('NL', 'portbase')), <>
+      {show('NL') && card('NL', 'Netherlands', verifiedBadge(rowFor('NL', 'portbase')), <>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <div className="mb-1 flex items-center justify-between">
@@ -230,7 +219,7 @@ export default function CountryIntegrations({ session }: { session: string | nul
       </>)}
 
       {/* USA panel */}
-      {selected.has('US') && card('US', 'United States', verifiedBadge(rowFor('US', 'ace')), <>
+      {show('US') && card('US', 'United States', verifiedBadge(rowFor('US', 'ace')), <>
         <div className="grid grid-cols-2 gap-3">
           <Field label="ACE Filer Code" hint="Your CBP-assigned filer code. Only licensed customs brokers can submit ABI entries.">
             <input value={us.ace_filer_code} onChange={e => setUs(f => ({ ...f, ace_filer_code: e.target.value.toUpperCase().slice(0, 3) }))} placeholder="ABC" className={`${inputClass} font-fw-mono`} />
@@ -266,7 +255,7 @@ export default function CountryIntegrations({ session }: { session: string | nul
       </>)}
 
       {/* EU panel — always visible */}
-      {card('EU', 'European Union', null, <>
+      {show('EU') && card('EU', 'European Union', null, <>
         <div className="grid grid-cols-2 gap-3">
           <Field label="EORI Number">
             <input value={eu.eori} onChange={e => setEu(f => ({ ...f, eori: e.target.value.toUpperCase() }))} placeholder="Same as NL EORI if applicable" className={`${inputClass} font-fw-mono`} />
@@ -286,29 +275,11 @@ export default function CountryIntegrations({ session }: { session: string | nul
           {savingKey === 'EU:eu_compliance' ? 'Saving...' : 'Save'}
         </Button>
 
-        {/* TARIC lookup */}
-        <div className="space-y-3 rounded-fw-card border border-app-line bg-app-panel p-4">
-          <p className="flex items-center gap-1.5 text-app-ui font-medium"><Icon name="search" size={15} className="text-app-accent" /> Look up HS code duty rate</p>
-          <div className="flex flex-wrap gap-2">
-            <input value={taricHs} onChange={e => setTaricHs(e.target.value)} placeholder="e.g. 0901.21" aria-label="HS code"
-              className={`${inputClass} min-w-32 flex-1 font-fw-mono`} />
-            <select value={taricCountry} onChange={e => setTaricCountry(e.target.value)} aria-label="Country" className={selectInlineClass}>
-              {['NL', 'DE', 'FR', 'BE', 'IT', 'ES', 'PT', 'PL', 'IE'].map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <Button variant="primary" onClick={lookupTaric} disabled={taricLoading}>
-              {taricLoading ? <Spinner className="size-3.5" /> : 'Look up'}
-            </Button>
-          </div>
-          {taricError && <p className="text-app-ui-sm text-app-danger-ink">{taricError}</p>}
-          {taricResult && (
-            <div className="rounded-fw-btn border border-app-line bg-app-card p-3 text-app-ui">
-              <p><span className="font-fw-mono font-semibold">HS {taricResult.hs_code}</span>: {taricResult.description}</p>
-              <p className="text-app-ink-2">Duty: <span className="font-fw-mono">{taricResult.duty_rate}</span> · VAT: <span className="font-fw-mono">{taricResult.vat_rate}</span></p>
-              {taricResult.restrictions?.length > 0 && <p className="mt-1 flex items-center gap-1 text-app-danger-ink"><Icon name="alert" size={13} /> {taricResult.restrictions.join(', ')}</p>}
-            </div>
-          )}
-          <p className="font-fw-mono text-app-mono-xs text-app-ink-3">Powered by EU TARIC (European Commission)</p>
-        </div>
+        {/* HS code duty lookup: no free TARIC API behind it yet, so no working-looking form */}
+        <Notice tone="neutral" icon="search" title={<span className="flex items-center gap-2">HS code duty lookup <Tag tone="neutral" dot={false}>Coming soon</Tag></span>}>
+          Automatic duty-rate lookup isn't available yet. Until then, check a code in the European Commission's{' '}
+          <a href="https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en" target="_blank" rel="noopener noreferrer" className="font-medium text-app-accent underline-offset-2 hover:underline">TARIC consultation</a>.
+        </Notice>
       </>)}
     </div>
   );

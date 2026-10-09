@@ -15,7 +15,7 @@ import { Tag, Chip } from '@/app/components/ui/Tag';
 import { Toast, Segmented, th, tr } from '@/app/components/ui/Data';
 import { toneClass, MODE_ICON, type Tone } from '@/app/components/ui/tones';
 
-const API_URL = 'https://freightwizard-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
 type Language = 'en' | 'pt' | 'nl';
 

@@ -16,7 +16,7 @@ import { Tag, Chip } from '../components/ui/Tag';
 import { Toast, Stat, Segmented } from '../components/ui/Data';
 import { toneClass, priorityTone, type Tone } from '../components/ui/tones';
 
-const API_URL = 'https://freightwizard-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
 const formatTime = (minutes: number): string => {
   if (!minutes) return '0m';
@@ -237,6 +237,7 @@ export default function TeamPage() {
                 <div className="flex flex-col gap-3">
                   <Button variant="primary" size="lg" icon="owner" className="w-full" onClick={() => setSetupMode('create')}>Create a Team (Manager)</Button>
                   <Button size="lg" icon="user" className="w-full" onClick={() => setSetupMode('join')}>Join with Invite Code</Button>
+                  <Button variant="ghost" size="sm" className="mt-1 self-center" onClick={() => setShowSetup(false)}>Not now</Button>
                 </div>
               ) : setupMode === 'create' ? (
                 <div className="space-y-4">
@@ -266,7 +267,7 @@ export default function TeamPage() {
             title={profile.teams.name}
             description={
               <span className="inline-flex items-center gap-2">
-                <span><span className="font-fw-mono">{data?.leaderboard.length || 0}</span> members</span>
+                <span><span className="font-fw-mono">{data?.leaderboard.length || 0}</span> {data?.leaderboard.length === 1 ? 'member' : 'members'}</span>
                 <span className="text-app-ink-3">·</span>
                 <span className="inline-flex items-center gap-1"><Icon name={profile.role === 'manager' ? 'owner' : 'user'} size={14} className="text-app-ink-3" />{profile.role === 'manager' ? 'Manager' : 'Employee'}</span>
               </span>
@@ -282,9 +283,21 @@ export default function TeamPage() {
           />
         )}
 
-        {!data || data.leaderboard.length === 0 ? (
+        {!profile?.team_id ? (
           <div className="rounded-fw-card border border-app-line bg-app-card">
-            <EmptyState icon="team" title="No team members yet." text="Share your invite code to add teammates." />
+            <EmptyState icon="team" title="You're not in a team yet"
+              text="Create a team as a manager, or join one with an invite code from your manager."
+              action={
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button variant="primary" icon="owner" onClick={() => { setSetupMode('create'); setShowSetup(true); }}>Create a Team</Button>
+                  <Button icon="user" onClick={() => { setSetupMode('join'); setShowSetup(true); }}>Join with Invite Code</Button>
+                </div>
+              } />
+          </div>
+        ) : !data || data.leaderboard.length === 0 ? (
+          <div className="rounded-fw-card border border-app-line bg-app-card">
+            <EmptyState icon="team" title="No team members yet." text="Share your invite code to add teammates."
+              action={profile.role === 'manager' ? <Button variant="primary" icon="team" onClick={() => setShowInviteModal(true)}>Show invite code</Button> : undefined} />
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-3">

@@ -17,7 +17,7 @@ import { Toast, Stat, Segmented } from '../components/ui/Data';
 import { toneClass, priorityTone, type Tone } from '../components/ui/tones';
 import { usePathname } from 'next/navigation';
 
-const API_URL = 'https://freightwizard-production.up.railway.app';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
 
 // Translations
 const translations = {

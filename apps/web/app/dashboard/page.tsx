@@ -1003,7 +1003,7 @@ export default function DashboardPage() {
         case 'medium': return a?.priority?.toLowerCase() === 'medium';
         case 'low': return a?.priority?.toLowerCase() === 'low';
         case 'replied': return a?.replied_at != null;
-        case 'not_replied': return a && !a.replied_at;
+        case 'not_replied': return a && !a.replied_at && a.intent !== 'marketing';
         case 'draft_saved': return a?.draft_saved === true;
         case 'ocean': return a?.mode?.toLowerCase() === 'ocean';
         case 'air': return a?.mode?.toLowerCase() === 'air';
@@ -1013,7 +1013,7 @@ export default function DashboardPage() {
         case 'booking_confirmation': return a?.intent === 'booking_confirmation';
         case 'tracking_inquiry': return a?.intent === 'tracking_inquiry';
         case 'documentation_request': return a?.intent === 'documentation_request';
-        case 'urgent_high_waiting': return !!a && !a.replied_at && ['urgent', 'high'].includes(a?.priority?.toLowerCase());
+        case 'urgent_high_waiting': return !!a && !a.replied_at && a.intent !== 'marketing' && ['urgent', 'high'].includes(a?.priority?.toLowerCase());
         default: return false;
       }
     });
@@ -1035,7 +1035,7 @@ export default function DashboardPage() {
           case 'medium': return a?.priority?.toLowerCase() === 'medium';
           case 'low': return a?.priority?.toLowerCase() === 'low';
           case 'replied': return a?.replied_at != null;
-          case 'not_replied': return a && !a.replied_at;
+          case 'not_replied': return a && !a.replied_at && a.intent !== 'marketing';
           case 'ocean': return a?.mode?.toLowerCase() === 'ocean';
           case 'air': return a?.mode?.toLowerCase() === 'air';
           case 'road': return a?.mode?.toLowerCase() === 'road';
@@ -1044,7 +1044,7 @@ export default function DashboardPage() {
           case 'booking_confirmation': return a?.intent === 'booking_confirmation';
           case 'tracking_inquiry': return a?.intent === 'tracking_inquiry';
           case 'documentation_request': return a?.intent === 'documentation_request';
-          case 'urgent_high_waiting': return !!a && !a.replied_at && ['urgent', 'high'].includes(a?.priority?.toLowerCase());
+          case 'urgent_high_waiting': return !!a && !a.replied_at && a.intent !== 'marketing' && ['urgent', 'high'].includes(a?.priority?.toLowerCase());
           default: return false;
         }
       }).length;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../../components/header';
 import CountryIntegrations from '../../components/CountryIntegrations';
@@ -208,6 +208,16 @@ Best regards,
 
 export default function IntegrationsPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  // Country tab, kept in the URL (?country=NL) so a reload stays on the same tab
+  type CountryTab = 'BR' | 'NL' | 'US' | 'EU';
+  const countryParam = searchParams.get('country') as CountryTab | null;
+  const country: CountryTab = countryParam && ['BR', 'NL', 'US', 'EU'].includes(countryParam) ? countryParam : 'BR';
+  const setCountry = (c: CountryTab) => {
+    const p = new URLSearchParams(searchParams.toString());
+    if (c === 'BR') p.delete('country'); else p.set('country', c);
+    router.replace(`/settings/integrations${p.toString() ? `?${p.toString()}` : ''}`, { scroll: false });
+  };
   const session = searchParams.get('session');
   const [darkMode, setDarkMode] = useState(true);
   const [language, setLanguage] = useState<Language>('en');
@@ -456,6 +466,22 @@ export default function IntegrationsPage() {
           </div>
         </>)}
 
+        {/* Company profile is shared by every country; save it here too */}
+        {country !== 'BR' && <div className="flex justify-end">
+          <Button variant="primary" size="lg" onClick={handleSave} disabled={saving}>
+            {saving && <Spinner className="size-3.5" />}
+            {saving ? T[language].saving : T[language].saveSettings}
+          </Button>
+        </div>}
+
+        {/* Country tabs: each shows only its own panel */}
+        <div className="border-t border-app-line pt-5">
+          <p className="mb-2 font-fw-mono text-app-mono-xs uppercase text-app-ink-3">Country integrations</p>
+          <Segmented<CountryTab> label="Country" value={country} onChange={setCountry}
+            options={[{ value: 'BR', label: 'Brazil' }, { value: 'NL', label: 'Netherlands' }, { value: 'US', label: 'United States' }, { value: 'EU', label: 'European Union' }]} />
+        </div>
+
+        {country === 'BR' && (<>
         {/* ── SECTION 2: SERPRO Integra Comex ─────────────────────────────── */}
         {sectionCard(<>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -624,17 +650,20 @@ export default function IntegrationsPage() {
           )}
         </>)}
 
-        {/* Save button */}
+        {/* Save button (company profile + Brazil settings) */}
         <div className="flex justify-end">
           <Button variant="primary" size="lg" onClick={handleSave} disabled={saving}>
             {saving && <Spinner className="size-3.5" />}
             {saving ? T[language].saving : T[language].saveSettings}
           </Button>
         </div>
+        </>)}
 
-        <div className="border-t border-app-line pb-8 pt-6">
-          <CountryIntegrations session={session} darkMode={darkMode} />
-        </div>
+        {country !== 'BR' && (
+          <div className="pb-8">
+            <CountryIntegrations session={session} darkMode={darkMode} only={country} />
+          </div>
+        )}
       </main>
 
       {/* Remove credentials confirmation modal */}
