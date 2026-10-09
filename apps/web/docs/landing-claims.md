@@ -1,5 +1,37 @@
 # Landing page claims inventory
 
+## Decisions applied (2026-10-09)
+
+Reviewed against the code and decided by the product owner. Applied in EN, PT and NL in `app/page.tsx`; Enterprise plan data also updated in `app/lib/plans.ts` (used by /pricing, Billing and the upgrade modal). The inventory below is kept as the record of what was claimed before; its line numbers refer to commit `80a8440`.
+
+| # | Decision | Now reads (EN) |
+|---|---|---|
+| All built claims | Keep | unchanged |
+| 1.3 | Reword (no time claim) | "Generates professional reply drafts that your team can review, edit and send." |
+| 1.4 | Reword (no value scoring exists) | "Highlights urgent emails and new quote requests so nothing slips through." |
+| 2.4 | Reword (timeline is per email thread) | "Activity timeline for each email thread: received, analyzed, replied, notes." |
+| 2.5 | Remove (not built) | Smart Notifications card removed |
+| 2.11 | MAPA kept; SERPRO / CE Mercante and Portbase **coming soon** (SERPRO auth is mocked; Portbase untested with real credentials); EORI and ACE / CBP removed | "Brazil MAPA compliance alerts built in. SERPRO / CE Mercante (Brazil) and Portbase (Netherlands) coming soon." Compliance pills: MAPA alerts only; SERPRO, CE Mercante, Portbase moved to Coming soon |
+| 3.1e | Remove | "FreightWizard integrates with major email platforms." |
+| 3.3a | Keep "Coming soon" (live tracking needs the paid Terminal49 plan) | unchanged |
+| 4.1 | Reword (no live monitoring; analysis runs on click) | "New messages load every time you open or refresh your inbox, and you analyze them with one click" |
+| 5.3 | Keep | "Encrypted in transit and at rest" (HTTPS + Supabase disk encryption); PT/NL FAQ aligned |
+| 5.4 | Keep, reworded | "We don't use your emails to train AI models" |
+| 5.5 | **Pending**: /api/analysis-result is unauthenticated, so "every request is authenticated" is not true yet | "Strict access controls" (unchanged until decided) |
+| 5.6 | Remove GDPR / LGPD / AVG in all languages; footer Privacy link removed until a privacy page exists | — |
+| 5.8 | Remove the 95% accuracy FAQ | — |
+| 6.1 | Reword Trial | "14 days free: 30 analyses, 5 shipments, 5 quotes. No credit card." ("Full Professional access" removed) |
+| 6.2 | Remove "Starter is free forever" (FAQ) | "Yes. Start with a 14-day free trial: 30 analyses, 5 shipments and 5 quotes, no credit card. After that, Starter is $79/month." |
+| 6.3 | Reword | "Brazil MAPA compliance alerts" (was "Compliance layer") |
+| 6.4 | Container tracking **coming soon**; custom portal branding and API access removed | Enterprise: Everything in Professional · Container tracking (coming soon) · Dedicated support |
+| 7.x | Keep, without unmeasured numbers or times | Hero: "respond to freight inquiries faster" (was "in minutes, not hours") |
+
+Not reviewed yet: the /pricing page FAQ promises a 7-day refund and "cancel anytime, no questions asked".
+
+---
+
+## Original inventory (before the decisions)
+
 Every feature, integration, compliance and security claim on the public landing page (`app/page.tsx`), with where it appears. Nothing has been changed yet; this is the list for deciding what stays, what moves to **Coming soon**, and what gets removed.
 
 - **Section** is where it shows on the page.

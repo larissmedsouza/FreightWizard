@@ -42,9 +42,7 @@ export const PLANS: Plan[] = [
     key: 'enterprise', name: 'Enterprise', price: 399, users: 'Unlimited users',
     features: [
       { label: 'Everything in Professional', included: true },
-      { label: 'Custom branding on customer portal', included: true },
-      { label: 'Container tracking (Terminal49)', included: true },
-      { label: 'API access', included: true },
+      { label: 'Container tracking (coming soon)', included: true },
       { label: 'Dedicated support', included: true },
     ],
   },
