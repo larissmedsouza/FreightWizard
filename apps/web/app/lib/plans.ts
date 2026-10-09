@@ -9,8 +9,16 @@ export interface Plan {
   price: number; // monthly USD, 0 for trial
   popular?: boolean;
   users: string;
+  /** Shown instead of the numeric price, e.g. 'From $399' */
+  priceLabel?: string;
+  /** Sales-led plan: show Contact sales instead of a Stripe checkout */
+  contactSales?: boolean;
   features: { label: string; included: boolean }[];
 }
+
+// PLACEHOLDER: confirm the sales address before publishing. Used by every
+// Contact sales button (landing, /pricing, Billing, upgrade modal).
+export const SALES_CONTACT = 'mailto:sales@freightwizard.app';
 
 export const PLANS: Plan[] = [
   {
@@ -39,7 +47,7 @@ export const PLANS: Plan[] = [
     ],
   },
   {
-    key: 'enterprise', name: 'Enterprise', price: 399, users: 'Unlimited users',
+    key: 'enterprise', name: 'Enterprise', price: 399, priceLabel: 'From $399', contactSales: true, users: '10 users included, extra seats by contract',
     features: [
       { label: 'Everything in Professional', included: true },
       { label: 'Container tracking (coming soon)', included: true },

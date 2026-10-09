@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { PLANS } from '../lib/plans';
+import { PLANS, SALES_CONTACT } from '../lib/plans';
 import Icon, { type IconName } from './ui/Icon';
-import { Button, Spinner } from './ui/Button';
+import { Button, Spinner, buttonClass } from './ui/Button';
 import { Tag } from './ui/Tag';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
@@ -67,11 +67,15 @@ export default function UpgradeModal({ reason, session, onLogout }: UpgradeModal
             <div key={p.key} className={`flex flex-col rounded-fw-card border p-4 ${p.popular ? 'border-app-accent-fill' : 'border-app-line'}`}>
               <div className="mb-2 h-5">{p.popular && <Tag tone="accent">Most popular</Tag>}</div>
               <p className="text-app-ui font-semibold">{p.name}</p>
-              <p className="mb-1 font-fw-display text-app-kpi font-normal">${p.price}<span className="font-fw-mono text-app-mono-xs text-app-ink-3">/mo</span></p>
+              <p className="mb-1 font-fw-display text-app-kpi font-normal">{p.priceLabel ?? `$${p.price}`}<span className="font-fw-mono text-app-mono-xs text-app-ink-3">/mo</span></p>
               <p className="mb-4 text-app-ui-sm text-app-ink-2">{p.users}</p>
-              <Button variant={p.popular ? 'primary' : 'secondary'} className="mt-auto w-full" onClick={() => choosePlan(p.key)} disabled={loadingPlan === p.key}>
-                {loadingPlan === p.key ? <><Spinner className="size-3.5" /> Loading...</> : 'Choose this plan'}
-              </Button>
+              {p.contactSales ? (
+                <a href={SALES_CONTACT} className={buttonClass('secondary', 'md', 'mt-auto w-full')}>Contact sales</a>
+              ) : (
+                <Button variant={p.popular ? 'primary' : 'secondary'} className="mt-auto w-full" onClick={() => choosePlan(p.key)} disabled={loadingPlan === p.key}>
+                  {loadingPlan === p.key ? <><Spinner className="size-3.5" /> Loading...</> : 'Choose this plan'}
+                </Button>
+              )}
             </div>
           ))}
         </div>

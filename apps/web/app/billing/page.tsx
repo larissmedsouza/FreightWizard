@@ -3,14 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { PLANS, PLAN_LABELS } from '../lib/plans';
+import { PLANS, PLAN_LABELS, SALES_CONTACT } from '../lib/plans';
 import Icon, { type IconName } from '../components/ui/Icon';
 import TopBar from '../components/ui/TopBar';
 import Modal from '../components/ui/Modal';
 import Toggle from '../components/ui/Toggle';
 import SettingsTabs from '../components/ui/SettingsTabs';
 import { appRootClass, PageHeader, SectionTitle, EmptyState, Notice } from '../components/ui/Panel';
-import { Button, ButtonLink, Spinner } from '../components/ui/Button';
+import { Button, ButtonLink, Spinner, buttonClass } from '../components/ui/Button';
 import { inputClass, selectClass, textareaClass, Field, DataLabel } from '../components/ui/Field';
 import { Tag, Chip } from '../components/ui/Tag';
 import { Toast, Stat, Segmented } from '../components/ui/Data';
@@ -179,10 +179,14 @@ export default function BillingPage() {
               {PLANS.filter(p => p.key !== sub.plan).map(p => (
                 <div key={p.key} className={`flex flex-col rounded-fw-card border p-4 ${p.popular ? 'border-app-accent-fill' : 'border-app-line'}`}>
                   <p className="text-app-ui font-semibold">{p.name}</p>
-                  <p className="font-fw-display text-app-kpi font-normal">${p.price}<span className="font-fw-mono text-app-mono-xs text-app-ink-3">/mo</span></p>
-                  <Button variant={p.popular ? 'primary' : 'secondary'} size="sm" className="mt-3 w-full" onClick={() => upgrade(p.key)} disabled={checkoutLoading === p.key}>
-                    {checkoutLoading === p.key ? 'Loading...' : 'Upgrade'}
-                  </Button>
+                  <p className="font-fw-display text-app-kpi font-normal">{p.priceLabel ?? `$${p.price}`}<span className="font-fw-mono text-app-mono-xs text-app-ink-3">/mo</span></p>
+                  {p.contactSales ? (
+                    <a href={SALES_CONTACT} className={buttonClass('secondary', 'sm', 'mt-3 w-full')}>Contact sales</a>
+                  ) : (
+                    <Button variant={p.popular ? 'primary' : 'secondary'} size="sm" className="mt-3 w-full" onClick={() => upgrade(p.key)} disabled={checkoutLoading === p.key}>
+                      {checkoutLoading === p.key ? 'Loading...' : 'Upgrade'}
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>

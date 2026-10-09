@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { SALES_CONTACT } from '@/app/lib/plans';
 import FreightGlobe from '@/app/components/FreightGlobe';
 import RevealObserver from '@/app/components/marketing/RevealObserver';
 import CountUp from '@/app/components/marketing/CountUp';
@@ -90,7 +91,7 @@ const translations = {
         { name: 'Trial', price: 'Free', monthly: null, period: '', desc: '14 days free: 30 analyses, 5 shipments, 5 quotes. No credit card.', features: ['30 analyses total', '5 shipments', '5 quotes'], cta: 'Start Free Trial' },
         { name: 'Starter', price: '$79', monthly: 79, period: '/month', desc: '1 user', features: ['200 analyses/month', '10 shipments', '20 quotes', 'Quote builder', 'Customer portal', 'Rate cards', 'Email support'], cta: 'Get Started' },
         { name: 'Professional', price: '$179', monthly: 179, period: '/month', desc: 'Up to 5 users', features: ['Unlimited analyses', 'Unlimited shipments', 'Unlimited quotes', 'Document intelligence', 'Team leaderboard', 'Brazil MAPA compliance alerts', 'Priority support'], cta: 'Get Started', popular: true },
-        { name: 'Enterprise', price: '$399', monthly: 399, period: '/month', desc: 'Unlimited users', features: ['Everything in Professional', 'Container tracking (coming soon)', 'Dedicated support'], cta: 'Contact Sales' },
+        { name: 'Enterprise', price: 'From $399', monthly: null, period: '/month', desc: '10 users included, extra seats by contract', contactSales: true, features: ['Everything in Professional', 'Container tracking (coming soon)', 'Dedicated support'], cta: 'Contact Sales' },
       ],
     },
     about: {
@@ -106,6 +107,7 @@ const translations = {
         { q: 'Is my data secure?', a: 'Yes. All data is encrypted in transit and at rest. We don\'t use your emails to train AI models. Your operational data remains private.' },
         { q: 'Can I edit AI-generated replies?', a: 'Absolutely. Every AI suggestion can be reviewed, edited, or rejected before sending. You maintain full control.' },
         { q: 'What email providers do you support?', a: 'Currently we support Gmail, Google Workspace, Outlook, and Microsoft 365. More integrations are coming soon.' },
+        { q: 'Do you have a plan for larger teams?', a: 'Yes. Enterprise starts from $399/month with 10 users included; extra seats are arranged by contract. Contact sales to set it up.' },
         { q: 'Can I try before buying?', a: 'Yes. Start with a 14-day free trial: 30 analyses, 5 shipments and 5 quotes, no credit card. After that, Starter is $79/month.' },
       ],
     },
@@ -206,7 +208,7 @@ const translations = {
         { name: 'Trial', price: 'Grátis', monthly: null, period: '', desc: '14 dias grátis: 30 análises, 5 embarques, 5 cotações. Sem cartão de crédito.', features: ['30 análises no total', '5 embarques', '5 cotações'], cta: 'Começar Teste Grátis' },
         { name: 'Starter', price: '$79', monthly: 79, period: '/mês', desc: '1 usuário', features: ['200 análises/mês', '10 embarques', '20 cotações', 'Construtor de cotações', 'Portal do cliente', 'Tabelas de tarifas', 'Suporte por email'], cta: 'Começar' },
         { name: 'Professional', price: '$179', monthly: 179, period: '/mês', desc: 'Até 5 usuários', features: ['Análises ilimitadas', 'Embarques ilimitados', 'Cotações ilimitadas', 'Inteligência de documentos', 'Ranking da equipe', 'Alertas de compliance MAPA (Brasil)', 'Suporte prioritário'], cta: 'Começar', popular: true },
-        { name: 'Enterprise', price: '$399', monthly: 399, period: '/mês', desc: 'Usuários ilimitados', features: ['Tudo do Professional', 'Rastreamento de container (em breve)', 'Suporte dedicado'], cta: 'Fale Conosco' },
+        { name: 'Enterprise', price: 'A partir de $399', monthly: null, period: '/mês', desc: '10 usuários incluídos, usuários extras por contrato', contactSales: true, features: ['Tudo do Professional', 'Rastreamento de container (em breve)', 'Suporte dedicado'], cta: 'Fale Conosco' },
       ],
     },
     about: {
@@ -222,6 +224,7 @@ const translations = {
         { q: 'Meus dados estão seguros?', a: 'Sim. Todos os dados são criptografados em trânsito e em repouso. Não usamos seus e-mails para treinar modelos de IA.' },
         { q: 'Posso editar respostas da IA?', a: 'Absolutamente. Toda sugestão pode ser revisada e editada antes de enviar.' },
         { q: 'Quais provedores de email suportam?', a: 'Gmail, Google Workspace, Outlook e Microsoft 365.' },
+        { q: 'Vocês têm um plano para equipes maiores?', a: 'Sim. O Enterprise começa em $399/mês com 10 usuários incluídos; usuários extras são definidos por contrato. Fale com vendas para contratar.' },
         { q: 'Posso testar antes de comprar?', a: 'Sim. Comece com um teste grátis de 14 dias: 30 análises, 5 embarques e 5 cotações, sem cartão de crédito. Depois, o Starter custa $79/mês.' },
       ],
     },
@@ -311,7 +314,7 @@ const translations = {
         { name: 'Trial', price: 'Gratis', monthly: null, period: '', desc: '14 dagen gratis: 30 analyses, 5 zendingen, 5 offertes. Geen creditcard.', features: ['30 analyses totaal', '5 zendingen', '5 offertes'], cta: 'Start Gratis Proef' },
         { name: 'Starter', price: '$79', monthly: 79, period: '/maand', desc: '1 gebruiker', features: ['200 analyses/maand', '10 zendingen', '20 offertes', 'Offerte bouwer', 'Klantportaal', 'Tarievenkaarten', 'E-mail support'], cta: 'Aan de slag' },
         { name: 'Professional', price: '$179', monthly: 179, period: '/maand', desc: 'Tot 5 gebruikers', features: ['Onbeperkte analyses', 'Onbeperkte zendingen', 'Onbeperkte offertes', 'Document intelligentie', 'Team leaderboard', 'MAPA-compliancewaarschuwingen (Brazilië)', 'Priority support'], cta: 'Aan de slag', popular: true },
-        { name: 'Enterprise', price: '$399', monthly: 399, period: '/maand', desc: 'Onbeperkt gebruikers', features: ['Alles uit Professional', 'Container tracking (binnenkort)', 'Toegewijde support'], cta: 'Neem Contact Op' },
+        { name: 'Enterprise', price: 'Vanaf $399', monthly: null, period: '/maand', desc: '10 gebruikers inbegrepen, extra gebruikers per contract', contactSales: true, features: ['Alles uit Professional', 'Container tracking (binnenkort)', 'Toegewijde support'], cta: 'Neem Contact Op' },
       ],
     },
     about: {
@@ -327,6 +330,7 @@ const translations = {
         { q: 'Zijn mijn gegevens veilig?', a: 'Ja. Alle data is versleuteld tijdens verzending en opslag. We gebruiken je e-mails niet om AI-modellen te trainen.' },
         { q: 'Kan ik AI-antwoorden bewerken?', a: 'Absoluut. Elke suggestie kan worden gereviewd en bewerkt voor verzending.' },
         { q: 'Welke e-mailproviders ondersteunen jullie?', a: 'Gmail, Google Workspace, Outlook en Microsoft 365.' },
+        { q: 'Hebben jullie een plan voor grotere teams?', a: 'Ja. Enterprise begint vanaf $399/maand met 10 gebruikers inbegrepen; extra gebruikers worden per contract geregeld. Neem contact op met sales.' },
         { q: 'Kan ik uitproberen voor aankoop?', a: 'Ja. Begin met een gratis proefperiode van 14 dagen: 30 analyses, 5 zendingen en 5 offertes, geen creditcard. Daarna kost Starter $79/maand.' },
       ],
     },
@@ -590,7 +594,7 @@ export default function HomePage() {
                   </li>
                 ))}
               </ul>
-              <ButtonLink href="/dashboard" variant={plan.popular ? 'primary' : 'secondary'} className="mt-auto w-full">
+              <ButtonLink href={(plan as { contactSales?: boolean }).contactSales ? SALES_CONTACT : '/dashboard'} variant={plan.popular ? 'primary' : 'secondary'} className="mt-auto w-full">
                 {plan.cta}
               </ButtonLink>
             </div>

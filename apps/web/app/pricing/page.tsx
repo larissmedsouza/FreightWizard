@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { PLANS } from '../lib/plans';
+import { PLANS, SALES_CONTACT } from '../lib/plans';
 import { ButtonLink, buttonClass } from '../components/marketing/Button';
 import { SectionHeader } from '../components/marketing/Section';
 import FwIcon from '../components/ui/Icon';
@@ -16,6 +16,7 @@ const FAQS = [
   { q: 'What happens after 14 days?', a: 'Your account will be locked until you choose a plan. Your data is safe.' },
   { q: 'Do I need a credit card for the trial?', a: 'No credit card required to start your free trial.' },
   { q: 'Can I upgrade or downgrade later?', a: 'Yes, you can change plans anytime from your billing page.' },
+  { q: 'Do you have a plan for larger teams?', a: 'Yes. Enterprise starts from $399/month with 10 users included; extra seats are arranged by contract. Contact sales to set it up.' },
   { q: 'Do you offer refunds?', a: "We offer a 7-day refund on your first payment if you're not satisfied." },
 ];
 
@@ -131,8 +132,8 @@ export default function PricingPage() {
               </div>
               <h3 className="font-fw-display text-fw-h3 font-semibold text-fw-ink">{p.name}</h3>
               <div className="mb-2 mt-4 flex flex-wrap items-baseline gap-x-1.5">
-                <span className="font-fw-display text-fw-price font-semibold text-fw-ink">${price}</span>
-                <span className="font-fw-mono text-fw-data text-fw-ink-3">/{annual ? 'year' : 'mo'}</span>
+                <span className="font-fw-display text-fw-price font-semibold text-fw-ink">{p.priceLabel ?? `$${price}`}</span>
+                <span className="font-fw-mono text-fw-data text-fw-ink-3">/{p.priceLabel || !annual ? 'mo' : 'year'}</span>
               </div>
               <p className="mb-6 text-fw-small text-fw-ink-2">{p.users}</p>
 
@@ -145,7 +146,9 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              {isCurrent ? (
+              {p.contactSales && !isCurrent ? (
+                <a href={SALES_CONTACT} className={buttonClass(p.popular ? 'primary' : 'secondary', 'mt-auto w-full')}>Contact Sales</a>
+              ) : isCurrent ? (
                 <button disabled className={buttonClass('secondary', 'mt-auto w-full cursor-not-allowed text-fw-ink-3 hover:border-fw-line-strong hover:bg-transparent')}>Current Plan</button>
               ) : !session ? (
                 <ButtonLink href="/dashboard" variant={p.popular ? 'primary' : 'secondary'} className="mt-auto w-full">
