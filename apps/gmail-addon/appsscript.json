@@ -1,0 +1,37 @@
+{
+  "timeZone": "Europe/Brussels",
+  "dependencies": {},
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+  "https://www.googleapis.com/auth/gmail.addons.execute",
+  "https://www.googleapis.com/auth/gmail.addons.current.message.readonly",
+  "https://www.googleapis.com/auth/gmail.addons.current.action.compose",
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/gmail.compose",
+  "https://www.googleapis.com/auth/gmail.modify",
+  "https://www.googleapis.com/auth/gmail.labels",
+  "https://www.googleapis.com/auth/script.external_request",
+  "https://www.googleapis.com/auth/script.locale",
+  "https://www.googleapis.com/auth/userinfo.email",
+  "openid",
+  "https://www.googleapis.com/auth/script.scriptapp"
+],
+  "gmail": {
+    "name": "FreightWizard",
+    "logoUrl": "https://raw.githubusercontent.com/larissmedsouza/FreightWizard/main/logo.png",
+    "contextualTriggers": [
+      {
+        "unconditional": {},
+        "onTriggerFunction": "onGmailMessage"
+      }
+    ],
+    "homepageTrigger": {
+      "runFunction": "onHomepage"
+    },
+    "openLinkUrlPrefixes": [
+      "https://freightwizard-production.up.railway.app"
+    ]
+  }
+}
