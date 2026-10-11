@@ -15,7 +15,7 @@ import { CLAUDE_MODEL, CLAUDE_MAX_TOKENS, replyText, warnIfTruncated } from './c
 import { headerMap, isBulkMail, freightScore, marketingAnalysis, type Headers } from './triage';
 import { resolveCaller, type CallerDeps } from './caller';
 import { findResultForCaller } from './results';
-import { cachedMailbox, replyState, sentNowState, syncReplies, type AnalysedRow, type Mailbox, type ReplyState, type ReplyStore } from './replies';
+import { cachedMailbox, mergeReply, replyState, sentNowState, syncReplies, type AnalysedRow, type Mailbox, type ReplyState, type ReplyStore } from './replies';
 import { draftText, htmlToText, mailboxFor, saveReplyDraft, sendReply, type MailConfig } from './mailbox';
 import { OAuth2Client } from 'google-auth-library';
 import { waitUntil } from '@vercel/functions';
@@ -402,7 +402,26 @@ app.get('/auth/google/callback', async (req, res) => {
 // MICROSOFT/OUTLOOK OAUTH
 // ============================================
 
+// Missing credentials would send Microsoft an empty client_id (AADSTS900144)
+// or fail the token exchange; say which variable is missing instead.
+const missingMicrosoftVars = () =>
+  [['MICROSOFT_CLIENT_ID', MICROSOFT_CONFIG.clientId], ['MICROSOFT_CLIENT_SECRET', MICROSOFT_CONFIG.clientSecret]]
+    .filter(([, value]) => !value).map(([name]) => name);
+if (missingMicrosoftVars().length) console.warn(`⚠️ Outlook sign-in disabled: ${missingMicrosoftVars().join(' and ')} not set`);
+
+function refuseOutlookIfUnconfigured(res: express.Response): boolean {
+  const missing = missingMicrosoftVars();
+  if (!missing.length) return false;
+  console.error(`Outlook sign-in refused: ${missing.join(' and ')} not set`);
+  res.status(503).type('text/plain').send(
+    `Outlook sign-in is not configured on this server: ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} missing.\n` +
+    `Add ${missing.length > 1 ? 'them' : 'it'} to the API's environment variables and restart or redeploy the API.`
+  );
+  return true;
+}
+
 app.get('/auth/outlook', (req, res) => {
+  if (refuseOutlookIfUnconfigured(res)) return;
   const params = new URLSearchParams({
     client_id: MICROSOFT_CONFIG.clientId,
     response_type: 'code',
@@ -419,6 +438,7 @@ app.get('/auth/outlook/callback', async (req, res) => {
 
   if (error) return res.status(400).send('Authentication failed: ' + error);
   if (!code) return res.status(400).send('No code provided');
+  if (refuseOutlookIfUnconfigured(res)) return;
 
   try {
     const tokenResponse = await fetch(MICROSOFT_CONFIG.tokenUrl, {
@@ -478,8 +498,9 @@ async function fetchOutlookEmails(accessToken: string) {
 // ============================================
 // REPLY STATUS FROM THE MAILBOX (replies.ts, mailbox.ts)
 // An email is replied when its thread holds a message the user sent after it,
-// wherever it was sent from. email_analysis.replied_at / response_time_minutes
-// store the result; thread_id is set once a row has been checked against the
+// wherever it was sent from; once recorded (thread reply or a send recorded
+// by Freightwizard / the add-on), a reply is never removed.
+// email_analysis.replied_at / response_time_minutes store the result; thread_id is set once a row has been checked against the
 // mailbox (a null thread_id means "not verified yet").
 // ============================================
 type Session = NonNullable<Awaited<ReturnType<typeof getSession>>>;
@@ -565,12 +586,14 @@ async function recordSentReply(session: Session, emailId: string): Promise<{ rep
   const threadId = await mailbox.threadIdOf(emailId).catch(() => null);
   const thread = threadId ? await mailbox.thread(threadId).catch(() => null) : null;
   const found = thread && replyState(emailId, thread);
-  const state = found ? sentNowState(found, now) : { repliedAt: now.toISOString(), responseMinutes: null };
-  await replyStoreFor(session.userId).save(emailId, {
-    replied_at: state.repliedAt, response_time_minutes: state.responseMinutes, ...(threadId ? { thread_id: threadId } : {}),
-  });
-  await trackActivity(session.userId, emailId, 'replied', undefined, undefined, state.responseMinutes ?? undefined);
-  return { repliedAt: state.repliedAt, responseMinutes: state.responseMinutes };
+  const sent = found ? sentNowState(found, now) : { repliedAt: now.toISOString(), responseMinutes: null };
+  // An earlier recorded reply stays first (mergeReply)
+  const { data: stored } = await supabase.from('email_analysis').select('replied_at, response_time_minutes')
+    .eq('email_id', emailId).eq('user_id', session.userId).maybeSingle();
+  const next = mergeReply(stored || { replied_at: null, response_time_minutes: null }, { ...sent, receivedAt: found?.receivedAt });
+  await replyStoreFor(session.userId).save(emailId, { ...next, ...(threadId ? { thread_id: threadId } : {}) });
+  await trackActivity(session.userId, emailId, 'replied', undefined, undefined, next.response_time_minutes ?? undefined);
+  return { repliedAt: next.replied_at, responseMinutes: next.response_time_minutes };
 }
 
 // ============================================

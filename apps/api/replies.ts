@@ -4,7 +4,9 @@
 // conversationId) contains a message the user sent after it, wherever that
 // reply was sent from (Freightwizard, Gmail, the add-on, Outlook, mobile).
 // The reply time is the first such message; the response time is measured
-// from when the email arrived. A draft is the user's latest unsent draft in
+// from when the email arrived. Once recorded, a reply is never removed: a
+// send recorded by Freightwizard or the add-on counts even if it isn't in the
+// thread (older replies were sent as new threads). A draft is the user's latest unsent draft in
 // the thread written after the email.
 //
 // The Inbox, the Overview cards and GET /api/emails/waiting all go through
@@ -80,10 +82,32 @@ export interface StoredReply { replied_at: string | null; response_time_minutes:
 const sameTime = (a: string | null, b: string | null) =>
   a === b || (!!a && !!b && Date.parse(a) === Date.parse(b));
 
-/** The update that makes a stored row match the mailbox, or null if it already does. */
-export function replyPatch(stored: StoredReply, state: Pick<ReplyState, 'repliedAt' | 'responseMinutes'>): StoredReply | null {
-  if (sameTime(stored.replied_at, state.repliedAt) && (stored.response_time_minutes ?? null) === state.responseMinutes) return null;
+// A stored reply this much earlier than the thread's first reply is a separate,
+// earlier send (e.g. one that started its own thread), not the same message
+// recorded a moment after sending.
+const SAME_SEND_MS = 60_000;
+
+/**
+ * The reply status to store: once recorded, a reply is never removed. The
+ * thread's first reply sets the time, unless an earlier send was already
+ * recorded (by Freightwizard or the add-on), which stays first.
+ */
+export function mergeReply(stored: StoredReply, state: Pick<ReplyState, 'repliedAt' | 'responseMinutes'> & { receivedAt?: number }): StoredReply {
+  const kept = { replied_at: stored.replied_at, response_time_minutes: stored.response_time_minutes ?? null };
+  if (!state.repliedAt) return kept;
+  const storedAt = stored.replied_at ? Date.parse(stored.replied_at) : NaN;
+  if (Number.isFinite(storedAt) && storedAt < Date.parse(state.repliedAt) - SAME_SEND_MS) {
+    const minutes = kept.response_time_minutes ?? (state.receivedAt != null ? Math.max(0, Math.round((storedAt - state.receivedAt) / 60_000)) : null);
+    return { replied_at: stored.replied_at, response_time_minutes: minutes };
+  }
   return { replied_at: state.repliedAt, response_time_minutes: state.responseMinutes };
+}
+
+/** The update that brings a stored row in line with mergeReply, or null if it already is. */
+export function replyPatch(stored: StoredReply, state: Pick<ReplyState, 'repliedAt' | 'responseMinutes'> & { receivedAt?: number }): StoredReply | null {
+  const next = mergeReply(stored, state);
+  if (sameTime(stored.replied_at, next.replied_at) && (stored.response_time_minutes ?? null) === next.response_time_minutes) return null;
+  return next;
 }
 
 /**
@@ -139,13 +163,14 @@ export async function syncReplies(mailbox: Mailbox, store: ReplyStore, rows: Ana
         const threadId = row.thread_id || await mailbox.threadIdOf(row.email_id);
         if (!threadId) return;
         const thread = await mailbox.thread(threadId);
-        const state = thread && replyState(row.email_id, thread);
-        if (!state) return;
-        out.set(row.email_id, state);
-        const patch = replyPatch(row, state);
+        const found = thread && replyState(row.email_id, thread);
+        if (!found) return;
+        const merged = mergeReply(row, found);
+        out.set(row.email_id, { ...found, repliedAt: merged.replied_at, responseMinutes: merged.response_time_minutes });
+        const patch = replyPatch(row, found);
         const update = { ...(patch || {}), ...(row.thread_id ? {} : { thread_id: threadId }) };
         if (Object.keys(update).length) await store.save(row.email_id, update);
-        if (!row.replied_at && state.repliedAt) await store.recordReplied(row.email_id, state.responseMinutes);
+        if (!row.replied_at && merged.replied_at) await store.recordReplied(row.email_id, merged.response_time_minutes);
       } catch {
         // One unreadable email must not stop the others.
       }

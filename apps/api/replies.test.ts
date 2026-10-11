@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  replyState, fromGmailThread, fromOutlookConversation, replyPatch, sentNowState,
+  replyState, fromGmailThread, fromOutlookConversation, replyPatch, mergeReply, sentNowState,
   syncReplies, cachedMailbox, type Mailbox, type ThreadMessage, type ReplyStore,
 } from './replies';
 
@@ -74,8 +74,22 @@ test('replyPatch: no write when the row already matches the mailbox', () => {
   assert.deepEqual(replyPatch({ replied_at: null, response_time_minutes: null }, { repliedAt: at, responseMinutes: 45 }), { replied_at: at, response_time_minutes: 45 });
   // A wrong stored time (old first-seen based value) is corrected
   assert.deepEqual(replyPatch({ replied_at: at, response_time_minutes: 300657 }, { repliedAt: at, responseMinutes: 45 }), { replied_at: at, response_time_minutes: 45 });
-  // The mailbox has no reply: a stored reply is cleared
-  assert.deepEqual(replyPatch({ replied_at: at, response_time_minutes: 45 }, { repliedAt: null, responseMinutes: null }), { replied_at: null, response_time_minutes: null });
+  // The mailbox has no reply: a recorded reply is kept
+  assert.equal(replyPatch({ replied_at: at, response_time_minutes: 45 }, { repliedAt: null, responseMinutes: null }), null);
+});
+
+test('mergeReply: an earlier recorded send stays first; the same send recorded a moment later takes the thread time', () => {
+  const recorded = new Date(min(20)).toISOString();
+  // Sent from Freightwizard as its own thread at +20, real thread reply at +300
+  assert.deepEqual(mergeReply({ replied_at: recorded, response_time_minutes: 20 }, { repliedAt: new Date(min(300)).toISOString(), responseMinutes: 300 }),
+    { replied_at: recorded, response_time_minutes: 20 });
+  // Earlier send without a stored response time: measured from arrival
+  assert.deepEqual(mergeReply({ replied_at: recorded, response_time_minutes: null }, { receivedAt: min(0), repliedAt: new Date(min(300)).toISOString(), responseMinutes: 300 }),
+    { replied_at: recorded, response_time_minutes: 20 });
+  // Recorded right after sending (+20m 10s), the thread says +20: the thread's time wins
+  const justAfter = new Date(min(20) + 10_000).toISOString();
+  assert.deepEqual(mergeReply({ replied_at: justAfter, response_time_minutes: 20 }, { repliedAt: recorded, responseMinutes: 20 }),
+    { replied_at: recorded, response_time_minutes: 20 });
 });
 
 test('sentNowState: just sent from Freightwizard counts as replied now, an earlier reply wins', () => {
@@ -206,4 +220,16 @@ test('Overview: replies sent outside Freightwizard leave "not replied" and set t
   assert.equal(after.avgReplyMinutes30d, Math.round((30 + 90 + 10) / 3));
   // The Inbox list opened from the card shows exactly the counted emails
   assert.deepEqual((await listWaitingEmails(db, 'u', 'awaiting', NOW)).map(r => r.email_id), ['e2']);
+});
+
+test('syncReplies: a recorded reply outside the thread is kept and still shown as replied', async () => {
+  // Old Outlook reply sent as a new conversation: the thread has no reply, the row has one
+  const recorded = new Date(min(2)).toISOString();
+  const mailbox = cachedMailbox(fakeMailbox({ tO: [{ id: 'o', at: min(0), sent: false, draft: false }] }, {}));
+  const { store, saved, activity } = fakeStore();
+  const states = await syncReplies(mailbox, store, [{ email_id: 'o', thread_id: 'tO', replied_at: recorded, response_time_minutes: 2 }]);
+  assert.deepEqual(saved, {});
+  assert.deepEqual(activity, []);
+  assert.equal(states.get('o')?.repliedAt, recorded);
+  assert.equal(states.get('o')?.responseMinutes, 2);
 });
