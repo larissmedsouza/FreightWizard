@@ -1,0 +1,29 @@
+# Freightwizard API
+
+Express API (`server.ts`) for the web app, the Gmail add-on and webhooks. Data lives in Supabase.
+
+## Hosting
+
+- **Vercel** project `freightwizard-api`, root directory `apps/api`, Hobby plan (move to Pro with the first paying customer).
+- Domain **https://api.freightwizard.app** (Cloudflare DNS, CNAME to Vercel, DNS only).
+- Region **fra1** (`vercel.json`), next to Supabase in eu-central-2 (Zurich). Max duration 300 s.
+- Vercel runs the exported Express app as one function; `app.listen` only runs locally.
+
+## Environment variables
+
+`ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`,
+`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_STARTER_PRICE_ID`, `STRIPE_PROFESSIONAL_PRICE_ID`, `STRIPE_ENTERPRISE_PRICE_ID`,
+`TERMINAL49_API_KEY`, `TERMINAL49_WEBHOOK_SECRET`, `INTEGRATION_ENCRYPTION_KEY`,
+`GOOGLE_ADDON_CLIENT_IDS`, `API_URL` (https://api.freightwizard.app), `FRONTEND_URL` (https://freightwizard.app).
+Optional: `PORTBASE_TOKEN_URL`, `PORTBASE_CARGO_API_URL`.
+
+In production the Stripe and Terminal49 webhooks refuse events if their secret is missing.
+`INTEGRATION_ENCRYPTION_KEY` must never change once secrets are stored with it.
+
+## Local development
+
+```
+npm run dev     # http://localhost:3001, reads ../../.env
+npm test        # unit tests
+```
