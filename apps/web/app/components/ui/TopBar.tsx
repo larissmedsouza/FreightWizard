@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Icon from './Icon';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
+import { API_URL } from '@/app/lib/api';
 
 export type Language = 'en' | 'pt' | 'nl';
 

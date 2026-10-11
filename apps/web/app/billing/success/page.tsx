@@ -7,7 +7,7 @@ import Icon from '../../components/ui/Icon';
 import { appRootClass } from '../../components/ui/Panel';
 import { buttonClass } from '../../components/ui/Button';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
+import { API_URL } from '@/app/lib/api';
 
 export default function BillingSuccessPage() {
   const [session, setSession] = useState<string | null>(null);

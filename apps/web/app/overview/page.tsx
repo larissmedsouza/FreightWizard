@@ -12,7 +12,7 @@ import { Tag } from '../components/ui/Tag';
 import { Toast, type ToastData, DataTable, Segmented, th, td, tdMono, tr } from '../components/ui/Data';
 import { shipmentTone, MODE_ICON } from '../components/ui/tones';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
+import { API_URL } from '@/app/lib/api';
 
 interface Row {
   id: string; reference: string; customer: string; origin: string; destination: string;

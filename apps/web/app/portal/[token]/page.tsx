@@ -4,7 +4,7 @@ import { Tag } from '../../components/ui/Tag';
 import { appRootClass } from '../../components/ui/Panel';
 import { MODE_ICON } from '../../components/ui/tones';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
+import { API_URL } from '@/app/lib/api';
 
 interface LiveEvent {
   event_type: string;

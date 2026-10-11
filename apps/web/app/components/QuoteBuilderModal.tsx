@@ -6,7 +6,7 @@ import { Button } from './ui/Button';
 import { inputClass, inputInlineClass, selectClass, textareaClass, Field, DataLabel } from './ui/Field';
 import { toneClass } from './ui/tones';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
+import { API_URL } from '@/app/lib/api';
 
 export interface Charge {
   name: string;

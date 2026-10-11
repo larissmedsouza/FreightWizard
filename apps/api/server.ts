@@ -16,14 +16,14 @@ import { headerMap, isBulkMail, freightScore, marketingAnalysis, type Headers } 
 import { resolveCaller, type CallerDeps } from './caller';
 import { findResultForCaller } from './results';
 import { OAuth2Client } from 'google-auth-library';
+import { waitUntil } from '@vercel/functions';
 
 // Load env from root (for local dev)
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // Environment URLs
-const API_URL = process.env.RAILWAY_PUBLIC_DOMAIN 
-  ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-  : process.env.API_URL || 'http://localhost:3001';
+// Production: API_URL=https://api.freightwizard.app (builds the OAuth callback URLs)
+const API_URL = process.env.API_URL || 'http://localhost:3001';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
@@ -76,7 +76,7 @@ async function getOrCreateSubscription(email: string, sessionId: string) {
 // Free tier: 50 tracked containers/month — watch usage before scaling this up.
 // After deploying, register the webhook URL in the Terminal49 dashboard
 // (or via POST /v2/tracking_requests... see create-a-webhook docs) pointing at:
-//   https://freightwizard-production.up.railway.app/api/webhooks/terminal49
+//   https://api.freightwizard.app/api/webhooks/terminal49
 // ============================================
 const TERMINAL49_API_KEY = process.env.TERMINAL49_API_KEY || '';
 const TERMINAL49_WEBHOOK_SECRET = process.env.TERMINAL49_WEBHOOK_SECRET || '';
@@ -126,7 +126,6 @@ app.use(cors({
     'http://127.0.0.1:3000',
     'https://freightwizard.app',
     'https://www.freightwizard.app',
-    'https://freightwizard-production.up.railway.app',
     'https://freightwizard.vercel.app',
     'https://larissmedsouza.github.io',
     FRONTEND_URL
@@ -140,7 +139,8 @@ app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }));
 // `verify` captures the raw request body so /api/webhooks/terminal49 can verify
 // the HMAC signature against the exact bytes Terminal49 signed (JSON.stringify
 // after parsing is not guaranteed to match byte-for-byte).
-app.use(express.json({ verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
+// 4 MB: base64 document uploads (Vercel's request limit is 4.5 MB; Express defaults to 100 KB)
+app.use(express.json({ limit: '4mb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
 
 // Initialize clients
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -1495,9 +1495,14 @@ app.post('/api/shipments/:id/refresh-tracking', async (req, res) => {
 
 // PUBLIC — Terminal49 calls this when a milestone happens on a tracked container.
 // Register this URL in the Terminal49 dashboard after deploying:
-//   https://freightwizard-production.up.railway.app/api/webhooks/terminal49
+//   https://api.freightwizard.app/api/webhooks/terminal49
 app.post('/api/webhooks/terminal49', async (req: any, res) => {
-  // Verify signature if a webhook secret is configured; otherwise log and accept.
+  // Verify the signature. In production a missing secret refuses the event
+  // (fail closed); locally it logs and accepts for testing.
+  if (!TERMINAL49_WEBHOOK_SECRET && process.env.VERCEL) {
+    console.error('Terminal49 webhook refused: TERMINAL49_WEBHOOK_SECRET is not set');
+    return res.status(500).json({ error: 'Webhook not configured' });
+  }
   if (TERMINAL49_WEBHOOK_SECRET) {
     const signature = req.headers['x-t49-webhook-signature'] as string | undefined;
     const rawBody: Buffer | undefined = req.rawBody;
@@ -2233,6 +2238,12 @@ app.get('/api/billing/usage', async (req, res) => {
 app.post('/api/webhooks/stripe', async (req, res) => {
   let event: Stripe.Event;
 
+  // Fail closed in production: without the secret, anyone could forge billing events.
+  if (!STRIPE_WEBHOOK_SECRET && process.env.VERCEL) {
+    console.error('Stripe webhook refused: STRIPE_WEBHOOK_SECRET is not set');
+    return res.status(500).json({ error: 'Webhook not configured' });
+  }
+
   if (STRIPE_WEBHOOK_SECRET) {
     try {
       event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'] as string, STRIPE_WEBHOOK_SECRET);
@@ -2659,7 +2670,7 @@ app.post('/api/queue-analysis', async (req, res) => {
     }
 
     if (existing.status === 'error') {
-      await supabase.from('analysis_queue').update({ status: 'pending' }).eq('email_id', emailId).eq('user_email', caller.email);
+      await supabase.from('analysis_queue').update({ status: 'pending', created_at: new Date().toISOString() }).eq('email_id', emailId).eq('user_email', caller.email);
     } else {
       await supabase.from('analysis_queue').insert({
         email_id: emailId, user_email: caller.email, subject,
@@ -2667,7 +2678,8 @@ app.post('/api/queue-analysis', async (req, res) => {
       });
     }
 
-    processQueueItem(emailId, caller.email, subject, from, body, threadId, gate.charge);
+    // On Vercel, work after the response only finishes inside waitUntil (same 300 s limit).
+    waitUntil(processQueueItem(emailId, caller.email, subject, from, body, threadId, gate.charge));
 
     res.json({ status: 'processing' });
   } catch (e) {
@@ -3508,7 +3520,8 @@ app.get('/api/integrations/taric/lookup', async (req, res) => {
 
   const result = await lookupTaric(hsCode, country);
   if (result.ok) return res.json(result.data);
-  res.status(502).json({ error: result.error, message: result.message, manual_url: result.manual_url });
+  const failed = result as { error: string; message: string; manual_url: string };
+  res.status(502).json({ error: failed.error, message: failed.message, manual_url: failed.manual_url });
 });
 
 // ============================================
@@ -3850,8 +3863,21 @@ app.post('/api/translate', async (req, res) => {
 // START SERVER
 // ============================================
 const PORT = 3001;
-app.listen(PORT, () => {
-  console.log(`🚀 FreightWizard API running on http://localhost:${PORT}`);
-  console.log(`📊 Analytics tracking enabled`);
-  console.log(`💾 Supabase connected: ${process.env.SUPABASE_URL ? '✅' : '❌'}`);
+// Errors as JSON (Express would otherwise send an HTML page), e.g. uploads over 4 MB.
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const status = err?.status || err?.statusCode || 500;
+  if (status === 413) return res.status(413).json({ error: 'File too large', limit: '4 MB' });
+  console.error('Unhandled error:', err);
+  res.status(status).json({ error: status >= 500 ? 'Internal error' : err.message || 'Bad request' });
 });
+
+// Vercel runs the exported app as a function; locally we listen on a port.
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🚀 FreightWizard API running on http://localhost:${PORT}`);
+    console.log(`📊 Analytics tracking enabled`);
+    console.log(`💾 Supabase connected: ${process.env.SUPABASE_URL ? '✅' : '❌'}`);
+  });
+}
+
+export default app;

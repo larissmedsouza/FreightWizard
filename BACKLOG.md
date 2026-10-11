@@ -15,8 +15,12 @@ Approved 2026-10-09; start after the deploy and phase 0. Build: EORI (EU, SOAP),
 
 ## Add-ons
 
-- **Gmail add-on: send a Google ID token.** Since the 5.5 fix the API no longer accepts a claimed `userEmail`; the add-on must send `Authorization: Bearer ${ScriptApp.getIdentityToken()}` (scopes `openid` + `userinfo.email`) and Railway needs `GOOGLE_ADDON_CLIENT_IDS`. Until then the add-on gets 401. Required before deploying the API.
+- **Gmail add-on: done 2026-10-10.** Pulled into `apps/gmail-addon` (clasp), sends a Google ID token; `GOOGLE_ADDON_CLIENT_IDS` set on the API project. Re-push with `clasp push` from `apps/gmail-addon` after any change.
 - **Outlook add-in: real sign-in.** `outlook-addin/taskpane.html` still sends a claimed `userEmail` and now gets 401. Needs Office SSO (token verified by the API) or a Freightwizard session. Dev-only today (links to localhost).
+
+## Hosting
+
+- **API on Vercel Hobby** (`apps/api`, project separate from the web app, domain `api.freightwizard.app` via Cloudflare DNS, region `fra1` next to Supabase eu-central-2). Hobby is non-commercial-only and keeps 1 hour of logs: move to Vercel Pro with the first paying customer (Stripe stays in test mode until then). Consider logging failures to a Supabase table.
 
 ## Legal and site
 

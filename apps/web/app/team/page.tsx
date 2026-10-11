@@ -16,7 +16,7 @@ import { Tag, Chip } from '../components/ui/Tag';
 import { Toast, Stat, Segmented } from '../components/ui/Data';
 import { toneClass, priorityTone, type Tone } from '../components/ui/tones';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
+import { API_URL } from '@/app/lib/api';
 
 const formatTime = (minutes: number): string => {
   if (!minutes) return '0m';

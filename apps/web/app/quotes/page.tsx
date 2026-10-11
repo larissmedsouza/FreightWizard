@@ -16,7 +16,7 @@ import { Tag, Chip } from '../components/ui/Tag';
 import { Toast, Stat, Segmented, DataTable, SearchField, Route, th, td, tdMono, tr } from '../components/ui/Data';
 import { toneClass, shipmentTone, quoteTone, MODE_ICON, type Tone } from '../components/ui/tones';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
+import { API_URL } from '@/app/lib/api';
 
 type Language = 'en' | 'pt' | 'nl';
 type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'expired';

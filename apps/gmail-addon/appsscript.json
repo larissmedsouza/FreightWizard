@@ -31,7 +31,7 @@
       "runFunction": "onHomepage"
     },
     "openLinkUrlPrefixes": [
-      "https://freightwizard-production.up.railway.app"
+      "https://api.freightwizard.app"
     ]
   }
 }

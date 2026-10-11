@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import TopBar, { type Language } from './ui/TopBar';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
+import { API_URL } from '@/app/lib/api';
 
 interface HeaderProps {
   session: string | null;

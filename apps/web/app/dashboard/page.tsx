@@ -16,7 +16,7 @@ import { Tag, PriorityTag, WorkflowTag, Chip } from '../components/ui/Tag';
 import { toneClass, priorityTone, labelTone, workflowTone, type Tone } from '../components/ui/tones';
 import { decodeEntities } from '../components/ui/text';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
+import { API_URL } from '@/app/lib/api';
 
 // Legacy <img> icons, replaced section by section with the shared line icons.
 const ImgIcon = ({ name, className = "w-6 h-6", style }: { name: string; className?: string; style?: React.CSSProperties }) => (

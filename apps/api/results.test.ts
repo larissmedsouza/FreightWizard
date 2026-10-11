@@ -32,7 +32,8 @@ const db = fakeDb({
   ],
   analysis_queue: [
     { email_id: 'q-alice', user_email: 'alice@a.com', status: 'done', result: { intent: 'booking_confirmation', summary: 'Alice queued secret' } },
-    { email_id: 'q-alice-pending', user_email: 'alice@a.com', status: 'pending', result: null },
+    { email_id: 'q-alice-pending', user_email: 'alice@a.com', status: 'pending', result: null, created_at: new Date().toISOString() },
+    { email_id: 'q-alice-stuck', user_email: 'alice@a.com', status: 'pending', result: null, created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString() },
   ],
 });
 
@@ -72,4 +73,10 @@ test('identity: claimed emails, bad tokens and bad sessions are rejected', async
   assert.equal(await resolveCaller({ headers: { authorization: 'Bearer unverified-email-token' } }, deps), null);
   // An invalid session never falls back to a token
   assert.equal(await resolveCaller({ query: { session: 'stale' }, headers: { authorization: 'Bearer valid-token' } }, deps), null);
+});
+
+test('a job pending for over 5 minutes is reported as an error so it gets retried', async () => {
+  assert.deepEqual(await findResultForCaller(db, alice, 'q-alice-stuck'), { status: 'error' });
+  assert.deepEqual(await findResultForCaller(db, alice, 'q-alice-pending'), { status: 'processing' }); // recent: still processing
+  assert.deepEqual(await findResultForCaller(db, bob, 'q-alice-stuck'), { status: 'not_found' });  // still scoped to the owner
 });

@@ -9,7 +9,7 @@ import { SectionHeader } from '../components/marketing/Section';
 import FwIcon from '../components/ui/Icon';
 import RevealObserver from '../components/marketing/RevealObserver';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
+import { API_URL } from '@/app/lib/api';
 
 const FAQS = [
   { q: 'Can I cancel anytime?', a: 'Yes, cancel from your billing page anytime. No questions asked.' },

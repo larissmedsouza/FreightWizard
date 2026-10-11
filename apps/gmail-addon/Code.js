@@ -4,7 +4,7 @@
  */
 
 var CONFIG = {
-  API_URL: 'https://freightwizard-production.up.railway.app'
+  API_URL: 'https://api.freightwizard.app'
 };
 
 // ===========================================
@@ -101,7 +101,7 @@ function apiFetch(path, options) {
 }
 
 // Run once from the Apps Script editor to read the add-on's OAuth client ID
-// (the token's "aud"), which goes into GOOGLE_ADDON_CLIENT_IDS on Railway.
+// (the token's "aud"), which goes into GOOGLE_ADDON_CLIENT_IDS on the API's Vercel project.
 function showIdentityTokenAudience() {
   var payload = ScriptApp.getIdentityToken().split('.')[1];
   var json = Utilities.newBlob(Utilities.base64DecodeWebSafe(payload + '==='.slice((payload.length + 3) % 4))).getDataAsString();

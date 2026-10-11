@@ -6,7 +6,7 @@ import Icon, { type IconName } from './ui/Icon';
 import { Button, Spinner, buttonClass } from './ui/Button';
 import { Tag } from './ui/Tag';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://freightwizard-production.up.railway.app';
+import { API_URL } from '@/app/lib/api';
 
 export type UpgradeReason = 'trial_expired' | 'trial_limit' | 'analyses_limit' | 'shipments_limit' | 'quotes_limit' | 'documents_blocked';
 
