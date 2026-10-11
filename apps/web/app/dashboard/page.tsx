@@ -35,6 +35,36 @@ interface Email {
   isAnalyzing?: boolean;
   // From /api/emails: bulk = newsletter/marketing (labelled without AI), score = freight likelihood
   triage?: { bulk: boolean; reasons: string[]; score: number };
+  // From the mailbox thread (Gmail threadId / Outlook conversationId): replied = the user sent a
+  // message in the thread after this one, from anywhere; draft = the user's latest draft there.
+  repliedAt?: string | null;
+  responseMinutes?: number | null;
+  draft?: { id: string; at: string; text: string } | null;
+}
+
+// One rule set for the folder lists and their counts (status folders follow the mailbox).
+function inSystemFolder(e: Email, key: string): boolean {
+  const a = e.analysis;
+  const waiting = !!a && !e.repliedAt && a.intent !== 'marketing';
+  switch (key) {
+    case 'urgent': return a?.priority?.toLowerCase() === 'urgent';
+    case 'high': return a?.priority?.toLowerCase() === 'high';
+    case 'medium': return a?.priority?.toLowerCase() === 'medium';
+    case 'low': return a?.priority?.toLowerCase() === 'low';
+    case 'replied': return !!e.repliedAt;
+    case 'not_replied': return waiting;
+    case 'draft_saved': return !!e.draft;
+    case 'ocean': return a?.mode?.toLowerCase() === 'ocean';
+    case 'air': return a?.mode?.toLowerCase() === 'air';
+    case 'road': return a?.mode?.toLowerCase() === 'road';
+    case 'rail': return a?.mode?.toLowerCase() === 'rail';
+    case 'quote_request': return a?.intent === 'quote_request';
+    case 'booking_confirmation': return a?.intent === 'booking_confirmation';
+    case 'tracking_inquiry': return a?.intent === 'tracking_inquiry';
+    case 'documentation_request': return a?.intent === 'documentation_request';
+    case 'urgent_high_waiting': return waiting && ['urgent', 'high'].includes(a?.priority?.toLowerCase());
+    default: return false;
+  }
 }
 
 type AnalyzeOutcome = 'analyzed' | 'marketing' | 'limit' | 'auth' | 'failed';
@@ -391,11 +421,13 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
   darkMode: boolean;
   theme: any;
   session: string | null;
-  onSent: () => void;
-  onDraftSaved: () => void;
+  onSent: (status: { repliedAt: string | null; responseMinutes: number | null }) => void;
+  onDraftSaved: (draft: { id: string; at: string; text: string }) => void;
   language: Language;
 }) {
-  const [replyText, setReplyText] = useState(email.analysis?.suggested_reply || '');
+  // A draft saved in Gmail/Outlook (or here) is continued instead of the AI suggestion.
+  const initialText = email.draft?.text || email.analysis?.suggested_reply || '';
+  const [replyText, setReplyText] = useState(initialText);
   const [cc, setCc] = useState('');
   const [showCc, setShowCc] = useState(false);
   const [sending, setSending] = useState(false);
@@ -424,7 +456,7 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
     setTranslating(false);
   };
 
-  useEffect(() => { setReplyText(email.analysis?.suggested_reply || ''); }, [email.analysis?.suggested_reply]);
+  useEffect(() => { setReplyText(initialText); }, [email.id, email.draft?.id, email.analysis?.suggested_reply]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const insertFormat = (tag: string) => {
     const el = bodyRef.current;
@@ -445,10 +477,10 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
     try {
       const res = await fetch(`${API_URL}/api/send-reply?session=${session}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, cc, subject: email.subject, body: replyText + (signature ? `\n\n--\n${signature}` : ''), threadId: email.threadId, emailId: email.id })
+        body: JSON.stringify({ to, cc, subject: email.subject, body: replyText + (signature ? `\n\n--\n${signature}` : ''), threadId: email.threadId, emailId: email.id, draftId: email.draft?.id })
       });
       const data = await res.json();
-      if (data.success) onSent();
+      if (data.success) onSent({ repliedAt: data.repliedAt ?? new Date().toISOString(), responseMinutes: data.responseMinutes ?? null });
     } catch (e) {}
     setSending(false);
   };
@@ -457,21 +489,27 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
     if (!replyText.trim() || !session) return;
     setSavingDraft(true);
     try {
-      await fetch(`${API_URL}/api/save-draft?session=${session}`, {
+      const res = await fetch(`${API_URL}/api/save-draft?session=${session}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, subject: email.subject, body: replyText, threadId: email.threadId, emailId: email.id })
+        body: JSON.stringify({ to, cc, subject: email.subject, body: replyText, threadId: email.threadId, emailId: email.id, draftId: email.draft?.id })
       });
-      onDraftSaved();
+      const data = await res.json();
+      if (data.success && data.draft) onDraftSaved(data.draft);
     } catch (e) {}
     setSavingDraft(false);
   };
 
-  if (!email.analysis?.suggested_reply) return null;
+  if (!email.analysis?.suggested_reply && !email.draft) return null;
 
   const toolBtn = 'flex size-7 items-center justify-center rounded-fw-btn text-app-ui-sm text-app-ink-2 transition-colors hover:bg-app-raised hover:text-app-ink';
 
   return (
     <div className="flex-shrink-0 border-t border-app-line bg-app-card">
+      {email.draft && (
+        <p className="flex items-center gap-1.5 px-4 pt-2 font-fw-mono text-app-mono-xs uppercase text-app-ink-3">
+          <Icon name="draft" size={12} /> Draft · saved {new Date(email.draft.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+        </p>
+      )}
       {/* Collapsed preview — click to expand */}
       {!expanded ? (
         <div className="flex items-center gap-3 px-4 py-3">
@@ -577,6 +615,12 @@ export default function DashboardPage() {
   const [user, setUser] = useState<{ email: string; name: string } | null>(null);
   const [emails, setEmails] = useState<Email[]>([]);
   const [selected, setSelected] = useState<Email | null>(null);
+  // Reply status changes from this page (sent, draft saved) before the next mailbox refresh
+  const updateEmail = (id: string, patch: Partial<Email>) => {
+    const apply = (e: Email) => ({ ...e, ...patch, analysis: e.analysis && 'repliedAt' in patch ? { ...e.analysis, replied_at: patch.repliedAt } : e.analysis });
+    setEmails(prev => prev.map(e => (e.id === id ? apply(e) : e)));
+    setSelected(prev => (prev?.id === id ? apply(prev) : prev));
+  };
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
@@ -996,26 +1040,7 @@ export default function DashboardPage() {
     result = result.filter(e => {
       if (manualFolders[e.id] === activeFolder) return true;
       if (manualFolders[e.id] && manualFolders[e.id] !== activeFolder) return false;
-      const a = e.analysis;
-      switch (activeFolder) {
-        case 'urgent': return a?.priority?.toLowerCase() === 'urgent';
-        case 'high': return a?.priority?.toLowerCase() === 'high';
-        case 'medium': return a?.priority?.toLowerCase() === 'medium';
-        case 'low': return a?.priority?.toLowerCase() === 'low';
-        case 'replied': return a?.replied_at != null;
-        case 'not_replied': return a && !a.replied_at && a.intent !== 'marketing';
-        case 'draft_saved': return a?.draft_saved === true;
-        case 'ocean': return a?.mode?.toLowerCase() === 'ocean';
-        case 'air': return a?.mode?.toLowerCase() === 'air';
-        case 'road': return a?.mode?.toLowerCase() === 'road';
-        case 'rail': return a?.mode?.toLowerCase() === 'rail';
-        case 'quote_request': return a?.intent === 'quote_request';
-        case 'booking_confirmation': return a?.intent === 'booking_confirmation';
-        case 'tracking_inquiry': return a?.intent === 'tracking_inquiry';
-        case 'documentation_request': return a?.intent === 'documentation_request';
-        case 'urgent_high_waiting': return !!a && !a.replied_at && a.intent !== 'marketing' && ['urgent', 'high'].includes(a?.priority?.toLowerCase());
-        default: return false;
-      }
+      return inSystemFolder(e, activeFolder);
     });
     return result;
   }, [emails, searchQuery, activeFolder, manualFolders, trashedEmails, customLabels]);
@@ -1028,25 +1053,7 @@ export default function DashboardPage() {
       counts[f.key] = nonTrashed.filter(e => {
         if (manualFolders[e.id] === f.key) return true;
         if (manualFolders[e.id] && manualFolders[e.id] !== f.key) return false;
-        const a = e.analysis;
-        switch (f.key) {
-          case 'urgent': return a?.priority?.toLowerCase() === 'urgent';
-          case 'high': return a?.priority?.toLowerCase() === 'high';
-          case 'medium': return a?.priority?.toLowerCase() === 'medium';
-          case 'low': return a?.priority?.toLowerCase() === 'low';
-          case 'replied': return a?.replied_at != null;
-          case 'not_replied': return a && !a.replied_at && a.intent !== 'marketing';
-          case 'ocean': return a?.mode?.toLowerCase() === 'ocean';
-          case 'air': return a?.mode?.toLowerCase() === 'air';
-          case 'road': return a?.mode?.toLowerCase() === 'road';
-          case 'rail': return a?.mode?.toLowerCase() === 'rail';
-          case 'quote_request': return a?.intent === 'quote_request';
-          case 'booking_confirmation': return a?.intent === 'booking_confirmation';
-          case 'tracking_inquiry': return a?.intent === 'tracking_inquiry';
-          case 'documentation_request': return a?.intent === 'documentation_request';
-          case 'urgent_high_waiting': return !!a && !a.replied_at && a.intent !== 'marketing' && ['urgent', 'high'].includes(a?.priority?.toLowerCase());
-          default: return false;
-        }
+        return inSystemFolder(e, f.key);
       }).length;
     });
     customLabels.forEach(l => { counts[l.key] = nonTrashed.filter(e => manualFolders[e.id] === l.key).length; });
@@ -1921,8 +1928,8 @@ export default function DashboardPage() {
                       theme={theme}
                       session={session}
                       language={language}
-                      onSent={() => { notify('success', 'Reply sent!'); addTimelineEvent(selected.id, 'replied', 'Reply sent'); setWorkflowStatus(selected.id, 'quoted'); }}
-                      onDraftSaved={() => notify('success', 'Draft saved!')}
+                      onSent={(status) => { notify('success', 'Reply sent!'); addTimelineEvent(selected.id, 'replied', 'Reply sent'); setWorkflowStatus(selected.id, 'quoted'); updateEmail(selected.id, { ...status, draft: null }); }}
+                      onDraftSaved={(draft) => { notify('success', 'Draft saved!'); updateEmail(selected.id, { draft }); }}
                     />
                   )}
                 </>

@@ -100,6 +100,40 @@ function apiFetch(path, options) {
   return UrlFetchApp.fetch(CONFIG.API_URL + path, options);
 }
 
+// Replies and drafts go into the email's own thread through the Gmail API.
+// GmailApp.sendEmail / createDraft start a new thread, so neither Gmail nor
+// Freightwizard would see them as replies to this email.
+function gmailApi_(method, path, payload) {
+  var options = { method: method, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true };
+  if (payload) { options.contentType = 'application/json'; options.payload = JSON.stringify(payload); }
+  var res = UrlFetchApp.fetch('https://gmail.googleapis.com/gmail/v1/users/me/' + path, options);
+  if (res.getResponseCode() >= 300) throw new Error('Gmail API ' + res.getResponseCode());
+  return JSON.parse(res.getContentText() || '{}');
+}
+
+function threadMessage_(msgId, to, subject, body) {
+  var orig = gmailApi_('get', 'messages/' + msgId + '?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References');
+  var header = function(name) {
+    var h = (orig.payload && orig.payload.headers || []).filter(function(x) { return x.name.toLowerCase() === name.toLowerCase(); })[0];
+    return h ? h.value : '';
+  };
+  var messageId = header('Message-ID');
+  var refs = [header('References'), messageId].filter(String).join(' ');
+  var lines = ['To: ' + to, 'Subject: =?UTF-8?B?' + Utilities.base64Encode(subject, Utilities.Charset.UTF_8) + '?='];
+  if (messageId) lines.push('In-Reply-To: ' + messageId);
+  if (refs) lines.push('References: ' + refs);
+  lines.push('MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: base64', '', Utilities.base64Encode(body, Utilities.Charset.UTF_8));
+  return { raw: Utilities.base64EncodeWebSafe(lines.join('\r\n'), Utilities.Charset.UTF_8), threadId: orig.threadId };
+}
+
+function sendInThread_(msgId, to, subject, body) {
+  gmailApi_('post', 'messages/send', threadMessage_(msgId, to, subject, body));
+}
+
+function draftInThread_(msgId, to, subject, body) {
+  gmailApi_('post', 'drafts', { message: threadMessage_(msgId, to, subject, body) });
+}
+
 // Run once from the Apps Script editor to read the add-on's OAuth client ID
 // (the token's "aud"), which goes into GOOGLE_ADDON_CLIENT_IDS on the API's Vercel project.
 function showIdentityTokenAudience() {
@@ -398,7 +432,7 @@ function doInsertDraft(e) {
     if (!reply) return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('❌ No reply found. Re-analyze first.')).build();
     var to = p.to; var match = to.match(/<(.+?)>/); if (match) to = match[1];
     var subject = p.subj; if (!subject.startsWith('Re:')) subject = 'Re: ' + subject;
-    GmailApp.createDraft(to, subject, reply);
+    draftInThread_(p.msgId, to, subject, reply);
     return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('📝 Draft created! Check your Drafts folder.')).build();
   } catch (err) {
     return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('❌ Failed: ' + err.message)).build();
@@ -417,7 +451,7 @@ function doSendReply(e) {
     if (!reply) return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('❌ No reply found. Analyze first.')).build();
     var to = p.to; var match = to.match(/<(.+?)>/); if (match) to = match[1];
     var subject = p.subj; if (!subject.startsWith('Re:')) subject = 'Re: ' + subject;
-    GmailApp.sendEmail(to, subject, reply);
+    sendInThread_(p.msgId, to, subject, reply);
     trackReply(p.msgId, reply);
     addRepliedLabel(p.msgId);
     return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('✅ Reply sent!')).build();
@@ -438,7 +472,7 @@ function doRequestMissingInfo(e) {
     var subject = p.subj; if (!subject.startsWith('Re:')) subject = 'Re: ' + subject;
     var missingList = missing.map(function(item) { return '- ' + item; }).join('\n');
     var reply = 'Dear Sir/Madam,\n\nThank you for your inquiry. To proceed, please provide:\n\n' + missingList + '\n\nBest regards,\nFreight Team';
-    GmailApp.createDraft(to, subject, reply);
+    draftInThread_(p.msgId, to, subject, reply);
     return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('📝 Missing info request saved as draft!')).build();
   } catch (err) {
     return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('❌ Failed: ' + err.message)).build();
@@ -455,7 +489,7 @@ function doGenerateFollowup(e) {
     var to = p.to; var match = to.match(/<(.+?)>/); if (match) to = match[1];
     var subject = p.subj; if (!subject.startsWith('Re:')) subject = 'Re: ' + subject;
     var followup = 'Dear Sir/Madam,\n\nI hope this email finds you well. I wanted to follow up on my previous message regarding "' + p.subj + '".\n\nCould you please provide an update on the status of this request?\n\nThank you.\n\nBest regards,\nFreight Team';
-    GmailApp.createDraft(to, subject, followup);
+    draftInThread_(p.msgId, to, subject, followup);
     return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('🔁 Follow-up saved as draft!')).build();
   } catch (err) {
     return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText('❌ Failed: ' + err.message)).build();

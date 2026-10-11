@@ -15,6 +15,8 @@ import { CLAUDE_MODEL, CLAUDE_MAX_TOKENS, replyText, warnIfTruncated } from './c
 import { headerMap, isBulkMail, freightScore, marketingAnalysis, type Headers } from './triage';
 import { resolveCaller, type CallerDeps } from './caller';
 import { findResultForCaller } from './results';
+import { cachedMailbox, replyState, sentNowState, syncReplies, type AnalysedRow, type Mailbox, type ReplyState, type ReplyStore } from './replies';
+import { draftText, htmlToText, mailboxFor, saveReplyDraft, sendReply, type MailConfig } from './mailbox';
 import { OAuth2Client } from 'google-auth-library';
 import { waitUntil } from '@vercel/functions';
 
@@ -473,33 +475,102 @@ async function fetchOutlookEmails(accessToken: string) {
   return data.value || [];
 }
 
-async function sendOutlookEmail(accessToken: string, to: string, subject: string, body: string) {
-  const response = await fetch(`${MICROSOFT_CONFIG.graphUrl}/me/sendMail`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      message: {
-        subject,
-        body: { contentType: 'Text', content: body },
-        toRecipients: [{ emailAddress: { address: to } }],
-      },
-    }),
-  });
-  return response.ok;
+// ============================================
+// REPLY STATUS FROM THE MAILBOX (replies.ts, mailbox.ts)
+// An email is replied when its thread holds a message the user sent after it,
+// wherever it was sent from. email_analysis.replied_at / response_time_minutes
+// store the result; thread_id is set once a row has been checked against the
+// mailbox (a null thread_id means "not verified yet").
+// ============================================
+type Session = NonNullable<Awaited<ReturnType<typeof getSession>>>;
+
+const MAIL_CONFIG: MailConfig = {
+  google: { clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET, redirectUri: `${API_URL}/auth/google/callback` },
+  graphUrl: MICROSOFT_CONFIG.graphUrl,
+};
+
+function replyStoreFor(userId: string): ReplyStore {
+  return {
+    save: async (emailId, patch) => {
+      const { error } = await supabase.from('email_analysis').update(patch).eq('email_id', emailId).eq('user_id', userId);
+      if (error) console.error(`Reply status save failed for ${emailId.substring(0, 8)}: ${error.message}`);
+    },
+    recordReplied: (emailId, minutes) => trackActivity(userId, emailId, 'replied', undefined, undefined, minutes ?? undefined),
+  };
 }
 
-async function saveOutlookDraft(accessToken: string, to: string, subject: string, body: string) {
-  const response = await fetch(`${MICROSOFT_CONFIG.graphUrl}/me/messages`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      subject,
-      body: { contentType: 'Text', content: body },
-      toRecipients: [{ emailAddress: { address: to } }],
-      isDraft: true,
-    }),
+const withinMs = <T>(p: Promise<T>, ms: number, fallback: T) =>
+  Promise.race([p, new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms))]);
+
+// Before counting or listing waiting emails: check the user's unreplied (and
+// not yet verified) analysed emails of the last 30 days against the mailbox.
+async function syncWaitingReplies(session: Session): Promise<void> {
+  if (!session.userId) return;
+  const ago30 = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const { data } = await supabase.from('email_analysis')
+    .select('email_id, thread_id, replied_at, response_time_minutes, intent')
+    .eq('user_id', session.userId).gte('created_at', ago30)
+    .or('replied_at.is.null,thread_id.is.null')
+    .order('created_at', { ascending: false }).limit(100);
+  const rows = (data || []).filter((r: any) => r.intent !== 'marketing') as AnalysedRow[];
+  if (!rows.length) return;
+  const mailbox = cachedMailbox(mailboxFor(session, MAIL_CONFIG));
+  // Never hold up the page for long: whatever isn't done is picked up next time.
+  await withinMs(syncReplies(mailbox, replyStoreFor(session.userId), rows).then(() => undefined), 8000, undefined);
+}
+
+// Inbox lists: every email gets repliedAt / responseMinutes / draft from its
+// thread, and analysed ones are stored as well. If the mailbox can't be read,
+// the stored value is shown and no draft.
+async function attachReplyStatus(session: Session, emails: any[], analyses: any[]): Promise<void> {
+  const known = new Map<string, string>(emails.filter(e => e.threadId).map(e => [e.id, e.threadId]));
+  const base = mailboxFor(session, MAIL_CONFIG);
+  const mailbox: Mailbox = cachedMailbox({ threadIdOf: async id => known.get(id) || base.threadIdOf(id), thread: id => base.thread(id) });
+  const states = new Map<string, ReplyState>();
+  const drafts = new Map<string, string>();
+
+  await withinMs((async () => {
+    if (session.userId && analyses.length) {
+      const synced = await syncReplies(mailbox, replyStoreFor(session.userId), analyses as AnalysedRow[]);
+      synced.forEach((s, id) => states.set(id, s));
+    }
+    const rest = emails.filter(e => !states.has(e.id) && e.threadId);
+    for (let i = 0; i < rest.length; i += 8) {
+      await Promise.all(rest.slice(i, i + 8).map(async e => {
+        const thread = await mailbox.thread(e.threadId);
+        const s = thread && replyState(e.id, thread);
+        if (s) states.set(e.id, s);
+      }));
+    }
+    await Promise.all(Array.from(states.values()).filter(s => s.draft).map(async s => {
+      drafts.set(s.draft!.id, await draftText(session, MAIL_CONFIG, s.draft!.id));
+    }));
+  })().catch(err => console.error('Reply status lookup failed:', err?.message || err)), 10_000, undefined);
+
+  for (const e of emails) {
+    const s = states.get(e.id);
+    const stored = analyses.find(a => a.email_id === e.id);
+    e.repliedAt = s ? s.repliedAt : (stored?.replied_at ?? null);
+    e.responseMinutes = s ? s.responseMinutes : (stored?.response_time_minutes ?? null);
+    e.draft = s?.draft ? { id: s.draft.id, at: s.draft.at, text: drafts.get(s.draft.id) || '' } : null;
+  }
+}
+
+// After sending from Freightwizard: store the reply right away (the mailbox
+// may take a moment to list it), measured from when the email arrived.
+async function recordSentReply(session: Session, emailId: string): Promise<{ repliedAt: string | null; responseMinutes: number | null }> {
+  if (!session.userId) return { repliedAt: null, responseMinutes: null };
+  const now = new Date();
+  const mailbox = mailboxFor(session, MAIL_CONFIG);
+  const threadId = await mailbox.threadIdOf(emailId).catch(() => null);
+  const thread = threadId ? await mailbox.thread(threadId).catch(() => null) : null;
+  const found = thread && replyState(emailId, thread);
+  const state = found ? sentNowState(found, now) : { repliedAt: now.toISOString(), responseMinutes: null };
+  await replyStoreFor(session.userId).save(emailId, {
+    replied_at: state.repliedAt, response_time_minutes: state.responseMinutes, ...(threadId ? { thread_id: threadId } : {}),
   });
-  return response.ok;
+  await trackActivity(session.userId, emailId, 'replied', undefined, undefined, state.responseMinutes ?? undefined);
+  return { repliedAt: state.repliedAt, responseMinutes: state.responseMinutes };
 }
 
 // ============================================
@@ -613,25 +684,28 @@ app.get('/api/emails', async (req, res) => {
       );
     }
 
+    let analyses: any[] = [];
     if (session.userId) {
       const emailIds = emails.map(e => e.id);
-      const { data: analyses } = await supabase
+      const { data } = await supabase
         .from('email_analysis').select('*')
         .eq('user_id', session.userId).in('email_id', emailIds);
+      analyses = data || [];
+    }
 
-      if (analyses) {
-        for (const email of emails) {
-          const analysis = analyses.find(a => a.email_id === email.id);
-          if (analysis) {
-            (email as any).analysis = {
-              intent: analysis.intent, priority: analysis.priority, mode: analysis.mode,
-              pol: analysis.pol, pod: analysis.pod, incoterm: analysis.incoterm,
-              cargo_type: analysis.cargo_type, container_type: analysis.container_type,
-              container_count: analysis.container_count, missing_info: analysis.missing_info,
-              summary: analysis.summary, suggested_reply: analysis.suggested_reply,
-            };
-          }
-        }
+    await attachReplyStatus(session, emails, analyses);
+
+    for (const email of emails) {
+      const analysis = analyses.find(a => a.email_id === email.id);
+      if (analysis) {
+        (email as any).analysis = {
+          intent: analysis.intent, priority: analysis.priority, mode: analysis.mode,
+          pol: analysis.pol, pod: analysis.pod, incoterm: analysis.incoterm,
+          cargo_type: analysis.cargo_type, container_type: analysis.container_type,
+          container_count: analysis.container_count, missing_info: analysis.missing_info,
+          summary: analysis.summary, suggested_reply: analysis.suggested_reply,
+          replied_at: email.repliedAt,
+        };
       }
     }
 
@@ -655,6 +729,8 @@ app.get('/api/emails/waiting', async (req, res) => {
   const view: WaitingView = req.query.view === 'urgent' ? 'urgent' : 'awaiting';
 
   try {
+    // Replies sent from anywhere since the last visit leave this list first.
+    await syncWaitingReplies(session);
     const rows = await listWaitingEmails(supabase as unknown as Db, session.userId, view);
 
     const fetchMessage = async (id: string): Promise<any | null> => {
@@ -664,7 +740,7 @@ app.get('/api/emails/waiting', async (req, res) => {
           if (!r.ok) return null;
           const msg: any = await r.json();
           const body = msg.body?.content
-            ? (msg.body.contentType === 'html' ? msg.body.content.replace(/<[^>]*>/g, ' ').replace(/s+/g, ' ').trim() : msg.body.content)
+            ? (msg.body.contentType === 'html' ? htmlToText(msg.body.content) : msg.body.content)
             : '';
           return { threadId: msg.conversationId, subject: msg.subject, from: msg.from?.emailAddress?.address || msg.from?.emailAddress?.name || '', fromName: msg.from?.emailAddress?.name || '', date: msg.receivedDateTime, snippet: msg.bodyPreview || '', body };
         }
@@ -713,6 +789,7 @@ app.get('/api/emails/waiting', async (req, res) => {
         });
       });
     }
+    await attachReplyStatus(session, emails, rows);
 
     res.json({ emails, total: rows.length, view, provider: session.provider || 'google' });
   } catch (error) {
@@ -1592,55 +1669,21 @@ app.post('/api/webhooks/terminal49', async (req: any, res) => {
   }
 });
 
-// ============================================
-// HELPER: Send an email via the session's provider (Gmail or Outlook)
-// Shared by /api/send-reply and /api/quotes/:id/send
-// ============================================
-async function sendEmailAsReply(session: NonNullable<Awaited<ReturnType<typeof getSession>>>, to: string, subject: string, body: string, threadId?: string) {
-  const replySubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`;
-
-  if (session.provider === 'outlook') {
-    const success = await sendOutlookEmail(session.tokens.access_token, to, replySubject, body);
-    if (!success) throw new Error('Failed to send via Outlook');
-  } else {
-    oauth2Client.setCredentials(session.tokens);
-    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-    const rawMessage = Buffer.from(
-      `To: ${to}\r\nSubject: ${replySubject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`
-    ).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    await gmail.users.messages.send({ userId: 'me', requestBody: { raw: rawMessage, threadId } });
-  }
-}
-
-// Send reply
+// Send reply: in the email's thread (Gmail threadId / Outlook createReply).
+// A draft loaded in the reply box (draftId) is sent itself.
 app.post('/api/send-reply', async (req, res) => {
   const sessionId = req.query.session as string;
-  const { to, subject, body, threadId, emailId } = req.body;
+  const { to, cc, subject, body, threadId, emailId, draftId } = req.body;
   const session = await getSession(sessionId);
 
   if (!session) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    await sendEmailAsReply(session, to, subject, body, threadId);
-
-    if (session.userId && emailId) {
-      const { data: activity } = await supabase
-        .from('email_activity').select('created_at')
-        .eq('email_id', emailId).eq('action', 'received').single();
-
-      let responseTimeMinutes;
-      if (activity) {
-        responseTimeMinutes = Math.round((new Date().getTime() - new Date(activity.created_at).getTime()) / 60000);
-      }
-
-      await trackActivity(session.userId, emailId, 'replied', undefined, undefined, responseTimeMinutes);
-      await supabase.from('email_analysis')
-        .update({ replied_at: new Date().toISOString(), response_time_minutes: responseTimeMinutes })
-        .eq('email_id', emailId).eq('user_id', session.userId);
-    }
+    await sendReply(session, MAIL_CONFIG, { to, cc, subject, body, threadId, replyToId: emailId, draftId });
+    const status = emailId ? await recordSentReply(session, emailId) : { repliedAt: null, responseMinutes: null };
 
     console.log(`✉️ Reply sent to: ${to} (via ${session.provider || 'google'})`);
-    res.json({ success: true });
+    res.json({ success: true, ...status });
   } catch (error) {
     console.error('Send error:', error);
     res.status(500).json({ error: 'Failed to send' });
@@ -1801,7 +1844,8 @@ app.post('/api/quotes/:id/send', async (req, res) => {
   try {
     const subject = quote.email_subject || `Freight Quotation FW-QUOTE-${String(quote.id).slice(0, 8).toUpperCase()}`;
     const body = formatQuoteEmailBody(quote);
-    await sendEmailAsReply(session, quote.customer_email, subject, body);
+    // Answer the original request in its thread when the quote came from an email
+    await sendReply(session, MAIL_CONFIG, { to: quote.customer_email, subject, body, replyToId: quote.email_id || null });
 
     const { data: updated, error } = await supabase
       .from('quotes')
@@ -1810,9 +1854,7 @@ app.post('/api/quotes/:id/send', async (req, res) => {
       .select('*').single();
     if (error) throw error;
 
-    if (session.userId && quote.email_id) {
-      await trackActivity(session.userId, quote.email_id, 'replied');
-    }
+    if (quote.email_id) await recordSentReply(session, quote.email_id);
 
     console.log(`✉️ Quote sent to: ${quote.customer_email}`);
     res.json({ success: true, quote: updated });
@@ -2326,33 +2368,21 @@ app.post('/api/webhooks/stripe', async (req, res) => {
   res.json({ received: true });
 });
 
-// Save draft
+// Save draft: a real draft in the email's thread, so it shows in Gmail/Outlook
+// and in Freightwizard's Drafts folder. draftId updates the draft being edited.
 app.post('/api/save-draft', async (req, res) => {
   const sessionId = req.query.session as string;
-  const { to, subject, body, threadId, emailId } = req.body;
+  const { to, cc, subject, body, threadId, emailId, draftId } = req.body;
   const session = await getSession(sessionId);
 
   if (!session) return res.status(401).json({ error: 'Not authenticated' });
 
   try {
-    const draftSubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`;
-
-    if (session.provider === 'outlook') {
-      const success = await saveOutlookDraft(session.tokens.access_token, to, draftSubject, body);
-      if (!success) throw new Error('Failed to save draft via Outlook');
-    } else {
-      oauth2Client.setCredentials(session.tokens);
-      const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-      const rawMessage = Buffer.from(
-        `To: ${to}\r\nSubject: ${draftSubject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}`
-      ).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-      await gmail.users.drafts.create({ userId: 'me', requestBody: { message: { raw: rawMessage, threadId } } });
-    }
-
+    const id = await saveReplyDraft(session, MAIL_CONFIG, { to, cc, subject, body, threadId, replyToId: emailId, draftId });
     if (session.userId && emailId) await trackActivity(session.userId, emailId, 'draft_saved');
 
     console.log(`📝 Draft saved for: ${to} (via ${session.provider || 'google'})`);
-    res.json({ success: true });
+    res.json({ success: true, draft: { id, at: new Date().toISOString(), text: body } });
   } catch (error) {
     console.error('Draft error:', error);
     res.status(500).json({ error: 'Failed to save draft' });
@@ -2378,7 +2408,9 @@ app.post('/api/track-reply', async (req, res) => {
 
     await trackActivity(userId, emailId, 'replied', undefined, undefined, responseTimeMinutes);
     await supabase.from('email_analysis')
-      .update({ replied_at: new Date().toISOString(), response_time_minutes: responseTimeMinutes, suggested_reply: replyText })
+      // thread_id: null = not checked against the mailbox yet; the next Inbox or
+      // Overview load replaces this with the reply's real time from the thread.
+      .update({ replied_at: new Date().toISOString(), response_time_minutes: responseTimeMinutes, suggested_reply: replyText, thread_id: null })
       .eq('email_id', emailId).eq('user_id', userId);
 
     res.json({ success: true });
@@ -2418,6 +2450,8 @@ app.get('/api/overview', async (req, res) => {
   if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
   const mode = req.query.scope === 'team' ? 'team' : 'me';
   try {
+    // Same reply rule as the Inbox: the caller's own mailbox is checked first.
+    await syncWaitingReplies(session);
     res.json(await buildOverview(supabase as unknown as Db, session.userId, { mode, sessionId }));
   } catch (error) {
     console.error('Overview error:', error);
