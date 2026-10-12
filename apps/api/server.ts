@@ -17,6 +17,7 @@ import { resolveCaller, type CallerDeps } from './caller';
 import { findResultForCaller } from './results';
 import { cachedMailbox, mergeReply, replyState, sentNowState, syncReplies, type AnalysedRow, type Mailbox, type ReplyState, type ReplyStore } from './replies';
 import { draftText, htmlToText, mailboxFor, saveReplyDraft, sendReply, type MailConfig } from './mailbox';
+import { cleanProfileInput, companyOwner, mergeProfile, profileCnpj, toApi, type CompanyProfileRow } from './company';
 import { OAuth2Client } from 'google-auth-library';
 import { waitUntil } from '@vercel/functions';
 
@@ -3207,6 +3208,54 @@ async function getTenantIntegration(userId: string): Promise<TenantIntegration |
   };
 }
 
+// ============================================
+// COMPANY PROFILE (company.ts)
+// One per company: the team manager's, or the user's without a team, until
+// organizations exist. Owners and managers edit, members read.
+// ============================================
+const MISSING_TABLE = 'PGRST205';
+
+async function loadCompanyProfile(ownerUserId: string): Promise<{ row: CompanyProfileRow | null; missingTable?: boolean }> {
+  const { data, error } = await supabase.from('company_profiles').select('*').eq('owner_user_id', ownerUserId).maybeSingle();
+  if (error?.code === MISSING_TABLE) return { row: null, missingTable: true };
+  if (error) throw error;
+  return { row: data as CompanyProfileRow | null };
+}
+
+app.get('/api/company-profile', async (req, res) => {
+  const session = await getSession(req.query.session as string);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const owner = await companyOwner(supabase as unknown as Db, session.userId);
+    const { row, missingTable } = await loadCompanyProfile(owner.ownerUserId);
+    if (missingTable) console.error('company_profiles table missing: run supabase/migrations/20261012_company_profiles.sql');
+    res.json({ profile: row ? toApi(row) : null, canEdit: owner.canEdit, teamName: owner.teamName });
+  } catch (error) {
+    console.error('Company profile fetch error:', error);
+    res.status(500).json({ error: 'Failed to load company profile' });
+  }
+});
+
+app.put('/api/company-profile', async (req, res) => {
+  const session = await getSession(req.query.session as string);
+  if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+  const input = cleanProfileInput(req.body);
+  if (!input.ok) return res.status(400).json({ error: input.error });
+  try {
+    const owner = await companyOwner(supabase as unknown as Db, session.userId);
+    if (!owner.canEdit) return res.status(403).json({ error: 'Only the account owner or a manager can edit the company profile' });
+    const { row: stored, missingTable } = await loadCompanyProfile(owner.ownerUserId);
+    if (missingTable) return res.status(503).json({ error: 'Company profiles are not set up yet (database table missing)' });
+    const next = mergeProfile(stored, input.value, owner.ownerUserId, session.userId, new Date());
+    const { data, error } = await supabase.from('company_profiles').upsert(next, { onConflict: 'owner_user_id' }).select('*').single();
+    if (error) throw error;
+    res.json({ profile: toApi(data as CompanyProfileRow) });
+  } catch (error) {
+    console.error('Company profile save error:', error);
+    res.status(500).json({ error: 'Failed to save company profile' });
+  }
+});
+
 // GET settings (safe — never exposes secrets)
 app.get('/api/settings/integrations', async (req, res) => {
   const sessionId = req.query.session as string;
@@ -3246,16 +3295,20 @@ app.post('/api/settings/integrations', async (req, res) => {
 
   try {
     const existing = await getTenantIntegration(session.userId);
+    // Company details live in company_profiles now; the certificate CNPJ
+    // defaults to the profile's Brazilian CNPJ.
+    const owner = await companyOwner(supabase as unknown as Db, session.userId);
+    const { row: profile } = await loadCompanyProfile(owner.ownerUserId);
     const patch: Record<string, any> = {
       tenant_id: session.userId,
-      cnpj: cnpj || '',
-      company_name: companyName || '',
-      trade_name: tradeName || '',
-      country: country || 'Brazil',
-      contact_name: contactName || '',
-      contact_email: contactEmail || '',
-      contact_phone: contactPhone || '',
-      serpro_cert_cnpj: serproCertCnpj || cnpj || '',
+      ...(cnpj !== undefined ? { cnpj } : {}),
+      ...(companyName !== undefined ? { company_name: companyName } : {}),
+      ...(tradeName !== undefined ? { trade_name: tradeName } : {}),
+      ...(country !== undefined ? { country } : {}),
+      ...(contactName !== undefined ? { contact_name: contactName } : {}),
+      ...(contactEmail !== undefined ? { contact_email: contactEmail } : {}),
+      ...(contactPhone !== undefined ? { contact_phone: contactPhone } : {}),
+      serpro_cert_cnpj: serproCertCnpj || cnpj || profileCnpj(profile) || '',
       serpro_environment: serproEnvironment || 'sandbox',
       auto_request_missing: !!autoRequestMissing,
       missing_data_template: missingDataTemplate || DEFAULT_MISSING_TEMPLATE,

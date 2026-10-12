@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../../components/header';
 import CountryIntegrations from '../../components/CountryIntegrations';
+import CompanyProfile from '../../components/CompanyProfile';
+import { formatCnpj } from '@/app/lib/company/rules';
 import Icon, { type IconName } from '../../components/ui/Icon';
 import TopBar from '../../components/ui/TopBar';
 import Modal from '../../components/ui/Modal';
@@ -29,13 +31,6 @@ const T = {
     saveSettings: 'Save Settings',
     saving: 'Saving...',
     savedOk: 'Settings saved successfully',
-    // Section 1
-    s1Title: 'Company Profile',
-    s1Desc: 'Used to pre-fill email templates and Mercante query context.',
-    companyName: 'Company Legal Name', tradeName: 'Trade Name / Fantasy Name',
-    cnpj: 'CNPJ', country: 'Country of Operation',
-    contactName: 'Primary Contact Name', contactEmail: 'Contact Email', contactPhone: 'Contact Phone',
-    cnpjInvalid: 'Invalid CNPJ checksum', cnpjValid: 'Valid CNPJ ✓',
     // Section 2
     s2Title: 'SERPRO Integra Comex', s2Badge1: 'Restricted API', s2Badge2: 'Full Data',
     s2SecurityTitle: 'Security Notice',
@@ -81,12 +76,6 @@ const T = {
     saveSettings: 'Salvar Configurações',
     saving: 'Salvando...',
     savedOk: 'Configurações salvas com sucesso',
-    s1Title: 'Perfil da Empresa',
-    s1Desc: 'Usado para preencher modelos de e-mail e contexto de consulta Mercante.',
-    companyName: 'Razão Social', tradeName: 'Nome Fantasia',
-    cnpj: 'CNPJ', country: 'País de Operação',
-    contactName: 'Nome do Contato', contactEmail: 'E-mail do Contato', contactPhone: 'Telefone do Contato',
-    cnpjInvalid: 'CNPJ inválido', cnpjValid: 'CNPJ válido ✓',
     s2Title: 'SERPRO Integra Comex', s2Badge1: 'API Restrita', s2Badge2: 'Dados Completos',
     s2SecurityTitle: 'Aviso de Segurança',
     s2SecurityDesc: 'Todas as credenciais são criptografadas com AES-256-GCM antes do armazenamento. Seu certificado e segredos nunca são expostos após salvar.',
@@ -128,12 +117,6 @@ const T = {
     saveSettings: 'Instellingen Opslaan',
     saving: 'Opslaan...',
     savedOk: 'Instellingen succesvol opgeslagen',
-    s1Title: 'Bedrijfsprofiel',
-    s1Desc: 'Gebruikt voor het vooraf invullen van e-mailsjablonen en Mercante querycontext.',
-    companyName: 'Bedrijfsnaam (juridisch)', tradeName: 'Handelsnaam',
-    cnpj: 'CNPJ', country: 'Land van Operatie',
-    contactName: 'Primaire Contactpersoon', contactEmail: 'Contact E-mail', contactPhone: 'Telefoonnummer',
-    cnpjInvalid: 'Ongeldig CNPJ', cnpjValid: 'Geldig CNPJ ✓',
     s2Title: 'SERPRO Integra Comex', s2Badge1: 'Beperkte API', s2Badge2: 'Volledige Data',
     s2SecurityTitle: 'Beveiligingsmelding',
     s2SecurityDesc: 'Alle inloggegevens worden versleuteld opgeslagen met AES-256-GCM. Uw certificaat en geheimen worden nooit blootgesteld na opslaan.',
@@ -169,30 +152,6 @@ const T = {
     siscomexDesc: 'De Siscomex Carga Publieke API biedt basis CE Mercante gegevens (laatste wijzigingsdatum, manifesto referentie, schip/escala info) zonder inloggegevens. Het wordt automatisch gebruikt als fallback wanneer SERPRO niet geconfigureerd is.',
   },
 };
-
-// ── CNPJ validation (Brazilian checksum) ──────────────────────────────────────
-function validateCNPJ(cnpj: string): boolean {
-  const digits = cnpj.replace(/\D/g, '');
-  if (digits.length !== 14) return false;
-  if (/^(\d)\1+$/.test(digits)) return false;
-  const calc = (d: string, weights: number[]) =>
-    weights.reduce((sum, w, i) => sum + parseInt(d[i]) * w, 0);
-  const mod = (n: number) => { const r = n % 11; return r < 2 ? 0 : 11 - r; };
-  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  return mod(calc(digits, w1)) === parseInt(digits[12]) && mod(calc(digits, w2)) === parseInt(digits[13]);
-}
-
-function formatCNPJ(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 14);
-  return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2}).*/, '$1.$2.$3/$4-$5');
-}
-
-function formatPhone(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 11);
-  if (d.length <= 10) return d.replace(/^(\d{2})(\d{4})(\d{4}).*/, '($1) $2-$3');
-  return d.replace(/^(\d{2})(\d{5})(\d{4}).*/, '($1) $2-$3');
-}
 
 const DEFAULT_TEMPLATE = `Dear {{client_name}},
 
@@ -236,8 +195,6 @@ export default function IntegrationsPage() {
 
   // Form state
   const [form, setForm] = useState({
-    cnpj: '', companyName: '', tradeName: '', country: 'Brazil',
-    contactName: '', contactEmail: '', contactPhone: '',
     serproClientId: '', serproClientSecret: '',
     serproCertificate: '', serproCertPassword: '',
     serproCertCnpj: '', serproEnvironment: 'sandbox' as 'production' | 'sandbox',
@@ -252,7 +209,8 @@ export default function IntegrationsPage() {
     serproEnvironment: string;
   } | null>(null);
 
-  const [cnpjValid, setCnpjValid] = useState<boolean | null>(null);
+  // The company profile's CNPJ, used as the certificate CNPJ default
+  const [profileCnpj, setProfileCnpj] = useState('');
 
   useEffect(() => {
     const dm = localStorage.getItem('fw_theme');
@@ -267,10 +225,7 @@ export default function IntegrationsPage() {
             const d = data.integration;
             setForm(f => ({
               ...f,
-              cnpj: d.cnpj || '', companyName: d.companyName || '',
-              tradeName: d.tradeName || '', country: d.country || 'Brazil',
-              contactName: d.contactName || '', contactEmail: d.contactEmail || '',
-              contactPhone: d.contactPhone || '', serproClientId: d.serproClientId || '',
+              serproClientId: d.serproClientId || '',
               serproCertCnpj: d.serproCertCnpj || '', serproEnvironment: d.serproEnvironment || 'sandbox',
               autoRequestMissing: d.autoRequestMissing || false,
               missingDataTemplate: d.missingDataTemplate || DEFAULT_TEMPLATE,
@@ -420,59 +375,8 @@ export default function IntegrationsPage() {
         {/* Settings sub-nav */}
         <SettingsTabs active="integrations" session={session} />
 
-        {/* ── SECTION 1: Company Profile ─────────────────────────────────── */}
-        {sectionCard(<>
-          <div>
-            {sectionHead('building', T[language].s1Title)}
-            <p className="mt-1 text-app-ui-sm text-app-ink-3">{T[language].s1Desc}</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {field(T[language].companyName, form.companyName, v => setForm(f => ({ ...f, companyName: v })), { placeholder: 'Empresa Ltda.' })}
-            <div>
-              <label className="mb-1 block text-app-ui-sm font-medium text-app-ink-2">{T[language].cnpj}</label>
-              <input
-                type="text" value={form.cnpj} aria-label={T[language].cnpj}
-                onChange={e => {
-                  const v = formatCNPJ(e.target.value);
-                  setForm(f => ({ ...f, cnpj: v }));
-                  const digits = v.replace(/\D/g, '');
-                  setCnpjValid(digits.length === 14 ? validateCNPJ(v) : null);
-                }}
-                placeholder="00.000.000/0001-00"
-                className={`${inputClass} font-fw-mono ${cnpjValid === false ? 'border-app-danger-dot' : cnpjValid === true ? 'border-app-ok-dot' : ''}`}
-              />
-              {cnpjValid === false && <p className="mt-1 text-app-ui-sm text-app-danger-ink">{T[language].cnpjInvalid}</p>}
-              {cnpjValid === true && <p className="mt-1 text-app-ui-sm text-app-ok-ink">{T[language].cnpjValid}</p>}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {field(T[language].tradeName, form.tradeName, v => setForm(f => ({ ...f, tradeName: v })), { placeholder: 'My Freight Co.' })}
-            <Field label={T[language].country}>
-              <select value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))} className={selectClass}>
-                <option value="Brazil">Brazil</option>
-                <option value="Portugal">Portugal</option>
-                <option value="Netherlands">Netherlands</option>
-                <option value="Other">Other</option>
-              </select>
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            {field(T[language].contactName, form.contactName, v => setForm(f => ({ ...f, contactName: v })), { placeholder: 'João Silva' })}
-            {field(T[language].contactEmail, form.contactEmail, v => setForm(f => ({ ...f, contactEmail: v })), { type: 'email', placeholder: 'joao@empresa.com.br' })}
-            {field(T[language].contactPhone, form.contactPhone, v => setForm(f => ({ ...f, contactPhone: formatPhone(v) })), { placeholder: '(11) 99999-9999', mono: true })}
-          </div>
-        </>)}
-
-        {/* Company profile is shared by every country; save it here too */}
-        {country !== 'BR' && <div className="flex justify-end">
-          <Button variant="primary" size="lg" onClick={handleSave} disabled={saving}>
-            {saving && <Spinner className="size-3.5" />}
-            {saving ? T[language].saving : T[language].saveSettings}
-          </Button>
-        </div>}
+        {/* ── SECTION 1: Company Profile (own save, shared by every country tab) ── */}
+        <CompanyProfile session={session} language={language} onCnpjChange={setProfileCnpj} />
 
         {/* Country tabs: each shows only its own panel */}
         <div className="border-t border-app-line pt-5">
@@ -539,8 +443,8 @@ export default function IntegrationsPage() {
               showToggle: true, shown: showCertPass, onToggle: () => setShowCertPass(s => !s),
               placeholder: saved?.hasCertPassword ? T[language].secretPlaceholder : 'Certificate password',
             })}
-            {field(T[language].certCnpj, form.serproCertCnpj, v => setForm(f => ({ ...f, serproCertCnpj: formatCNPJ(v) })), {
-              placeholder: form.cnpj || '00.000.000/0001-00', hint: T[language].certCnpjHint, mono: true,
+            {field(T[language].certCnpj, form.serproCertCnpj, v => setForm(f => ({ ...f, serproCertCnpj: formatCnpj(v) })), {
+              placeholder: profileCnpj || '11.222.333/0001-81', hint: T[language].certCnpjHint, mono: true,
             })}
           </div>
 
@@ -650,7 +554,7 @@ export default function IntegrationsPage() {
           )}
         </>)}
 
-        {/* Save button (company profile + Brazil settings) */}
+        {/* Save button (Brazil settings) */}
         <div className="flex justify-end">
           <Button variant="primary" size="lg" onClick={handleSave} disabled={saving}>
             {saving && <Spinner className="size-3.5" />}

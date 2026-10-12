@@ -11,7 +11,7 @@ Order agreed 2026-10-09: current deploy → **Security (phase 0)** below → mul
 
 ## After phase 0: EU lookup tools (branch eu-integrations)
 
-Approved 2026-10-09; start after the deploy and phase 0. Build: EORI (EU, SOAP), VAT (VIES REST), AEO (EU, SOAP), UN/LOCODE (full UN/CEFACT list), EU sanctions (consolidated list), ECB rates, plus **GB EORI (HMRC)**. Skip REX for now. Three-state badges (Valid / Not valid / Couldn't check); AEO shows "Listed as AEO" / "Not in the public AEO list" (never "Not AEO"); sanctions shows "Possible match, verify"; ECB conversions labelled "Indicative, ECB reference rate of <date>". Caching, downtime handling, failure logging, team scoping and tests per the original brief. No website or pricing claims until each is built and tested against the real service.
+Approved 2026-10-09; start after the deploy and phase 0. Build: EORI (EU, SOAP), VAT (VIES REST), AEO (EU, SOAP), UN/LOCODE (full UN/CEFACT list), EU sanctions (consolidated list), ECB rates, plus **GB EORI (HMRC)**. Skip REX for now. Three-state badges (Valid / Not valid / Couldn't check); the Company Profile VAT and EORI fields are already wired for this: register a verifier in `apps/web/app/lib/company/verify.ts` and a Check button appears, with the result stored in `company_profiles.verifications`; AEO shows "Listed as AEO" / "Not in the public AEO list" (never "Not AEO"); sanctions shows "Possible match, verify"; ECB conversions labelled "Indicative, ECB reference rate of <date>". Caching, downtime handling, failure logging, team scoping and tests per the original brief. No website or pricing claims until each is built and tested against the real service.
 
 ## Add-ons
 

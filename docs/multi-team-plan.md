@@ -41,6 +41,7 @@ Status: **planned, not built**. Decisions recorded 2026-10-09.
 | **`invites`** (`org_id`, `email`, `role`, `team_ids[]`, `token`, `expires_at` = +7 days, `accepted_at`) | Email invites with role and teams; replaces the shared invite code. Counts toward seats until accepted or expired. |
 | **Scoping columns** on `shipments`, `quotes`, `rate_cards`, `customer_portals`, `email_analysis`, `document_analysis`, `email_activity`, `analytics_daily`: `org_id` (required), `team_id` (optional), `created_by` (replaces `session_id` keys) | One scoping rule for every table. |
 | **`tenant_integrations`, `country_integrations`** keyed by `org_id` | Credentials belong to the company. |
+| **`company_profiles`**: fill `org_id` from `owner_user_id` (the team manager, or the user without a team, who becomes the Owner), then key by `org_id` | Built 2026-10-12 with an empty `org_id` column for this step (`apps/api/company.ts`). |
 | **`mailboxes`** (phase 6): `org_id`, `team_id`, `address`, `provider`, encrypted tokens, `connected_by` | Shared inboxes. |
 | **`audit_log`** (`org_id`, `actor_id`, `action`, `target`, `at`) | Invites, removals, role and billing changes, mailbox connections. |
 
