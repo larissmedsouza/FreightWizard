@@ -499,8 +499,6 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
     setSavingDraft(false);
   };
 
-  if (!email.analysis?.suggested_reply && !email.draft) return null;
-
   const toolBtn = 'flex size-7 items-center justify-center rounded-fw-btn text-app-ui-sm text-app-ink-2 transition-colors hover:bg-app-raised hover:text-app-ink';
 
   return (
@@ -514,12 +512,16 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
       {!expanded ? (
         <div className="flex items-center gap-3 px-4 py-3">
           <button onClick={() => setExpanded(true)}
-            className="flex-1 truncate rounded-fw-btn border border-app-line bg-app-panel px-3 py-2 text-left text-app-ui-sm text-app-ink-2 transition-colors hover:bg-app-raised">
-            {replyText.substring(0, 80)}...
+            className={`flex-1 truncate rounded-fw-btn border border-app-line bg-app-panel px-3 py-2 text-left text-app-ui-sm transition-colors hover:bg-app-raised ${replyText.trim() ? 'text-app-ink-2' : 'text-app-ink-3'}`}>
+            {replyText.trim() ? `${replyText.substring(0, 80)}...` : 'Write a reply…'}
           </button>
-          <Button variant="primary" icon={sending ? undefined : 'send'} onClick={handleSend} disabled={sending} className="flex-shrink-0">
-            {sending ? <><Spinner className="size-3" /> Sending...</> : 'Send'}
-          </Button>
+          {replyText.trim() ? (
+            <Button variant="primary" icon={sending ? undefined : 'send'} onClick={handleSend} disabled={sending} className="flex-shrink-0">
+              {sending ? <><Spinner className="size-3" /> Sending...</> : 'Send'}
+            </Button>
+          ) : (
+            <Button icon="reply" onClick={() => { setExpanded(true); setTimeout(() => bodyRef.current?.focus(), 0); }} className="flex-shrink-0">Reply</Button>
+          )}
         </div>
       ) : (
         <div>
@@ -578,7 +580,7 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
           )}
 
           {/* Body */}
-          <textarea ref={bodyRef} value={replyText} onChange={e => setReplyText(e.target.value)} rows={6} aria-label="Reply"
+          <textarea ref={bodyRef} value={replyText} onChange={e => setReplyText(e.target.value)} rows={6} aria-label="Reply" placeholder="Write a reply…"
             className="w-full resize-none bg-transparent px-4 py-3 text-app-ui text-app-ink focus:outline-none" />
 
           {signature && (
@@ -593,7 +595,7 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
             <Button variant="primary" icon={sending ? undefined : 'send'} onClick={handleSend} disabled={sending || !replyText.trim()}>
               {sending ? <><Spinner className="size-3" /> Sending...</> : 'Send'}
             </Button>
-            <Button icon="draft" onClick={handleSaveDraft} disabled={savingDraft}>
+            <Button icon="draft" onClick={handleSaveDraft} disabled={savingDraft || !replyText.trim()}>
               {savingDraft ? 'Saving...' : 'Save Draft'}
             </Button>
             <Button variant="ghost" size="sm" iconRight="chevron" onClick={() => setExpanded(false)} className="ml-auto">Collapse</Button>
@@ -1921,7 +1923,7 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Gmail-like Reply Box */}
-                  {!trashedEmails.has(selected.id) && selected.analysis?.suggested_reply && (
+                  {!trashedEmails.has(selected.id) && (
                     <ReplyBox
                       email={selected}
                       darkMode={darkMode}
