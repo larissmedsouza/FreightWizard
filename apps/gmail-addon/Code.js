@@ -1,5 +1,5 @@
 /**
- * FreightWizard Gmail Add-on v3.0
+ * Freightwizard Gmail Add-on v3.0
  * Queue-based architecture - instant UI
  */
 
@@ -15,14 +15,14 @@ function onHomepage(e) {
   var card = CardService.newCardBuilder();
   card.setHeader(
     CardService.newCardHeader()
-      .setTitle('FreightWizard')
+      .setTitle('Freightwizard')
       .setSubtitle('AI Freight Assistant')
   );
 
   var section = CardService.newCardSection();
   section.addWidget(
     CardService.newTextParagraph()
-      .setText('👋 Welcome to FreightWizard!\n\nOpen an email to analyze it with AI.')
+      .setText('👋 Welcome to Freightwizard!\n\nOpen an email to analyze it with AI.')
   );
   section.addWidget(
     CardService.newTextButton()
@@ -195,7 +195,7 @@ function buildQuickCard(messageId, subject, from, body, threadId) {
   var card = CardService.newCardBuilder();
   card.setHeader(
     CardService.newCardHeader()
-      .setTitle('FreightWizard')
+      .setTitle('Freightwizard')
       .setSubtitle('AI Freight Assistant')
   );
 
@@ -234,7 +234,7 @@ function buildProcessingCard(messageId, subject, from, body, threadId) {
   var card = CardService.newCardBuilder();
   card.setHeader(
     CardService.newCardHeader()
-      .setTitle('FreightWizard')
+      .setTitle('Freightwizard')
       .setSubtitle('AI Freight Assistant')
   );
 
@@ -265,7 +265,7 @@ function buildEmailCard(message, thread, analysis) {
 
   card.setHeader(
     CardService.newCardHeader()
-      .setTitle('FreightWizard')
+      .setTitle('Freightwizard')
       .setSubtitle('AI Freight Assistant')
   );
 

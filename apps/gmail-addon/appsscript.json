@@ -19,7 +19,7 @@
   "https://www.googleapis.com/auth/script.scriptapp"
 ],
   "gmail": {
-    "name": "FreightWizard",
+    "name": "Freightwizard",
     "logoUrl": "https://raw.githubusercontent.com/larissmedsouza/FreightWizard/main/logo.png",
     "contextualTriggers": [
       {

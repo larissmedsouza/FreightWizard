@@ -1,5 +1,5 @@
 /*
- * FreightWizard design tokens: the single source of truth for the public
+ * Freightwizard design tokens: the single source of truth for the public
  * landing page AND the logged-in app. Components must not contain raw hex
  * values; they use the Tailwind utilities generated from this file:
  *

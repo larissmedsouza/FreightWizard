@@ -1,5 +1,5 @@
 -- ============================================
--- FreightWizard Database Schema
+-- Freightwizard Database Schema
 -- Run this in Supabase SQL Editor
 -- ============================================
 
@@ -319,7 +319,7 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription_id ON subscript
 -- ============================================
 -- DONE!
 -- ============================================
-SELECT 'FreightWizard schema created successfully!' as message;
+SELECT 'Freightwizard schema created successfully!' as message;
 
 -- ============================================
 -- COMPANY PROFILES (supabase/migrations/20261012_company_profiles.sql)
