@@ -10,7 +10,7 @@ import Icon, { type IconName, toIconName } from '../components/ui/Icon';
 import TopBar from '../components/ui/TopBar';
 import Modal from '../components/ui/Modal';
 import { appRootClass, EmptyState, Notice } from '../components/ui/Panel';
-import { Button, Spinner } from '../components/ui/Button';
+import { Button, ButtonLink, Spinner } from '../components/ui/Button';
 import { inputClass, textareaClass, Field, DataLabel } from '../components/ui/Field';
 import { Tag, PriorityTag, WorkflowTag, Chip } from '../components/ui/Tag';
 import { toneClass, priorityTone, labelTone, workflowTone, type Tone } from '../components/ui/tones';
@@ -416,13 +416,15 @@ function ComposeModal({ onClose, onSend, darkMode, theme, userEmail }: {
 }
 
 // Gmail-like reply box component
-function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, language }: {
+function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, onReconnect, language }: {
   email: Email;
   darkMode: boolean;
   theme: any;
   session: string | null;
   onSent: (status: { repliedAt: string | null; responseMinutes: number | null }) => void;
   onDraftSaved: (draft: { id: string; at: string; text: string }) => void;
+  /** The mailbox needs signing in again (token could not be refreshed). */
+  onReconnect: (provider: 'google' | 'outlook') => void;
   language: Language;
 }) {
   // A draft saved in Gmail/Outlook (or here) is continued instead of the AI suggestion.
@@ -480,6 +482,7 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
         body: JSON.stringify({ to, cc, subject: email.subject, body: replyText + (signature ? `\n\n--\n${signature}` : ''), threadId: email.threadId, emailId: email.id, draftId: email.draft?.id })
       });
       const data = await res.json();
+      if (data.reason === 'reconnect_mailbox') onReconnect(data.provider);
       if (data.success) onSent({ repliedAt: data.repliedAt ?? new Date().toISOString(), responseMinutes: data.responseMinutes ?? null });
     } catch (e) {}
     setSending(false);
@@ -494,6 +497,7 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, langu
         body: JSON.stringify({ to, cc, subject: email.subject, body: replyText, threadId: email.threadId, emailId: email.id, draftId: email.draft?.id })
       });
       const data = await res.json();
+      if (data.reason === 'reconnect_mailbox') onReconnect(data.provider);
       if (data.success && data.draft) onDraftSaved(data.draft);
     } catch (e) {}
     setSavingDraft(false);
@@ -617,6 +621,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<{ email: string; name: string } | null>(null);
   const [emails, setEmails] = useState<Email[]>([]);
   const [selected, setSelected] = useState<Email | null>(null);
+  const [reconnect, setReconnect] = useState<'google' | 'outlook' | null>(null);
   // Reply status changes from this page (sent, draft saved) before the next mailbox refresh
   const updateEmail = (id: string, patch: Partial<Email>) => {
     const apply = (e: Email) => ({ ...e, ...patch, analysis: e.analysis && 'repliedAt' in patch ? { ...e.analysis, replied_at: patch.repliedAt } : e.analysis });
@@ -766,6 +771,8 @@ export default function DashboardPage() {
         ? `${API_URL}/api/emails/waiting?session=${sid}&view=${view}`
         : `${API_URL}/api/emails?session=${sid}`);
       const data = await res.json();
+      // The mailbox token could not be refreshed: ask to sign in again
+      setReconnect(res.status === 401 && data.reason === 'reconnect_mailbox' ? data.provider : null);
       if (view) setServerTotal(typeof data.total === 'number' ? data.total : null);
       if (data.emails) setEmails(data.emails.map((e: any) => ({ ...e, analysis: e.analysis || null, isAnalyzing: false })));
     } catch (e) { console.error(e); }
@@ -1362,6 +1369,12 @@ export default function DashboardPage() {
               </label>
 
               <div className="flex flex-1 flex-col overflow-hidden rounded-fw-card border border-app-line bg-app-card">
+                {reconnect && (
+                  <Notice tone="warn" icon="alert" className="m-3" title={`Reconnect ${reconnect === 'outlook' ? 'Outlook' : 'Gmail'}`}
+                    action={<ButtonLink href={`${API_URL}/auth/${reconnect}`} variant="primary" size="sm">Reconnect {reconnect === 'outlook' ? 'Outlook' : 'Gmail'}</ButtonLink>}>
+                    Your {reconnect === 'outlook' ? 'Outlook' : 'Gmail'} connection has expired, so new emails can&apos;t be loaded or sent. Sign in again to continue; your analyses and settings stay as they are.
+                  </Notice>
+                )}
                 {serverView && (
                   <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-b border-app-line bg-app-selected px-3 py-2 text-app-ui-sm text-app-ink-2">
                     <span>
@@ -1932,6 +1945,7 @@ export default function DashboardPage() {
                       language={language}
                       onSent={(status) => { notify('success', 'Reply sent!'); addTimelineEvent(selected.id, 'replied', 'Reply sent'); setWorkflowStatus(selected.id, 'quoted'); updateEmail(selected.id, { ...status, draft: null }); }}
                       onDraftSaved={(draft) => { notify('success', 'Draft saved!'); updateEmail(selected.id, { draft }); }}
+                      onReconnect={(p) => { setReconnect(p); notify('error', `Reconnect ${p === 'outlook' ? 'Outlook' : 'Gmail'} to send`, { sub: 'The connection to your mailbox has expired.' }); }}
                     />
                   )}
                 </>

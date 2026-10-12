@@ -15,6 +15,7 @@ import { CLAUDE_MODEL, CLAUDE_MAX_TOKENS, replyText, warnIfTruncated } from './c
 import { headerMap, isBulkMail, freightScore, marketingAnalysis, type Headers } from './triage';
 import { resolveCaller, type CallerDeps } from './caller';
 import { findResultForCaller } from './results';
+import { tokenManager, refreshFailure, ReconnectError, type Provider } from './tokens';
 import { cachedMailbox, mergeReply, replyState, sentNowState, syncReplies, type AnalysedRow, type Mailbox, type ReplyState, type ReplyStore } from './replies';
 import { draftText, htmlToText, mailboxFor, saveReplyDraft, sendReply, type MailConfig } from './mailbox';
 import { cleanProfileInput, companyOwner, mergeProfile, profileCnpj, toApi, type CompanyProfileRow } from './company';
@@ -164,7 +165,8 @@ const MICROSOFT_CONFIG = {
   clientId: process.env.MICROSOFT_CLIENT_ID || '',
   clientSecret: process.env.MICROSOFT_CLIENT_SECRET || '',
   redirectUri: `${API_URL}/auth/outlook/callback`,
-  scopes: ['openid', 'profile', 'email', 'Mail.Read', 'Mail.Send', 'Mail.ReadWrite', 'User.Read'],
+  // offline_access: without it Microsoft issues no refresh token and the session dies after an hour
+  scopes: ['openid', 'profile', 'email', 'offline_access', 'Mail.Read', 'Mail.Send', 'Mail.ReadWrite', 'User.Read'],
   authorizeUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
   tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
   graphUrl: 'https://graph.microsoft.com/v1.0'
@@ -227,6 +229,62 @@ async function saveSession(sessionId: string, userId: string, email: string, nam
 }
 
 // ============================================
+// MAILBOX TOKENS (tokens.ts): refreshed 5 minutes before expiry and on a 401.
+// The new tokens are stored on the session row, so later requests use them.
+// ============================================
+async function refreshAtProvider(provider: Provider, refreshToken: string) {
+  const outlook = provider === 'outlook';
+  const r = await fetch(outlook ? MICROSOFT_CONFIG.tokenUrl : 'https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: outlook ? MICROSOFT_CONFIG.clientId : process.env.GOOGLE_CLIENT_ID || '',
+      client_secret: outlook ? MICROSOFT_CONFIG.clientSecret : process.env.GOOGLE_CLIENT_SECRET || '',
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      ...(outlook ? { scope: MICROSOFT_CONFIG.scopes.join(' ') } : {}),
+    }),
+  });
+  const body: any = await r.json().catch(() => null);
+  if (!r.ok || !body?.access_token) throw refreshFailure(provider, r.status, body);
+  return body;
+}
+
+const mailTokens = tokenManager({
+  refresh: refreshAtProvider,
+  save: async (sessionId, t) => {
+    const { error } = await supabase.from('gmail_sessions').update({
+      access_token: t.access_token, refresh_token: t.refresh_token,
+      token_expiry: t.expiry_date ? new Date(t.expiry_date).toISOString() : null,
+    }).eq('session_id', sessionId);
+    if (error) console.error(`Token save failed for session ${sessionId.slice(0, 4)}…: ${error.message}`);
+  },
+  now: () => Date.now(),
+});
+
+/** Microsoft Graph call with a fresh token, retried once after a refresh on 401. */
+async function graphFetch(session: Session, path: string, init: RequestInit = {}): Promise<Response> {
+  const url = path.startsWith('http') ? path : `${MICROSOFT_CONFIG.graphUrl}${path}`;
+  const res = await mailTokens.withRetry(session, token => fetch(url, { ...init, headers: { ...(init.headers as Record<string, string> || {}), Authorization: `Bearer ${token}` } }));
+  if (res.status === 401) throw new ReconnectError('outlook', 'Graph still answers 401 after a token refresh');
+  return res;
+}
+
+/**
+ * Answers 401 { reason: 'reconnect_mailbox' } when the mailbox can only be
+ * reached again after signing in (Outlook or Gmail refresh token missing or
+ * refused). Returns false for every other error.
+ */
+function replyReconnect(res: express.Response, session: { provider?: string } | null, error: any): boolean {
+  const gmailRefused = session?.provider !== 'outlook' && /invalid_grant/.test(String(error?.message || '') + String(error?.response?.data?.error || ''));
+  const provider = error instanceof ReconnectError ? error.provider : gmailRefused ? 'google' : null;
+  if (!provider) return false;
+  console.warn(`Mailbox needs reconnecting (${provider}): ${error?.message || error}`);
+  res.status(401).json({ error: `${provider === 'outlook' ? 'Outlook' : 'Gmail'} needs to be reconnected`, reason: 'reconnect_mailbox', provider });
+  return true;
+}
+
+// ============================================
 // HELPER: Get session from Supabase
 // ============================================
 // ---- Caller identity (caller.ts): a login session, or a Google ID token from
@@ -263,17 +321,25 @@ async function getSession(sessionId: string) {
     if (error && error.code !== 'PGRST116') console.error(`getSession lookup failed: ${error.code} ${error.message}`);
     if (!data) return null;
 
-    return {
+    const session = {
+      sessionId,
       tokens: {
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
-        expiry_date: data.token_expiry ? new Date(data.token_expiry).getTime() : null,
+        access_token: data.access_token as string,
+        refresh_token: (data.refresh_token || null) as string | null,
+        expiry_date: (data.token_expiry ? new Date(data.token_expiry).getTime() : null) as number | null,
       },
       email: data.gmail_email,
       name: data.user_name || data.gmail_email,
       userId: data.user_id,
       provider: (data.provider || 'google') as 'google' | 'outlook',
     };
+    // Mailbox token: refresh shortly before it expires. A failure doesn't end
+    // the login (pages without the mailbox keep working); mailbox calls then
+    // answer reconnect_mailbox.
+    await mailTokens.fresh(session).catch(e => {
+      if (!(e instanceof ReconnectError)) console.error(`Token refresh failed (${session.provider}): ${e.message}`);
+    });
+    return session;
   } catch (e) {
     console.error('Error getting session:', e);
     return null;
@@ -487,11 +553,10 @@ app.get('/auth/outlook/callback', async (req, res) => {
 // OUTLOOK EMAIL FUNCTIONS
 // ============================================
 
-async function fetchOutlookEmails(accessToken: string) {
-  const response = await fetch(
-    `${MICROSOFT_CONFIG.graphUrl}/me/mailFolders/inbox/messages?$top=20&$orderby=receivedDateTime desc`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
+async function fetchOutlookEmails(session: Session) {
+  const response = await graphFetch(session, '/me/mailFolders/inbox/messages?$top=20&$orderby=receivedDateTime desc');
+  // An error used to come back as an empty inbox
+  if (!response.ok) throw new Error(`Outlook inbox: HTTP ${response.status}`);
   const data = await response.json();
   return data.value || [];
 }
@@ -509,6 +574,7 @@ type Session = NonNullable<Awaited<ReturnType<typeof getSession>>>;
 const MAIL_CONFIG: MailConfig = {
   google: { clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET, redirectUri: `${API_URL}/auth/google/callback` },
   graphUrl: MICROSOFT_CONFIG.graphUrl,
+  graphFetch: (session, url, init) => graphFetch(session as Session, url, init),
 };
 
 function replyStoreFor(userId: string): ReplyStore {
@@ -630,7 +696,7 @@ app.get('/api/emails', async (req, res) => {
     let emails: any[] = [];
 
     if (session.provider === 'outlook') {
-      const outlookEmails = await fetchOutlookEmails(session.tokens.access_token);
+      const outlookEmails = await fetchOutlookEmails(session);
 
       emails = outlookEmails.map((msg: any) => {
         let body = '';
@@ -735,6 +801,7 @@ app.get('/api/emails', async (req, res) => {
 
     res.json({ emails, provider: session.provider || 'google' });
   } catch (error) {
+    if (replyReconnect(res, session, error)) return;
     console.error('Error fetching emails:', error);
     res.status(500).json({ error: 'Failed to fetch emails' });
   }
@@ -760,7 +827,7 @@ app.get('/api/emails/waiting', async (req, res) => {
     const fetchMessage = async (id: string): Promise<any | null> => {
       try {
         if (session.provider === 'outlook') {
-          const r = await fetch(`${MICROSOFT_CONFIG.graphUrl}/me/messages/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${session.tokens.access_token}` } });
+          const r = await graphFetch(session, `/me/messages/${encodeURIComponent(id)}`);
           if (!r.ok) return null;
           const msg: any = await r.json();
           const body = msg.body?.content
@@ -817,6 +884,7 @@ app.get('/api/emails/waiting', async (req, res) => {
 
     res.json({ emails, total: rows.length, view, provider: session.provider || 'google' });
   } catch (error) {
+    if (replyReconnect(res, session, error)) return;
     console.error('Error fetching waiting emails:', error);
     res.status(500).json({ error: 'Failed to fetch emails' });
   }
@@ -896,7 +964,7 @@ async function checkAndIncrementAnalysis(opts: { sessionId?: string; userEmail?:
 async function fetchTriageInfo(session: any, emailId: string): Promise<{ headers: Headers; labels: string[] } | null> {
   try {
     if (session.provider === 'outlook') {
-      const r = await fetch(`${MICROSOFT_CONFIG.graphUrl}/me/messages/${encodeURIComponent(emailId)}?$select=internetMessageHeaders`, { headers: { Authorization: `Bearer ${session.tokens.access_token}` } });
+      const r = await graphFetch(session, `/me/messages/${encodeURIComponent(emailId)}?$select=internetMessageHeaders`);
       if (!r.ok) return null;
       const msg: any = await r.json();
       return { headers: headerMap(msg.internetMessageHeaders), labels: [] };
@@ -1709,6 +1777,7 @@ app.post('/api/send-reply', async (req, res) => {
     console.log(`✉️ Reply sent to: ${to} (via ${session.provider || 'google'})`);
     res.json({ success: true, ...status });
   } catch (error) {
+    if (replyReconnect(res, session, error)) return;
     console.error('Send error:', error);
     res.status(500).json({ error: 'Failed to send' });
   }
@@ -1883,6 +1952,7 @@ app.post('/api/quotes/:id/send', async (req, res) => {
     console.log(`✉️ Quote sent to: ${quote.customer_email}`);
     res.json({ success: true, quote: updated });
   } catch (error) {
+    if (replyReconnect(res, session, error)) return;
     console.error('Quote send error:', error);
     res.status(500).json({ error: 'Failed to send quote' });
   }
@@ -2408,6 +2478,7 @@ app.post('/api/save-draft', async (req, res) => {
     console.log(`📝 Draft saved for: ${to} (via ${session.provider || 'google'})`);
     res.json({ success: true, draft: { id, at: new Date().toISOString(), text: body } });
   } catch (error) {
+    if (replyReconnect(res, session, error)) return;
     console.error('Draft error:', error);
     res.status(500).json({ error: 'Failed to save draft' });
   }

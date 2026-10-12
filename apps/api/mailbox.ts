@@ -3,16 +3,19 @@
 // they show up in Gmail/Outlook exactly like replies written there.
 import { google } from 'googleapis';
 import { fromGmailThread, fromOutlookConversation, type Mailbox } from './replies';
+import { ReconnectError } from './tokens';
 
 export interface MailSession {
   provider: 'google' | 'outlook';
   email: string;
-  tokens: { access_token: string; refresh_token?: string; expiry_date?: number | null };
+  tokens: { access_token: string; refresh_token?: string | null; expiry_date?: number | null };
 }
 
 export interface MailConfig {
   google: { clientId?: string; clientSecret?: string; redirectUri: string };
   graphUrl: string;
+  /** Graph call with token refresh (server.ts graphFetch); plain fetch with the session token otherwise. */
+  graphFetch?: (session: MailSession, url: string, init: RequestInit) => Promise<Response>;
 }
 
 export interface ReplyMessage {
@@ -38,11 +41,15 @@ function gmail(session: MailSession, cfg: MailConfig) {
 }
 
 async function graph(session: MailSession, cfg: MailConfig, path: string, init: { method?: string; body?: unknown } = {}): Promise<any> {
-  const r = await fetch(`${cfg.graphUrl}${path}`, {
+  const req: RequestInit = {
     method: init.method || 'GET',
-    headers: { Authorization: `Bearer ${session.tokens.access_token}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
-  });
+  };
+  const r = cfg.graphFetch
+    ? await cfg.graphFetch(session, `${cfg.graphUrl}${path}`, req)
+    : await fetch(`${cfg.graphUrl}${path}`, { ...req, headers: { ...(req.headers as Record<string, string>), Authorization: `Bearer ${session.tokens.access_token}` } });
+  if (r.status === 401) throw new ReconnectError('outlook', 'Graph answered 401');
   if (!r.ok) throw Object.assign(new Error(`Graph ${r.status} ${path.split('?')[0]}`), { status: r.status });
   return r.status === 202 || r.status === 204 ? null : r.json();
 }
