@@ -24,8 +24,10 @@ In production the Stripe and Terminal49 webhooks refuse events if their secret i
 
 ## Local development
 
+Locally the API uses the **development** Supabase project from `.env.development` at the repo root (template `.env.development.example`; setup in `supabase/README.md`), loaded before `.env`. It refuses to start when `SUPABASE_URL` points at production (`db-guard.ts`).
+
 ```
-npm run dev     # http://localhost:3001, reads ../../.env
+npm run dev     # http://localhost:3001, reads ../../.env.development, then ../../.env
 npm test        # unit tests
 npm run check:vercel  # type check exactly as the Vercel build runs it; run before every push
 ```

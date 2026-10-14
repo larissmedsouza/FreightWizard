@@ -1,5 +1,8 @@
 .env
 .env.local
+# Any env file holds secrets; only the .example files are committed
+.env.*
+!.env.*.example
 apps/web/.env.local
 apps/web/.next/
 node_modules/node_modules

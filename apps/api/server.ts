@@ -19,11 +19,27 @@ import { tokenManager, refreshFailure, ReconnectError, type Provider } from './t
 import { cachedMailbox, mergeReply, replyState, sentNowState, syncReplies, type AnalysedRow, type Mailbox, type ReplyState, type ReplyStore } from './replies';
 import { draftText, htmlToText, mailboxFor, saveReplyDraft, sendReply, type MailConfig } from './mailbox';
 import { cleanProfileInput, companyOwner, mergeProfile, profileCnpj, toApi, type CompanyProfileRow } from './company';
+import { databaseGuard } from './db-guard';
 import { OAuth2Client } from 'google-auth-library';
 import { waitUntil } from '@vercel/functions';
 
-// Load env from root (for local dev)
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Local env files (on Vercel the project's environment variables are used).
+// .env.development (the development Supabase project) is loaded first, so its
+// values win over .env (shared local secrets). See README.md.
+const keysFromFiles = new Set<string>();
+for (const file of ['../../.env.development', '../../.env']) {
+  const loaded = dotenv.config({ path: path.resolve(__dirname, file) });
+  for (const key of Object.keys(loaded.parsed || {})) keysFromFiles.add(key);
+}
+
+// Never run local code against the production database (db-guard.ts).
+const dbCheck = databaseGuard(process.env, { onVercel: !!process.env.VERCEL, keysFromFiles });
+if ('message' in dbCheck) { // 'in' narrows in Vercel's non-strict check too
+  console.error(`\n🛑 ${dbCheck.message}\n`);
+  if (!process.env.VERCEL) process.exit(1);
+} else {
+  console.log(`🗄️ Database: ${dbCheck.production ? 'PRODUCTION' : 'development'} project (${dbCheck.ref})`);
+}
 
 // Environment URLs
 // Production: API_URL=https://api.freightwizard.app (builds the OAuth callback URLs)
