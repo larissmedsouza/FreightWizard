@@ -8,6 +8,7 @@ Express API (`server.ts`) for the web app, the Gmail add-on and webhooks. Data l
 - Domain **https://api.freightwizard.app** (Cloudflare DNS, CNAME to Vercel, DNS only).
 - Region **fra1** (`vercel.json`), next to Supabase in eu-central-2 (Zurich). Max duration 300 s.
 - Vercel runs the exported Express app as one function; `app.listen` only runs locally.
+- Vercel type-checks without a tsconfig.json: TypeScript from a fresh install, target ES2021, NodeNext, **strict: false**. A type error fails the deploy; `npm run check:vercel` runs the same check.
 
 ## Environment variables
 
@@ -26,4 +27,5 @@ In production the Stripe and Terminal49 webhooks refuse events if their secret i
 ```
 npm run dev     # http://localhost:3001, reads ../../.env
 npm test        # unit tests
+npm run check:vercel  # type check exactly as the Vercel build runs it; run before every push
 ```

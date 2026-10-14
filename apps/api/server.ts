@@ -3311,7 +3311,8 @@ app.put('/api/company-profile', async (req, res) => {
   const session = await getSession(req.query.session as string);
   if (!session?.userId) return res.status(401).json({ error: 'Not authenticated' });
   const input = cleanProfileInput(req.body);
-  if (!input.ok) return res.status(400).json({ error: input.error });
+  // 'in' narrows in Vercel's non-strict type check too (`!input.ok` does not)
+  if ('error' in input) return res.status(400).json({ error: input.error });
   try {
     const owner = await companyOwner(supabase as unknown as Db, session.userId);
     if (!owner.canEdit) return res.status(403).json({ error: 'Only the account owner or a manager can edit the company profile' });
