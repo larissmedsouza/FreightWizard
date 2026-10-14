@@ -13,12 +13,16 @@
 -- shows "Reconnect Gmail". To test a real mailbox, sign in with Google or
 -- Outlook on localhost as usual (it is stored in this dev project only).
 
--- Safety net: the production project has real accounts; refuse to seed a
--- database that has profiles outside the .test domain.
+-- Safety net: runs only on an empty development database (no accounts outside
+-- .test) or on one this seed already ran on (its fake team exists). The
+-- production project has real accounts and never this team, so it is refused.
+-- (Signing in on localhost adds your own test mailbox to the dev project; the
+-- marker keeps the seed usable there.)
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM public.profiles WHERE email NOT LIKE '%.test') THEN
-    RAISE EXCEPTION 'This database has real (non-.test) accounts. The dev seed only runs on the development project.';
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE email NOT LIKE '%.test')
+     AND NOT EXISTS (SELECT 1 FROM public.teams WHERE id = '00000000-0000-4000-8000-000000000010') THEN
+    RAISE EXCEPTION 'This database has real (non-.test) accounts and was never seeded. The dev seed only runs on the development project.';
   END IF;
 END $$;
 
@@ -59,6 +63,12 @@ INSERT INTO public.gmail_sessions (session_id, user_id, gmail_email, user_name, 
   ('dev-owner', '00000000-0000-4000-8000-000000000001', 'dana.owner@demo-forwarding.test', 'Dana Owner', 'google'),
   ('dev-agent', '00000000-0000-4000-8000-000000000002', 'ravi.agent@demo-forwarding.test', 'Ravi Agent', 'google'),
   ('dev-solo', '00000000-0000-4000-8000-000000000003', 'sam.solo@demo-forwarding.test', 'Sam Solo', 'outlook');
+
+-- Our own test mailbox, when it has signed in on localhost: internal plan (no
+-- limits), as in production. Only touches the dev project (see the safety net).
+INSERT INTO public.subscriptions (user_email, plan, status, trial_analyses_used)
+VALUES ('freightzard@gmail.com', 'internal', 'active', 0)
+ON CONFLICT (user_email) DO UPDATE SET plan = 'internal', status = 'active', updated_at = now();
 
 -- ---- Company profile (Netherlands, with a kept Brazilian CNPJ) ------------------
 INSERT INTO public.company_profiles (owner_user_id, country, legal_name, trade_name, identifiers, address, contact_name, contact_email, phone_country, phone_number, updated_by) VALUES
