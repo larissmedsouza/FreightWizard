@@ -97,3 +97,25 @@ export function legacyTokenUpdates(cipher: Cipher, rows: SessionTokenRow[]): Tok
       set: { access_token: sealToken(cipher, r.access_token), refresh_token: sealToken(cipher, r.refresh_token) },
     }));
 }
+
+/**
+ * makeCipher that never stops the API from starting. A malformed key is
+ * reported; mailbox tokens then stay as they are, and saving integration
+ * secrets fails with the key error (as it did before tokens were encrypted).
+ */
+export function makeCipherSafe(keyHex: string | undefined, opts: { onVercel: boolean }): { cipher: Cipher; error: string | null } {
+  try {
+    return { cipher: makeCipher(keyHex, opts), error: null };
+  } catch (e: any) {
+    const error = String(e?.message || e);
+    return {
+      error,
+      cipher: {
+        usingFallback: false,
+        tokensEncrypted: false,
+        encrypt: () => { throw new Error(error); },
+        decrypt: () => '',
+      },
+    };
+  }
+}

@@ -37,3 +37,12 @@ test('the user message carries the language and the email', () => {
   assert.match(m, /Email Subject: RFQ 2x40HC/);
   assert.match(analysisUserMessage({ ...email }), /in English\./);
 });
+
+test('same order as before caching, except the language line (instructions → email → JSON format)', () => {
+  const dropLang = (s: string) => s.split('\n').filter(l => l.trim() && !l.startsWith('IMPORTANT: Respond with summary')).map(l => l.trimEnd());
+  for (const language of ['en', 'pt', 'nl']) {
+    const old = renderBefore(language, email.subject, email.from, email.body);
+    const now = ANALYSIS_INSTRUCTIONS + '\n' + analysisUserMessage({ language, ...email });
+    assert.deepEqual(dropLang(now), dropLang(old), language);
+  }
+});

@@ -67,3 +67,14 @@ test('integration secrets keep the stored format (JSON iv/data/tag)', () => {
   assert.deepEqual(Object.keys(v).sort(), ['data', 'iv', 'tag']);
   assert.equal(local.decrypt(JSON.stringify(v)), 'serpro-secret');
 });
+
+import { makeCipherSafe } from './secrets';
+
+test('a malformed key never stops the API: tokens stay as they are, secrets refuse to save', () => {
+  const { cipher, error } = makeCipherSafe('abcd', { onVercel: true });
+  assert.match(String(error), /64 hex chars/);
+  assert.equal(cipher.tokensEncrypted, false);
+  assert.equal(sealToken(cipher, 'tok'), 'tok');
+  assert.throws(() => cipher.encrypt('serpro'), /64 hex chars/);
+  assert.equal(makeCipherSafe(KEY, { onVercel: true }).error, null);
+});

@@ -21,7 +21,7 @@ import { cachedMailbox, mergeReply, replyState, sentNowState, syncReplies, type 
 import { draftText, htmlToText, mailboxFor, saveReplyDraft, sendReply, type MailConfig } from './mailbox';
 import { cleanProfileInput, companyOwner, mergeProfile, profileCnpj, toApi, type CompanyProfileRow } from './company';
 import { databaseGuard, keyRole, sessionContext, sessionIdAllowed } from './db-guard';
-import { makeCipher, sealToken, openToken, legacyTokenUpdates, type SessionTokenRow } from './secrets';
+import { makeCipherSafe, sealToken, openToken, legacyTokenUpdates, type SessionTokenRow } from './secrets';
 import { OAuth2Client } from 'google-auth-library';
 import { waitUntil } from '@vercel/functions';
 
@@ -46,8 +46,9 @@ if ('message' in dbCheck) { // 'in' narrows in Vercel's non-strict check too
 const SESSION_CONTEXT = sessionContext(process.env, dbCheck);
 
 // Secrets at rest (secrets.ts): integration credentials and mailbox OAuth tokens
-const secretCipher = makeCipher(process.env.INTEGRATION_ENCRYPTION_KEY, { onVercel: !!process.env.VERCEL });
-if (!secretCipher.tokensEncrypted) console.error('🛑 INTEGRATION_ENCRYPTION_KEY is not set: mailbox tokens are stored unencrypted. Set it in the Vercel project.');
+const { cipher: secretCipher, error: cipherError } = makeCipherSafe(process.env.INTEGRATION_ENCRYPTION_KEY, { onVercel: !!process.env.VERCEL });
+if (cipherError) console.error(`🛑 ${cipherError}: mailbox tokens stay unencrypted and integration secrets can't be saved until it is fixed.`);
+else if (!secretCipher.tokensEncrypted) console.error('🛑 INTEGRATION_ENCRYPTION_KEY is not set: mailbox tokens are stored unencrypted. Set it in the Vercel project.');
 
 // Environment URLs
 // Production: API_URL=https://api.freightwizard.app (builds the OAuth callback URLs)
