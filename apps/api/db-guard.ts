@@ -60,3 +60,20 @@ export function databaseGuard(env: Record<string, string | undefined>, opts: { o
     ].join('\n'),
   };
 }
+
+/**
+ * Which Supabase role a key carries, without revealing the key: legacy keys
+ * are JWTs with a "role" claim; new keys say it in their prefix. RLS (no
+ * policies) is only safe while the API uses the service role.
+ */
+export function keyRole(key: string | undefined): 'service_role' | 'anon' | 'missing' | 'unknown' {
+  if (!key) return 'missing';
+  if (key.startsWith('sb_secret_')) return 'service_role';
+  if (key.startsWith('sb_publishable_')) return 'anon';
+  try {
+    const role = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString('utf8')).role;
+    return role === 'service_role' || role === 'anon' ? role : 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}

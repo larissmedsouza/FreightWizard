@@ -19,7 +19,8 @@ import { tokenManager, refreshFailure, ReconnectError, type Provider } from './t
 import { cachedMailbox, mergeReply, replyState, sentNowState, syncReplies, type AnalysedRow, type Mailbox, type ReplyState, type ReplyStore } from './replies';
 import { draftText, htmlToText, mailboxFor, saveReplyDraft, sendReply, type MailConfig } from './mailbox';
 import { cleanProfileInput, companyOwner, mergeProfile, profileCnpj, toApi, type CompanyProfileRow } from './company';
-import { databaseGuard, sessionContext, sessionIdAllowed } from './db-guard';
+import { databaseGuard, keyRole, sessionContext, sessionIdAllowed } from './db-guard';
+import { makeCipher, sealToken, openToken, legacyTokenUpdates, type SessionTokenRow } from './secrets';
 import { OAuth2Client } from 'google-auth-library';
 import { waitUntil } from '@vercel/functions';
 
@@ -42,6 +43,10 @@ if ('message' in dbCheck) { // 'in' narrows in Vercel's non-strict check too
 }
 // Where the dev-* session shortcut may work (sessionIdAllowed). Unknown database = treated as production.
 const SESSION_CONTEXT = sessionContext(process.env, dbCheck);
+
+// Secrets at rest (secrets.ts): integration credentials and mailbox OAuth tokens
+const secretCipher = makeCipher(process.env.INTEGRATION_ENCRYPTION_KEY, { onVercel: !!process.env.VERCEL });
+if (!secretCipher.tokensEncrypted) console.error('🛑 INTEGRATION_ENCRYPTION_KEY is not set: mailbox tokens are stored unencrypted. Set it in the Vercel project.');
 
 // Environment URLs
 // Production: API_URL=https://api.freightwizard.app (builds the OAuth callback URLs)
@@ -166,6 +171,10 @@ app.use(express.json({ limit: '4mb', verify: (req: any, _res, buf) => { req.rawB
 
 // Initialize clients
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// RLS is on with no policies: only the service role sees rows. The anon fallback
+// exists for old setups and is reported loudly (and on the status endpoint).
+const DB_KEY_ROLE = keyRole(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY);
+if (DB_KEY_ROLE !== 'service_role') console.error(`🛑 Supabase key role is "${DB_KEY_ROLE}", not service_role: with RLS on, the API will see no data. Set SUPABASE_SERVICE_ROLE_KEY.`);
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY!
@@ -236,8 +245,8 @@ async function saveSession(sessionId: string, userId: string, email: string, nam
       gmail_email: email,
       user_name: name,
       provider,
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
+      access_token: sealToken(secretCipher, tokens.access_token),
+      refresh_token: sealToken(secretCipher, tokens.refresh_token),
       token_expiry: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
       last_active: new Date().toISOString(),
     }, { onConflict: 'session_id' });
@@ -272,7 +281,7 @@ const mailTokens = tokenManager({
   refresh: refreshAtProvider,
   save: async (sessionId, t) => {
     const { error } = await supabase.from('gmail_sessions').update({
-      access_token: t.access_token, refresh_token: t.refresh_token,
+      access_token: sealToken(secretCipher, t.access_token), refresh_token: sealToken(secretCipher, t.refresh_token),
       token_expiry: t.expiry_date ? new Date(t.expiry_date).toISOString() : null,
     }).eq('session_id', sessionId);
     if (error) console.error(`Token save failed for session ${sessionId.slice(0, 4)}…: ${error.message}`);
@@ -346,8 +355,8 @@ async function getSession(sessionId: string) {
     const session = {
       sessionId,
       tokens: {
-        access_token: data.access_token as string,
-        refresh_token: (data.refresh_token || null) as string | null,
+        access_token: (openToken(secretCipher, data.access_token) || '') as string,
+        refresh_token: openToken(secretCipher, data.refresh_token),
         expiry_date: (data.token_expiry ? new Date(data.token_expiry).getTime() : null) as number | null,
       },
       email: data.gmail_email,
@@ -370,6 +379,33 @@ async function getSession(sessionId: string) {
     return null;
   }
 }
+
+// ============================================
+// One-off, idempotent: encrypt mailbox tokens stored before encryption
+// (secrets.ts legacyTokenUpdates). Runs in the background at startup; a row
+// refreshed meanwhile is left alone (the update matches the old values).
+// ============================================
+async function encryptLegacySessionTokens(): Promise<number> {
+  if (!secretCipher.tokensEncrypted) return 0;
+  let done = 0;
+  for (let from = 0; ; from += 500) {
+    const { data, error } = await supabase.from('gmail_sessions').select('session_id, access_token, refresh_token').order('session_id').range(from, from + 499);
+    if (error) throw error;
+    const rows = (data || []) as SessionTokenRow[];
+    for (const u of legacyTokenUpdates(secretCipher, rows)) {
+      let q = supabase.from('gmail_sessions').update(u.set).eq('session_id', u.session_id);
+      q = u.match.access_token === null ? q.is('access_token', null) : q.eq('access_token', u.match.access_token);
+      q = u.match.refresh_token === null ? q.is('refresh_token', null) : q.eq('refresh_token', u.match.refresh_token);
+      const { error: e } = await q;
+      if (e) console.error(`Token encryption failed for session ${u.session_id.slice(0, 4)}…: ${e.message}`); else done++;
+    }
+    if (rows.length < 500) break;
+  }
+  return done;
+}
+const tokenMigration = encryptLegacySessionTokens()
+  .then(n => { if (n) console.log(`🔐 Encrypted mailbox tokens of ${n} older session(s)`); })
+  .catch(e => console.error('Token encryption migration failed:', e?.message || e));
 
 // ============================================
 // HELPER: Track email activity
@@ -445,7 +481,7 @@ async function saveAnalysis(
 
 app.get('/', (req, res) => {
   // Which database this deployment uses (db-guard.ts), so it can be checked from outside
-  res.json({ status: 'Freightwizard API running', version: '2.0', database: SESSION_CONTEXT.production ? 'production' : 'development' });
+  res.json({ status: 'Freightwizard API running', version: '2.0', database: SESSION_CONTEXT.production ? 'production' : 'development', tokenEncryption: secretCipher.tokensEncrypted ? 'on' : 'off', dbKey: DB_KEY_ROLE });
 });
 
 // Start Google OAuth
@@ -3201,39 +3237,9 @@ app.post('/api/extract-text', async (req, res) => {
 // AES-256-GCM ENCRYPTION UTILITIES
 // ============================================
 
-const ENCRYPTION_KEY_HEX = process.env.INTEGRATION_ENCRYPTION_KEY || '';
-
-function getEncryptionKey(): Buffer {
-  if (!ENCRYPTION_KEY_HEX) {
-    // Fallback for dev — generate deterministic key from app name (NOT for production)
-    const fallback = 'freightwizard-dev-key-32bytes!!!';
-    return Buffer.from(fallback.padEnd(32).slice(0, 32));
-  }
-  const key = Buffer.from(ENCRYPTION_KEY_HEX, 'hex');
-  if (key.length !== 32) throw new Error('INTEGRATION_ENCRYPTION_KEY must be 64 hex chars (32 bytes)');
-  return key;
-}
-
-function encryptField(plaintext: string): string {
-  const key = getEncryptionKey();
-  const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', key, iv);
-  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
-  const authTag = cipher.getAuthTag();
-  return JSON.stringify({ iv: iv.toString('hex'), data: encrypted.toString('hex'), tag: authTag.toString('hex') });
-}
-
-function decryptField(ciphertext: string): string {
-  try {
-    const key = getEncryptionKey();
-    const { iv, data, tag } = JSON.parse(ciphertext);
-    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'));
-    decipher.setAuthTag(Buffer.from(tag, 'hex'));
-    return Buffer.concat([decipher.update(Buffer.from(data, 'hex')), decipher.final()]).toString('utf8');
-  } catch {
-    return '';
-  }
-}
+// Integration secrets (SERPRO, Portbase…): same cipher and stored format as before (secrets.ts).
+function encryptField(plaintext: string): string { return secretCipher.encrypt(plaintext); }
+function decryptField(ciphertext: string): string { return secretCipher.decrypt(ciphertext); }
 
 // ============================================
 // TENANT INTEGRATIONS — CRUD + SETTINGS

@@ -4,7 +4,7 @@
   "scripts": {
     "start": "npx tsx server.ts",
     "dev": "npx tsx watch server.ts",
-    "test": "npx tsx --test overview.test.ts billing.test.ts triage.test.ts claude.test.ts results.test.ts replies.test.ts company.test.ts tokens.test.ts db-guard.test.ts",
+    "test": "npx tsx --test overview.test.ts billing.test.ts triage.test.ts claude.test.ts results.test.ts replies.test.ts company.test.ts tokens.test.ts db-guard.test.ts secrets.test.ts",
     "check:vercel": "node scripts/check-vercel.mjs"
   },
   "dependencies": {

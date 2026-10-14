@@ -81,3 +81,15 @@ test('real session IDs (random base36, no dash) are never affected', () => {
   assert.ok(!real.includes('-'));
   for (const env of [{ SUPABASE_URL: DEV }, { VERCEL: '1', SUPABASE_URL: PROD }]) assert.equal(allowedFor(env, real), true);
 });
+
+import { keyRole } from './db-guard';
+const jwt = (payload: object) => ['eyJhbGciOiJIUzI1NiJ9', Buffer.from(JSON.stringify(payload)).toString('base64url'), 'sig'].join('.');
+
+test('keyRole tells the service role from the anon key without exposing either', () => {
+  assert.equal(keyRole(jwt({ role: 'service_role', iss: 'supabase' })), 'service_role');
+  assert.equal(keyRole(jwt({ role: 'anon', iss: 'supabase' })), 'anon');
+  assert.equal(keyRole('sb_secret_abc'), 'service_role');
+  assert.equal(keyRole('sb_publishable_abc'), 'anon');
+  assert.equal(keyRole(undefined), 'missing');
+  assert.equal(keyRole('garbage'), 'unknown');
+});
