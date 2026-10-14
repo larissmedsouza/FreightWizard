@@ -19,7 +19,7 @@ import { tokenManager, refreshFailure, ReconnectError, type Provider } from './t
 import { cachedMailbox, mergeReply, replyState, sentNowState, syncReplies, type AnalysedRow, type Mailbox, type ReplyState, type ReplyStore } from './replies';
 import { draftText, htmlToText, mailboxFor, saveReplyDraft, sendReply, type MailConfig } from './mailbox';
 import { cleanProfileInput, companyOwner, mergeProfile, profileCnpj, toApi, type CompanyProfileRow } from './company';
-import { databaseGuard } from './db-guard';
+import { databaseGuard, sessionContext, sessionIdAllowed } from './db-guard';
 import { OAuth2Client } from 'google-auth-library';
 import { waitUntil } from '@vercel/functions';
 
@@ -40,6 +40,8 @@ if ('message' in dbCheck) { // 'in' narrows in Vercel's non-strict check too
 } else {
   console.log(`🗄️ Database: ${dbCheck.production ? 'PRODUCTION' : 'development'} project (${dbCheck.ref})`);
 }
+// Where the dev-* session shortcut may work (sessionIdAllowed). Unknown database = treated as production.
+const SESSION_CONTEXT = sessionContext(process.env, dbCheck);
 
 // Environment URLs
 // Production: API_URL=https://api.freightwizard.app (builds the OAuth callback URLs)
@@ -291,9 +293,11 @@ async function graphFetch(session: Session, path: string, init: RequestInit = {}
  * reached again after signing in (Outlook or Gmail refresh token missing or
  * refused). Returns false for every other error.
  */
-function replyReconnect(res: express.Response, session: { provider?: string } | null, error: any): boolean {
+function replyReconnect(res: express.Response, session: { provider?: string; mailboxReconnect?: boolean } | null, error: any): boolean {
   const gmailRefused = session?.provider !== 'outlook' && /invalid_grant/.test(String(error?.message || '') + String(error?.response?.data?.error || ''));
-  const provider = error instanceof ReconnectError ? error.provider : gmailRefused ? 'google' : null;
+  // A token already known to be unusable explains any mailbox error (e.g. Google's "No access, refresh token")
+  const knownDead = session?.mailboxReconnect ? (session.provider === 'outlook' ? 'outlook' : 'google') : null;
+  const provider = error instanceof ReconnectError ? error.provider : gmailRefused ? 'google' : knownDead;
   if (!provider) return false;
   console.warn(`Mailbox needs reconnecting (${provider}): ${error?.message || error}`);
   res.status(401).json({ error: `${provider === 'outlook' ? 'Outlook' : 'Gmail'} needs to be reconnected`, reason: 'reconnect_mailbox', provider });
@@ -325,6 +329,8 @@ const callerDeps: CallerDeps = {
 const callerOf = (req: express.Request) => resolveCaller(req as any, callerDeps);
 
 async function getSession(sessionId: string) {
+  // dev-* sessions (seed.sql) only locally against the development project
+  if (typeof sessionId !== 'string' || !sessionId || !sessionIdAllowed(sessionId, SESSION_CONTEXT)) return null;
   try {
     const { data, error } = await supabase
       .from('gmail_sessions')
@@ -348,12 +354,15 @@ async function getSession(sessionId: string) {
       name: data.user_name || data.gmail_email,
       userId: data.user_id,
       provider: (data.provider || 'google') as 'google' | 'outlook',
+      /** The mailbox token can't be refreshed: mailbox endpoints answer reconnect_mailbox. */
+      mailboxReconnect: false,
     };
     // Mailbox token: refresh shortly before it expires. A failure doesn't end
     // the login (pages without the mailbox keep working); mailbox calls then
     // answer reconnect_mailbox.
     await mailTokens.fresh(session).catch(e => {
-      if (!(e instanceof ReconnectError)) console.error(`Token refresh failed (${session.provider}): ${e.message}`);
+      if (e instanceof ReconnectError) session.mailboxReconnect = true;
+      else console.error(`Token refresh failed (${session.provider}): ${e.message}`);
     });
     return session;
   } catch (e) {

@@ -26,4 +26,5 @@ The local API refuses to start against production (`apps/api/db-guard.ts`).
 ## Signing in locally
 
 - Fake accounts, no OAuth: `http://localhost:3000/overview?session=dev-owner` (also `dev-agent`, `dev-solo`). They have no mailbox: the live Inbox shows "Reconnect Gmail"; everything else works.
+  The API accepts `dev-*` session IDs only when it runs locally against the development project; on Vercel or against production they are rejected before any database lookup (`sessionIdAllowed` in `apps/api/db-guard.ts`, tested in `db-guard.test.ts`).
 - Real test mailboxes: sign in with Google or Outlook on localhost as usual. Sessions and analyses are stored in the development project only.

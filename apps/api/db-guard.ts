@@ -17,6 +17,24 @@ export type GuardResult =
   | { ok: true; ref: string; production: boolean }
   | { ok: false; message: string };
 
+/** Session IDs of the seeded fake accounts (supabase/seed.sql): ?session=dev-owner. */
+export const DEV_SESSION_PREFIX = 'dev-';
+
+/**
+ * The dev-* session shortcut works only when the API runs locally against the
+ * development project; on Vercel or against production such an ID is rejected
+ * before any database lookup. Real session IDs never contain a '-'.
+ */
+export function sessionIdAllowed(sessionId: string, ctx: { onVercel: boolean; production: boolean }): boolean {
+  if (!sessionId.startsWith(DEV_SESSION_PREFIX)) return true;
+  return !ctx.onVercel && !ctx.production;
+}
+
+/** Where this process runs, for sessionIdAllowed. A failed guard counts as production. */
+export function sessionContext(env: Record<string, string | undefined>, check: GuardResult): { onVercel: boolean; production: boolean } {
+  return { onVercel: !!env.VERCEL, production: 'ref' in check ? check.production : true };
+}
+
 export function projectRef(url: string | undefined): string | null {
   try { return new URL(url || '').hostname.split('.')[0] || null; } catch { return null; }
 }

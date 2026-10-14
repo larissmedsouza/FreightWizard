@@ -9,8 +9,11 @@
 import fs from 'node:fs';
 
 const [a, b] = process.argv.slice(2).map(f => JSON.parse(fs.readFileSync(f, 'utf8')).definitions);
+// Newer PostgREST versions label some PostgreSQL types differently (14.18
+// reports integer columns as int32, 14.5 as integer); same column type.
+const SAME_TYPE = { int32: 'integer', int64: 'bigint' };
 const describe = (p) => [
-  p.format || 'jsonb',
+  SAME_TYPE[p.format] || p.format || 'jsonb',
   p.default !== undefined ? `default ${p.default}` : '',
   (p.description || '').match(/<pk\/>/) ? 'pk' : '',
   ((p.description || '').match(/<fk table='([^']+)' column='([^']+)'/) || []).slice(1).join('.'),
