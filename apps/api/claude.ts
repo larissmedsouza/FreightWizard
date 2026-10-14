@@ -22,3 +22,26 @@ export function warnIfTruncated(where: string, message: { stop_reason?: string |
     console.warn(`⚠️ ${where}: Claude reply hit max_tokens (${message.usage?.output_tokens} output tokens); result may be incomplete`);
   }
 }
+
+/** Token counts of one Claude call, stored with its activity row (email_activity). */
+export interface Usage {
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  /** Prompt-cache reads (billed at ~10% of input) and writes (~125% of input). */
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+}
+
+type ApiUsage = { input_tokens?: number | null; output_tokens?: number | null; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null };
+
+export function usageOf(message: { model?: string; usage?: ApiUsage | null }): Usage {
+  const u = message.usage || {};
+  return {
+    model: message.model || CLAUDE_MODEL,
+    input_tokens: u.input_tokens ?? 0,
+    output_tokens: u.output_tokens ?? 0,
+    cache_read_tokens: u.cache_read_input_tokens ?? 0,
+    cache_write_tokens: u.cache_creation_input_tokens ?? 0,
+  };
+}

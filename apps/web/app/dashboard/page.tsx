@@ -450,7 +450,7 @@ function ReplyBox({ email, darkMode, theme, session, onSent, onDraftSaved, onRec
     try {
       const res = await fetch(`${API_URL}/api/translate?session=${session || ''}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: replyText, targetLanguage: targetLang }),
+        body: JSON.stringify({ text: replyText, targetLanguage: targetLang, emailId: email.id }),
       });
       const data = await res.json();
       if (data.translated) { setReplyText(data.translated); setReplyLang(targetLang); }

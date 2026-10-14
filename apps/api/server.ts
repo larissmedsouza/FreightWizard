@@ -11,7 +11,8 @@ import https from 'https';
 import { PORT_LOCODES } from './ports';
 import { buildOverview, listWaitingEmails, type Db, type WaitingView } from './overview';
 import { analysisPolicy, countMonthlyAnalyses, getPlanLimits, isTrialExpired, TRIAL_ANALYSES } from './billing';
-import { CLAUDE_MODEL, CLAUDE_MAX_TOKENS, replyText, warnIfTruncated } from './claude';
+import { CLAUDE_MODEL, CLAUDE_MAX_TOKENS, replyText, warnIfTruncated, usageOf, type Usage } from './claude';
+import { ANALYSIS_SYSTEM, analysisUserMessage } from './prompts';
 import { headerMap, isBulkMail, freightScore, marketingAnalysis, type Headers } from './triage';
 import { resolveCaller, type CallerDeps } from './caller';
 import { findResultForCaller } from './results';
@@ -410,23 +411,32 @@ const tokenMigration = encryptLegacySessionTokens()
 // ============================================
 // HELPER: Track email activity
 // ============================================
+// AI calls carry their token counts (Phase 0: real cost per user and plan).
+// Documents, comparisons, text extraction and translations get their own
+// action; a failed analysis is recorded too (its tokens are paid for).
+type ActivityAction = 'received' | 'analyzed' | 'replied' | 'draft_saved'
+  | 'ai_failed' | 'document_analyzed' | 'documents_compared' | 'text_extracted' | 'translated';
+
+let tokenColumnsMissing = false;
 async function trackActivity(
   userId: string,
   emailId: string,
-  action: 'received' | 'analyzed' | 'replied' | 'draft_saved',
+  action: ActivityAction,
   intent?: string,
   priority?: string,
-  responseTimeMinutes?: number
+  responseTimeMinutes?: number,
+  usage?: Usage
 ) {
   try {
-    await supabase.from('email_activity').insert({
-      user_id: userId,
-      email_id: emailId,
-      action,
-      intent,
-      priority,
-      response_time_minutes: responseTimeMinutes,
-    });
+    const row = { user_id: userId, email_id: emailId, action, intent, priority, response_time_minutes: responseTimeMinutes };
+    let { error } = await supabase.from('email_activity').insert(usage && !tokenColumnsMissing ? { ...row, ...usage } : row);
+    // Token columns not created yet (migration 20261014_ai_token_counts.sql): keep the activity, drop the counts
+    if (error?.code === 'PGRST204' && usage) {
+      if (!tokenColumnsMissing) console.error('email_activity has no token columns yet: run supabase/migrations/20261014_ai_token_counts.sql');
+      tokenColumnsMissing = true;
+      ({ error } = await supabase.from('email_activity').insert(row));
+    }
+    if (error) throw error;
     console.log(`📊 Tracked: ${action} for email ${emailId.substring(0, 8)}...`);
   } catch (e) {
     console.error('Error tracking activity:', e);
@@ -1167,78 +1177,12 @@ app.post('/api/analyze', async (req, res) => {
   }
 
   try {
+    // Fixed instructions in a cached system prompt; only the language and the email are new per call (prompts.ts).
     const message = await anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: CLAUDE_MAX_TOKENS, // see claude.ts: thinking + full JSON must fit
-      messages: [{
-        role: 'user',
-        content: `You are Freightwizard AI, an expert freight forwarding email analyst.
-IMPORTANT: Respond with summary and suggested_reply in ${language === 'pt' ? 'Brazilian Portuguese' : language === 'nl' ? 'Dutch' : 'English'}. Keep intent, priority, mode, pol, pod values in English always.
-
-Analyze this freight email and extract:
-1. Intent — choose the MOST specific match:
-   Standard: quote_request, booking_confirmation, tracking_inquiry, documentation_request, rate_inquiry, status_update, complaint, general_inquiry
-   CE Mercante (Brazilian maritime): ce_mercante_consulta (asking for CE number/status/location), afrmm_status_check (asking about AFRMM tax payment), cargo_release_followup (asking if cargo released in system), manifesto_consulta (asking about vessel manifest/CE), pendencia_documental_mercante (asking about pending documents in Mercante system)
-   Mercante trigger patterns: "CE Mercante", "AFRMM", "conhecimento eletrônico", "Sistema Mercante", "BL no Mercante", "carga liberada", "manifesto", "cargo release status", "advise if AFRMM", "CE number for shipment", "Please confirm CE"
-2. Priority: urgent, high, medium, low
-   NOTE: cargo_release_followup and afrmm_status_check → always high; other Mercante intents → medium
-3. Transport mode: ocean, air, road, rail, multimodal
-4. POL (Port of Loading) and POD (Port of Discharge)
-5. Incoterm if mentioned
-6. Cargo type, container type, container count
-7. Missing information needed to proceed
-   For Mercante intents also check: CE Mercante number, BL / MBL / HBL number, Manifesto reference, CNPJ / Importer, Discharge port, Carrier / Armador, AFRMM payment proof, Expected arrival date
-8. Brief summary — for Mercante intents: state what client is asking, what data was found/not found, operational implication, next action
-9. Professional reply draft — for Mercante intents use context-aware template:
-   If data missing: ask client for BL/CE/CNPJ to query Sistema Mercante
-   If CE found + AFRMM pending: inform client and request payment proof
-   If CE found + AFRMM paid: confirm cargo release status
-10. Mercante entity extraction (fill if email is Mercante-related, null otherwise):
-    ce_number (9-15 digit numeric), bl_number (alphanumeric BL/MBL/HBL), container_number (4 letters + 7 digits), vessel_name, voyage, discharge_port, origin_port, carrier/armador, importer_cnpj (Brazilian CNPJ), shipment_date
-11. Shipment identifiers — extract from ANY email (not just Mercante-related), null if not mentioned: reference/booking number, container number, BL/MBL/HBL number
-12. Shipment status hint — infer what this email implies about a shipment's status, or null if it implies no status change. One of: inquiry (asking for a quote), quoted, booked ("booking confirmed"), in_transit ("vessel departed", "cargo shipped/in transit"), at_destination ("arrived at port", "cargo landed"), delivered ("delivered", "POD signed"), closed, cancelled
-13. HS code — the Harmonized System / commodity tariff code if mentioned anywhere in the email (e.g. "0901.21", "09012100"), null if not mentioned
-
-Email Subject: ${subject}
-From: ${from}
-Body: ${body}
-
-Respond in JSON format:
-{
-  "intent": "",
-  "priority": "",
-  "mode": "",
-  "pol": "",
-  "pod": "",
-  "incoterm": "",
-  "cargo_type": "",
-  "container_type": "",
-  "container_count": null,
-  "missing_info": [],
-  "summary": "",
-  "suggested_reply": "",
-  "mercante_entities": {
-    "ce_number": null,
-    "bl_number": null,
-    "container_number": null,
-    "vessel_name": null,
-    "voyage": null,
-    "discharge_port": null,
-    "origin_port": null,
-    "carrier": null,
-    "importer_cnpj": null,
-    "shipment_date": null
-  },
-  "shipment_identifiers": {
-    "reference": null,
-    "booking_number": null,
-    "container_number": null,
-    "bl_number": null
-  },
-  "shipment_status_hint": null,
-  "hs_code": null
-}`
-      }]
+      system: ANALYSIS_SYSTEM,
+      messages: [{ role: 'user', content: analysisUserMessage({ language, subject, from, body }) }],
     });
 
     // The reply can start with a thinking block; read every text block (claude.ts).
@@ -1255,7 +1199,7 @@ Respond in JSON format:
 
       if (userId && emailId) {
         await saveAnalysis(userId, sessionId || 'gmail_addon', emailId, subject, from, analysis);
-        await trackActivity(userId, emailId, 'analyzed', analysis.intent, analysis.priority);
+        await trackActivity(userId, emailId, 'analyzed', analysis.intent, analysis.priority, undefined, usageOf(message));
         console.log(`💾 Analysis saved to Supabase for user: ${userId}`);
       }
 
@@ -1268,6 +1212,7 @@ Respond in JSON format:
 
       res.json({ analysis, analyses_remaining });
     } else {
+      await trackActivity(caller.userId, emailId || 'unknown', 'ai_failed', undefined, undefined, undefined, usageOf(message));
       console.error(`Analysis parse failed for ${emailId}: stop_reason=${message.stop_reason}, output_tokens=${message.usage?.output_tokens}, text_chars=${text.length}`);
       res.status(500).json({ error: 'Failed to parse AI response' });
     }
@@ -2944,10 +2889,13 @@ Respond in JSON format:
       const userId = await getOrCreateUser(userEmail);
       if (userId) {
         await saveAnalysis(userId, 'gmail_addon', emailId, subject, from, analysis);
-        await trackActivity(userId, emailId, 'analyzed', analysis.intent, analysis.priority);
+        await trackActivity(userId, emailId, 'analyzed', analysis.intent, analysis.priority, undefined, usageOf(message));
       }
 
       console.log(`✅ Queue processed: ${emailId}`);
+    } else {
+      const userId = await getOrCreateUser(userEmail);
+      if (userId) await trackActivity(userId, emailId, 'ai_failed', undefined, undefined, undefined, usageOf(message));
     }
   } catch (e) {
     console.error('Process queue error:', e);
@@ -3053,7 +3001,10 @@ ${text?.substring(0, 8000)}`
     const responseText = replyText(message);
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
 
-    if (!jsonMatch) return res.status(500).json({ error: 'Failed to parse document' });
+    if (!jsonMatch) {
+      await trackActivity(session.userId, `document:${fileName || 'unknown'}`, 'ai_failed', undefined, undefined, undefined, usageOf(message));
+      return res.status(500).json({ error: 'Failed to parse document' });
+    }
 
     const analysis = JSON.parse(jsonMatch[0]);
 
@@ -3067,6 +3018,7 @@ ${text?.substring(0, 8000)}`
     }).select('id').single();
 
     if (error) console.error('Save document error:', error);
+    await trackActivity(session.userId, saved?.id ? `document:${saved.id}` : `document:${fileName || 'unknown'}`, 'document_analyzed', analysis.document_type, undefined, undefined, usageOf(message));
 
     res.json({ analysis, id: saved?.id });
   } catch (error) {
@@ -3175,6 +3127,7 @@ For severity:
     if (!jsonMatch) return res.status(500).json({ error: 'Failed to parse comparison' });
 
     const comparison = JSON.parse(jsonMatch[0]);
+    await trackActivity(session.userId, `compare:${randomUUID()}`, 'documents_compared', undefined, undefined, undefined, usageOf(message));
     res.json({ comparison });
   } catch (error) {
     console.error('Comparison error:', error);
@@ -3226,6 +3179,7 @@ app.post('/api/extract-text', async (req, res) => {
 
     warnIfTruncated('extract-text', message);
     const text = replyText(message);
+    await trackActivity(session.userId, `extract:${randomUUID()}`, 'text_extracted', undefined, undefined, undefined, usageOf(message));
     res.json({ text });
   } catch (error) {
     console.error('Extract text error:', error);
@@ -4052,8 +4006,9 @@ app.post('/api/mercante/query', async (req, res) => {
 
 // ── Translate reply text ───────────────────────────────────────────────────
 app.post('/api/translate', async (req, res) => {
-  if (!(await callerOf(req))) return res.status(401).json({ error: 'Not authenticated' });
-  const { text, targetLanguage } = req.body as { text: string; targetLanguage: string };
+  const caller = await callerOf(req);
+  if (!caller) return res.status(401).json({ error: 'Not authenticated' });
+  const { text, targetLanguage, emailId } = req.body as { text: string; targetLanguage: string; emailId?: string };
   if (!text || !targetLanguage) return res.status(400).json({ error: 'Missing text or targetLanguage' });
   const langNames: Record<string, string> = { en: 'English', pt: 'Brazilian Portuguese', nl: 'Dutch' };
   const lang = langNames[targetLanguage] || targetLanguage;
@@ -4064,6 +4019,7 @@ app.post('/api/translate', async (req, res) => {
       messages: [{ role: 'user', content: `Translate the following professional freight email reply to ${lang}. Preserve all formatting, names, references (CE numbers, BL numbers, ports, carriers), and the professional tone. Return only the translated text, no explanations.\n\n${text}` }],
     });
     warnIfTruncated('translate', msg);
+    await trackActivity(caller.userId, emailId || `translate:${randomUUID()}`, 'translated', targetLanguage, undefined, undefined, usageOf(msg));
     const translated = replyText(msg).trim();
     // Previously an empty reply silently returned the untranslated text.
     if (!translated) return res.status(500).json({ error: 'Translation failed' });
