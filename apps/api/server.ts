@@ -444,7 +444,8 @@ async function saveAnalysis(
 // ============================================
 
 app.get('/', (req, res) => {
-  res.json({ status: 'Freightwizard API running', version: '2.0' });
+  // Which database this deployment uses (db-guard.ts), so it can be checked from outside
+  res.json({ status: 'Freightwizard API running', version: '2.0', database: SESSION_CONTEXT.production ? 'production' : 'development' });
 });
 
 // Start Google OAuth
